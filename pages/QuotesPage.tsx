@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { mockEstimates, mockClients } from '../lib/mock-data';
 import { Estimate, EstimateStatus } from '../types';
 import { LanguageContext } from '../lib/context';
+import { storage } from '../lib/storage';
 
 const STATUS_OPTIONS: EstimateStatus[] = ['Accepted', 'Sent', 'Draft', 'Expired'];
 
@@ -24,7 +25,11 @@ const getStatusStyle = (status: EstimateStatus) => {
 const QuotesPage: React.FC = () => {
   const navigate = useNavigate();
   const { t, currencySymbol } = useContext(LanguageContext);
-  const [estimates, setEstimates] = useState<Estimate[]>(mockEstimates);
+  const [estimates, setEstimates] = useState<Estimate[]>(() => {
+    const stored = storage.estimates.get();
+    const storedIds = new Set(stored.map(e => e.id));
+    return [...stored, ...mockEstimates.filter(e => !storedIds.has(e.id))];
+  });
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState<EstimateStatus | 'All'>('All');

@@ -6,9 +6,10 @@ import {
   ChevronUp, ChevronDown
 } from 'lucide-react';
 import { mockInvoices, mockClients } from '../lib/mock-data';
-import { InvoiceStatus } from '../types';
+import { InvoiceStatus, Invoice } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { exportCSV } from '../lib/csvExport';
+import { storage } from '../lib/storage';
 
 const STATUS_OPTIONS: InvoiceStatus[] = ['Paid', 'Pending', 'Overdue', 'Draft'];
 
@@ -24,6 +25,11 @@ const getStatusStyle = (status: InvoiceStatus) => {
 const InvoicesPage: React.FC = () => {
   const navigate = useNavigate();
   const { t, currencySymbol } = useContext(LanguageContext);
+  const [allInvoices] = useState<Invoice[]>(() => {
+    const stored = storage.invoices.get();
+    const storedIds = new Set(stored.map((e: Invoice) => e.id));
+    return [...stored, ...mockInvoices.filter((e: Invoice) => !storedIds.has(e.id))];
+  });
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState<InvoiceStatus | 'All'>('All');
@@ -41,7 +47,7 @@ const InvoicesPage: React.FC = () => {
     else { setSortKey(key); setSortDir('asc'); }
   };
 
-  const filtered = mockInvoices.filter(inv => {
+  const filtered = allInvoices.filter(inv => {
     const matchSearch =
       inv.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
       inv.clientName.toLowerCase().includes(search.toLowerCase());
