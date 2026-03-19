@@ -1,8 +1,9 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useMemo } from 'react';
 import { LanguageContext } from '../lib/context';
 import {
   Search, Plus, Filter, FileText, Download, Send,
-  MoreHorizontal, CheckCircle2, Clock, AlertCircle, X
+  MoreHorizontal, CheckCircle2, Clock, AlertCircle, X,
+  ChevronUp, ChevronDown
 } from 'lucide-react';
 import { mockInvoices, mockClients } from '../lib/mock-data';
 import { InvoiceStatus } from '../types';
@@ -32,6 +33,14 @@ const InvoicesPage: React.FC = () => {
   const [customTo, setCustomTo] = useState('');
   const [customToTime, setCustomToTime] = useState('23:59');
 
+  const [sortKey, setSortKey] = useState<string>('dueDate');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
+
   const filtered = mockInvoices.filter(inv => {
     const matchSearch =
       inv.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
@@ -40,9 +49,37 @@ const InvoicesPage: React.FC = () => {
     return matchSearch && matchStatus;
   });
 
+  const sorted = useMemo(() => {
+    if (!sortKey) return filtered;
+    return [...filtered].sort((a, b) => {
+      const av = (a as any)[sortKey];
+      const bv = (b as any)[sortKey];
+      if (typeof av === 'number' && typeof bv === 'number')
+        return sortDir === 'asc' ? av - bv : bv - av;
+      return sortDir === 'asc'
+        ? String(av ?? '').localeCompare(String(bv ?? ''))
+        : String(bv ?? '').localeCompare(String(av ?? ''));
+    });
+  }, [filtered, sortKey, sortDir]);
+
   const totalPaid    = filtered.filter(i => i.status === 'Paid').reduce((s, i) => s + i.totalAmount, 0);
   const totalPending = filtered.filter(i => i.status === 'Pending').reduce((s, i) => s + i.totalAmount, 0);
   const totalOverdue = filtered.filter(i => i.status === 'Overdue').reduce((s, i) => s + i.totalAmount, 0);
+
+  const SortTh = ({ col, label, className }: { col: string; label: string; className?: string }) => (
+    <th
+      className={`px-6 py-4 cursor-pointer select-none group ${className ?? ''}`}
+      onClick={() => handleSort(col)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <span className="inline-flex flex-col -space-y-0.5 opacity-30 group-hover:opacity-60 transition-opacity">
+          <ChevronUp size={9} className={sortKey === col && sortDir === 'asc' ? '!opacity-100 text-slate-700' : ''} strokeWidth={3}/>
+          <ChevronDown size={9} className={sortKey === col && sortDir === 'desc' ? '!opacity-100 text-slate-700' : ''} strokeWidth={3}/>
+        </span>
+      </span>
+    </th>
+  );
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10">
@@ -218,23 +255,23 @@ const InvoicesPage: React.FC = () => {
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
               <tr>
-                <th className="px-6 py-4">Invoice #</th>
-                <th className="px-6 py-4">Client</th>
-                <th className="px-6 py-4">Amount</th>
-                <th className="px-6 py-4">Due Date</th>
-                <th className="px-6 py-4">Status</th>
+                <SortTh col="invoiceNumber" label="Invoice #" />
+                <SortTh col="clientName" label="Client" />
+                <SortTh col="totalAmount" label="Amount" />
+                <SortTh col="dueDate" label="Due Date" />
+                <SortTh col="status" label="Status" />
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.length === 0 && (
+              {sorted.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400 font-bold">
                     No invoices found.
                   </td>
                 </tr>
               )}
-              {filtered.map(inv => (
+              {sorted.map(inv => (
                 <tr
                   key={inv.id}
                   onClick={() => navigate(`/invoices/${inv.id}`)}

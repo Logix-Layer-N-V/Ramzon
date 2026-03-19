@@ -60,7 +60,7 @@ export const KEYS = {
 // ── Typed accessors ────────────────────────────────────────────────────────
 import type {
   Invoice, Estimate, Payment, Credit, Expense, Client,
-  BankAccount, ExchangeRate, WoodSpecies, DoorModel, ProfileSize, DoorPriceEntry,
+  BankAccount, ExchangeRate, WoodSpecies, DoorModel, ProfileSize, DoorPriceEntry, WoodProduct,
 } from '../types';
 
 export const storage = {
@@ -70,6 +70,7 @@ export const storage = {
   credits:    { get: () => getList<Credit>(KEYS.credits),     save: (v: Credit[])    => saveList(KEYS.credits, v) },
   expenses:   { get: () => getList<Expense>(KEYS.expenses),   save: (v: Expense[])   => saveList(KEYS.expenses, v) },
   clients:    { get: () => getList<Client>(KEYS.clients),     save: (v: Client[])    => saveList(KEYS.clients, v) },
+  products:   { get: () => getList<WoodProduct>(KEYS.products), save: (v: WoodProduct[]) => saveList(KEYS.products, v) },
 
   bankAccounts:    { get: () => getList<BankAccount>(KEYS.bankAccounts),       save: (v: BankAccount[])    => saveList(KEYS.bankAccounts, v) },
   exchangeRates:   { get: () => getList<ExchangeRate>(KEYS.exchangeRates),     save: (v: ExchangeRate[])   => saveList(KEYS.exchangeRates, v) },

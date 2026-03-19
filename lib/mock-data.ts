@@ -76,13 +76,36 @@ export const mockClients: Client[] = [
   { id: 'c7', name: 'Marco Fernandes',company: 'Fernandes Bouw & Interieur',email: 'marco@fernandes.sr',  vatNumber: 'SR-FBI-005',       address: 'Kwattaweg 177, Paramaribo',            totalSpent: 12300, status: 'Active', phone: '+597 5559012',    preferredCurrency: 'EUR' },
 ];
 
-// ─── Wood Products ─────────────────────────────────────────────────────────
+// ─── Wood Products (raw material stock) ─────────────────────────────────────
 export const mockWoodProducts: WoodProduct[] = [
   { id: 'p1', name: 'Premium Teak Planks',    woodType: 'Teak',     thickness: 25,  width: 150, length: 2400, unit: 'm³',  pricePerUnit: 4500, stock: 12.5 },
   { id: 'p2', name: 'Oak Flooring Grade A',   woodType: 'Oak',      thickness: 20,  width: 180, length: 2000, unit: 'm²',  pricePerUnit: 85,   stock: 450 },
   { id: 'p3', name: 'Mahogany Beams',         woodType: 'Mahogany', thickness: 100, width: 100, length: 3000, unit: 'pcs', pricePerUnit: 120,  stock: 45 },
   { id: 'p4', name: 'Purpleheart Planks',     woodType: 'Purpleheart',thickness: 30, width: 120, length: 2400, unit: 'm³', pricePerUnit: 3800, stock: 8 },
   { id: 'p5', name: 'Wenge Boards 40x80mm',   woodType: 'Wenge',    thickness: 40,  width: 80,  length: 2000, unit: 'pcs', pricePerUnit: 28,   stock: 320 },
+];
+
+// ─── Demo Finished Products (seeded into storage.products on first load) ────
+export const DEMO_PRODUCTS: WoodProduct[] = [
+  // Doors — area-based (m²)
+  { id: 'dp1',  name: 'Enkele Deur',   woodType: 'Teak',       thickness: 45, width: 800,  length: 2100, unit: 'm²', pricePerUnit: 850,  stock: 8,  category: 'Doors', sku: 'D-SD-800-TEA',  calculationType: 'm2' },
+  { id: 'dp2',  name: 'Enkele Deur',   woodType: 'Oak',        thickness: 45, width: 900,  length: 2100, unit: 'm²', pricePerUnit: 720,  stock: 12, category: 'Doors', sku: 'D-SD-900-OAK',  calculationType: 'm2' },
+  { id: 'dp3',  name: 'Dubbele Deur',  woodType: 'Mahogany',   thickness: 45, width: 1200, length: 2100, unit: 'm²', pricePerUnit: 1600, stock: 5,  category: 'Doors', sku: 'D-DD-1200-MAH', calculationType: 'm2' },
+  { id: 'dp4',  name: 'Schuifdeur',    woodType: 'Pine',       thickness: 40, width: 900,  length: 2100, unit: 'm²', pricePerUnit: 950,  stock: 6,  category: 'Doors', sku: 'D-SL-900-PIN',  calculationType: 'm2' },
+  { id: 'dp5',  name: 'Louvre Deur',   woodType: 'Kopi',       thickness: 38, width: 800,  length: 2100, unit: 'm²', pricePerUnit: 780,  stock: 4,  category: 'Doors', sku: 'D-LV-800-KOP',  calculationType: 'm2' },
+  { id: 'dp6',  name: 'Terrasdeur',    woodType: 'Teak',       thickness: 50, width: 1000, length: 2200, unit: 'm²', pricePerUnit: 1100, stock: 3,  category: 'Doors', sku: 'D-TD-1000-TEA', calculationType: 'm2' },
+  // Mouldings — length-based (lm)
+  { id: 'dp7',  name: 'Kroonlijst',    woodType: 'Teak',       thickness: 20, width: 80,   length: 2400, unit: 'lm', pricePerUnit: 22,   stock: 200, category: 'Mouldings', sku: 'M-KR-TEA', calculationType: 'lm' },
+  { id: 'dp8',  name: 'Plintlijst',    woodType: 'Pine',       thickness: 15, width: 60,   length: 2400, unit: 'lm', pricePerUnit: 12,   stock: 350, category: 'Mouldings', sku: 'M-PL-PIN', calculationType: 'lm' },
+  { id: 'dp9',  name: 'Architraaf',    woodType: 'Oak',        thickness: 18, width: 70,   length: 2400, unit: 'lm', pricePerUnit: 18,   stock: 180, category: 'Mouldings', sku: 'M-AR-OAK', calculationType: 'lm' },
+  { id: 'dp10', name: 'Hoeklijst',     woodType: 'Mahogany',   thickness: 15, width: 40,   length: 2400, unit: 'lm', pricePerUnit: 10,   stock: 250, category: 'Mouldings', sku: 'M-HK-MAH', calculationType: 'lm' },
+  // Frames — length-based (lm)
+  { id: 'dp11', name: 'Raamkozijn',    woodType: 'Oak',        thickness: 60, width: 120,  length: 2400, unit: 'lm', pricePerUnit: 95,   stock: 40, category: 'Frames', sku: 'F-RK-OAK', calculationType: 'lm' },
+  { id: 'dp12', name: 'Deurkozijn',    woodType: 'Teak',       thickness: 60, width: 140,  length: 2400, unit: 'lm', pricePerUnit: 110,  stock: 35, category: 'Frames', sku: 'F-DK-TEA', calculationType: 'lm' },
+  // Crating — fixed item (pcs)
+  { id: 'dp13', name: 'Standaard Krat',  woodType: 'Pine', thickness: 22, width: 600, length: 800,  unit: 'pcs', pricePerUnit: 120, stock: 15, category: 'Crating', sku: 'C-SK-MED', calculationType: 'pcs' },
+  { id: 'dp14', name: 'Zeewaardig Krat', woodType: 'Pine', thickness: 25, width: 800, length: 1200, unit: 'pcs', pricePerUnit: 220, stock: 10, category: 'Crating', sku: 'C-ZK-GRT', calculationType: 'pcs' },
+  { id: 'dp15', name: 'ISPM-15 Krat',   woodType: 'Pine', thickness: 25, width: 800, length: 1200, unit: 'pcs', pricePerUnit: 280, stock: 8,  category: 'Crating', sku: 'C-IK-GRT', calculationType: 'pcs' },
 ];
 
 // ─── Invoices (Jan – Mar 2026) ─────────────────────────────────────────────

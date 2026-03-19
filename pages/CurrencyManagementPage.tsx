@@ -1,12 +1,13 @@
 
 import React, { useState, useContext } from 'react';
-import { 
-  Globe2, 
-  Plus, 
+import {
+  Globe2,
+  Plus,
   Search,
   Filter,
-  TrendingUp, 
-  Trash2, 
+  TrendingUp,
+  Trash2,
+  Pencil,
   Calendar,
   Save,
   CheckCircle2,
@@ -65,6 +66,8 @@ const CurrencyManagementPage: React.FC = () => {
     status: 'Active'
   });
 
+  const [editingCurrency, setEditingCurrency] = useState<{ id: string; code: string; name: string; symbol: string; status: string } | null>(null);
+
   const handleExportCSV = () => {
     const headers = ['Date', 'USD Rate', 'SRD Base', 'EUR Rate', 'USDT Rate'];
     const rows = dailyRates.map(r => [r.date, r.usd, r.srd, r.eur, r.usdt]);
@@ -116,6 +119,12 @@ const CurrencyManagementPage: React.FC = () => {
 
   const removeCurrency = (id: string) => {
     setAvailableCurrencies(availableCurrencies.filter(c => c.id !== id));
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingCurrency || !editingCurrency.code || !editingCurrency.name) return;
+    setAvailableCurrencies(availableCurrencies.map(c => c.id === editingCurrency.id ? editingCurrency : c));
+    setEditingCurrency(null);
   };
 
   return (
@@ -292,7 +301,13 @@ const CurrencyManagementPage: React.FC = () => {
                         <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[8px] font-black uppercase tracking-widest rounded border border-emerald-100">
                           {c.status}
                         </span>
-                        <button 
+                        <button
+                          onClick={() => setEditingCurrency({ ...c })}
+                          className="p-1.5 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
                           onClick={() => removeCurrency(c.id)}
                           className="p-1.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                         >
@@ -449,6 +464,82 @@ const CurrencyManagementPage: React.FC = () => {
               >
                 Save Currency Unit
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Edit Currency Modal */}
+      {editingCurrency && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-md" onClick={() => setEditingCurrency(null)}></div>
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl z-10 flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100">
+            <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between shrink-0 bg-slate-50/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                  <Pencil size={20} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 tracking-tight italic">Edit Currency Unit</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Modify billing unit</p>
+                </div>
+              </div>
+              <button onClick={() => setEditingCurrency(null)} className="p-2.5 hover:bg-white border border-transparent hover:border-slate-200 rounded-2xl text-slate-400 hover:text-slate-950">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-8 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ISO Code</label>
+                <input
+                  type="text" placeholder="e.g. GBP"
+                  value={editingCurrency.code}
+                  onChange={(e) => setEditingCurrency({ ...editingCurrency, code: e.target.value.toUpperCase() })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Name</label>
+                <input
+                  type="text" placeholder="e.g. Pound Sterling"
+                  value={editingCurrency.name}
+                  onChange={(e) => setEditingCurrency({ ...editingCurrency, name: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Symbol</label>
+                <input
+                  type="text" placeholder="e.g. £"
+                  value={editingCurrency.symbol}
+                  onChange={(e) => setEditingCurrency({ ...editingCurrency, symbol: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</label>
+                <select
+                  value={editingCurrency.status}
+                  onChange={(e) => setEditingCurrency({ ...editingCurrency, status: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setEditingCurrency(null)}
+                  className="flex-1 py-3 border border-slate-200 text-slate-500 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 active:scale-95 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  className="flex-[2] py-3 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl hover:bg-slate-800 active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  <Save size={16} /> Save Changes
+                </button>
+              </div>
             </div>
           </div>
         </div>

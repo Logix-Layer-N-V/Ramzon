@@ -1,14 +1,16 @@
-import React, { useState, useContext } from 'react';
-import { 
-  Search, 
-  Plus, 
-  Building, 
-  Mail, 
-  Phone, 
-  Filter, 
-  MoreHorizontal, 
-  ChevronLeft, 
-  ChevronRight, 
+import React, { useState, useContext, useMemo } from 'react';
+import {
+  Search,
+  Plus,
+  Building,
+  Mail,
+  Phone,
+  Filter,
+  MoreHorizontal,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
   CheckCircle2,
   Users,
   ArrowUpRight,
@@ -22,10 +24,45 @@ const ClientsPage: React.FC = () => {
   const navigate = useNavigate();
   const { currencySymbol } = useContext(LanguageContext);
   const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<string>('company');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  const filteredClients = mockClients.filter(c => 
+  const handleSort = (key: string) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
+
+  const filteredClients = mockClients.filter(c =>
     c.company.toLowerCase().includes(search.toLowerCase()) || 
     c.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return filteredClients;
+    return [...filteredClients].sort((a, b) => {
+      const av = (a as any)[sortKey];
+      const bv = (b as any)[sortKey];
+      if (typeof av === 'number' && typeof bv === 'number')
+        return sortDir === 'asc' ? av - bv : bv - av;
+      return sortDir === 'asc'
+        ? String(av ?? '').localeCompare(String(bv ?? ''))
+        : String(bv ?? '').localeCompare(String(av ?? ''));
+    });
+  }, [filteredClients, sortKey, sortDir]);
+
+  const SortTh = ({ col, label, className }: { col: string; label: string; className?: string }) => (
+    <th
+      className={`px-6 py-4 cursor-pointer select-none group ${className ?? ''}`}
+      onClick={() => handleSort(col)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <span className="inline-flex flex-col -space-y-0.5 opacity-30 group-hover:opacity-60 transition-opacity">
+          <ChevronUp size={9} className={sortKey === col && sortDir === 'asc' ? '!opacity-100 text-slate-700' : ''} strokeWidth={3}/>
+          <ChevronDown size={9} className={sortKey === col && sortDir === 'desc' ? '!opacity-100 text-slate-700' : ''} strokeWidth={3}/>
+        </span>
+      </span>
+    </th>
   );
 
   return (
@@ -93,15 +130,15 @@ const ClientsPage: React.FC = () => {
           <table className="w-full text-left text-sm border-collapse">
             <thead className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
               <tr>
-                <th className="px-6 py-4">Organisation / Contact</th>
+                <SortTh col="company" label="Organisation / Contact" />
                 <th className="px-6 py-4">Contact Details</th>
-                <th className="px-6 py-4 text-center">Status</th>
-                <th className="px-6 py-4 text-right">Revenue YTD</th>
+                <SortTh col="status" label="Status" className="text-center" />
+                <SortTh col="totalSpent" label="Revenue YTD" className="text-right" />
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredClients.map((c) => (
+              {sorted.map((c) => (
                 <tr 
                   key={c.id} 
                   className="hover:bg-slate-50/80 transition-colors group cursor-pointer"

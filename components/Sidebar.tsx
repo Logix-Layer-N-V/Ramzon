@@ -131,13 +131,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isCollapsed,
       `}>
         {/* Logo container */}
         {(!isCollapsed || window.innerWidth < 768) ? (
-          <div className="px-4 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between gap-2">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
             <div className="flex-1 min-w-0">
               {companyLogo ? (
                 <img
                   src={companyLogo}
                   alt="Ramzon Logo"
-                  className="w-full max-h-[90px] object-contain object-left"
+                  className="w-auto h-8 object-contain object-left"
                 />
               ) : (
                 <div className="py-2">

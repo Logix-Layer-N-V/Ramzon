@@ -1,5 +1,5 @@
 
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import {
   Search,
   Settings,
@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
+import { storage } from '../lib/storage';
 
 interface HeaderProps {
   onLogout?: () => void;
@@ -36,10 +37,28 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
-  
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Ctrl+/ to toggle search overlay, Escape to close
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        setIsSearchOpen(v => !v);
+        setSearchQuery('');
+      }
+      if (e.key === 'Escape') {
+        setIsSearchOpen(false);
+        setSearchQuery('');
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
 
   const handleLogoutClick = () => {
     if (onLogout) {
@@ -104,22 +123,141 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
 
   return (
     <header className="h-20 md:h-16 border-b border-slate-200 bg-white sticky top-0 z-[1000] px-4 md:px-8 flex items-center justify-between pt-4 md:pt-0 transition-all">
-      {isMobileSearchOpen && (
-        <div className="absolute inset-0 bg-white z-[10001] flex items-center px-4 md:hidden animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex-1 relative">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input 
-              autoFocus
-              type="text" 
-              placeholder={t('search')} 
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100"
-            />
+      {/* Advanced Search Overlay */}
+      {isSearchOpen && (() => {
+        const q = searchQuery.toLowerCase();
+        const invoiceResults = q.length >= 1
+          ? storage.invoices.get().filter(i => i.invoiceNumber.toLowerCase().includes(q) || i.clientName.toLowerCase().includes(q)).slice(0, 4)
+          : [];
+        const estimateResults = q.length >= 1
+          ? storage.estimates.get().filter(e => ((e as any).estimateNumber ?? '').toLowerCase().includes(q) || e.clientName.toLowerCase().includes(q)).slice(0, 4)
+          : [];
+        const clientResults = q.length >= 1
+          ? storage.clients.get().filter(c => c.name.toLowerCase().includes(q) || c.company.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)).slice(0, 4)
+          : [];
+        const hasResults = invoiceResults.length + estimateResults.length + clientResults.length > 0;
+
+        return (
+          <div className="fixed inset-0 z-[10002] flex items-start justify-center pt-[10vh] px-4 animate-in fade-in duration-200">
+            <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }} />
+            <div className="relative bg-white w-full max-w-2xl rounded-3xl shadow-[0_50px_100px_-20px_rgba(0,0,0,0.4)] border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200 z-10">
+              {/* Search input */}
+              <div className="flex items-center gap-4 px-6 py-4 border-b border-slate-100">
+                <Search size={20} className="text-slate-400 shrink-0" />
+                <input
+                  autoFocus
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search invoices, clients, estimates..."
+                  className="flex-1 text-base font-medium text-slate-900 outline-none placeholder:text-slate-400 bg-transparent"
+                />
+                <kbd className="px-2 py-1 bg-slate-100 text-slate-400 text-[10px] font-bold rounded border border-slate-200 shrink-0">ESC</kbd>
+              </div>
+
+              {/* Results */}
+              <div className="max-h-[60vh] overflow-y-auto no-scrollbar">
+                {q.length === 0 ? (
+                  <div className="p-4 grid grid-cols-2 gap-2">
+                    {([
+                      { label: 'Invoices',  path: '/invoices',  Icon: Receipt,      color: 'text-brand-accent bg-brand-accent-light' },
+                      { label: 'Estimates', path: '/estimates', Icon: ClipboardList, color: 'text-violet-600 bg-violet-50' },
+                      { label: 'Clients',   path: '/clients',   Icon: Users,         color: 'text-blue-600 bg-blue-50' },
+                      { label: 'Payments',  path: '/payments',  Icon: Banknote,      color: 'text-amber-600 bg-amber-50' },
+                    ] as const).map(item => (
+                      <button
+                        key={item.path}
+                        onClick={() => { navigate(item.path); setIsSearchOpen(false); setSearchQuery(''); }}
+                        className="flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-50 transition-all text-left group"
+                      >
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${item.color} group-hover:scale-110 transition-transform`}>
+                          <item.Icon size={16} />
+                        </div>
+                        <span className="text-sm font-bold text-slate-700">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : !hasResults ? (
+                  <div className="py-12 text-center">
+                    <p className="text-slate-400 font-medium text-sm">No results for <span className="font-black text-slate-600">"{searchQuery}"</span></p>
+                  </div>
+                ) : (
+                  <div className="p-3 space-y-1">
+                    {invoiceResults.length > 0 && (
+                      <>
+                        <p className="px-3 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">Invoices</p>
+                        {invoiceResults.map(inv => (
+                          <button key={inv.id}
+                            onClick={() => { navigate(`/invoices/${inv.id}`); setIsSearchOpen(false); setSearchQuery(''); }}
+                            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-slate-50 transition-all group text-left"
+                          >
+                            <div className="w-9 h-9 bg-brand-accent-light text-brand-accent rounded-xl flex items-center justify-center shrink-0">
+                              <Receipt size={15} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-black text-slate-900">{inv.invoiceNumber}</p>
+                              <p className="text-[11px] text-slate-400 font-medium truncate">{inv.clientName}</p>
+                            </div>
+                            <ArrowRight size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 shrink-0" />
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {estimateResults.length > 0 && (
+                      <>
+                        <p className="px-3 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">Estimates</p>
+                        {estimateResults.map(est => (
+                          <button key={est.id}
+                            onClick={() => { navigate(`/estimates/${est.id}`); setIsSearchOpen(false); setSearchQuery(''); }}
+                            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-slate-50 transition-all group text-left"
+                          >
+                            <div className="w-9 h-9 bg-violet-50 text-violet-600 rounded-xl flex items-center justify-center shrink-0">
+                              <ClipboardList size={15} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-black text-slate-900">{(est as any).estimateNumber ?? est.id}</p>
+                              <p className="text-[11px] text-slate-400 font-medium truncate">{est.clientName}</p>
+                            </div>
+                            <ArrowRight size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 shrink-0" />
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {clientResults.length > 0 && (
+                      <>
+                        <p className="px-3 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">Clients</p>
+                        {clientResults.map(cli => (
+                          <button key={cli.id}
+                            onClick={() => { navigate(`/clients/${cli.id}`); setIsSearchOpen(false); setSearchQuery(''); }}
+                            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-slate-50 transition-all group text-left"
+                          >
+                            <div className="w-9 h-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                              <Users size={15} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-black text-slate-900">{cli.name}</p>
+                              <p className="text-[11px] text-slate-400 font-medium truncate">{cli.company}</p>
+                            </div>
+                            <ArrowRight size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 shrink-0" />
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer hints */}
+              <div className="px-6 py-3 border-t border-slate-50 bg-slate-50/50 flex items-center gap-4 text-[10px] font-bold text-slate-400">
+                <span>↵ to open</span>
+                <span>·</span>
+                <span>ESC to close</span>
+                <span className="ml-auto">ctrl+/ to toggle</span>
+              </div>
+            </div>
           </div>
-          <button onClick={() => setIsMobileSearchOpen(false)} className="ml-3 p-2 text-slate-400 hover:text-slate-900">
-            <X size={20} />
-          </button>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="flex items-center gap-2 md:gap-4 text-sm font-medium text-slate-500">
         <button onClick={onToggleSidebar} className="p-2 md:p-0 text-slate-900 font-bold hover:text-brand-accent transition-colors flex items-center gap-3 text-left">
@@ -138,16 +276,18 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
       </div>
 
       <div className="flex items-center gap-1 md:gap-3">
-        <div className="hidden md:block relative group mr-2">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder={t('search')} 
-            className="pl-11 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm text-slate-900 focus:ring-2 focus:ring-brand-accent-light outline-none w-48 lg:w-72 shadow-sm font-medium"
-          />
-        </div>
+        {/* Desktop search trigger */}
+        <button
+          onClick={() => setIsSearchOpen(true)}
+          className="hidden md:flex items-center gap-3 pl-4 pr-3 py-2 bg-white border border-slate-200 rounded-full text-sm text-slate-400 w-48 lg:w-64 shadow-sm hover:border-slate-300 transition-all mr-2"
+        >
+          <Search size={15} className="shrink-0" />
+          <span className="flex-1 text-left font-medium">{t('search')}...</span>
+          <kbd className="hidden lg:flex items-center px-1.5 py-0.5 bg-slate-100 text-slate-400 text-[10px] font-bold rounded border border-slate-200 shrink-0">ctrl+/</kbd>
+        </button>
 
-        <button onClick={() => setIsMobileSearchOpen(true)} className="p-2 md:hidden text-slate-500 hover:bg-slate-100 rounded-full transition-all">
+        {/* Mobile search icon */}
+        <button onClick={() => setIsSearchOpen(true)} className="p-2 md:hidden text-slate-500 hover:bg-slate-100 rounded-full transition-all">
           <Search size={20} />
         </button>
         
@@ -283,36 +423,39 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
           {isNotificationOpen && (
             <>
               <GlobalBackdrop onClick={() => setIsNotificationOpen(false)} zIndex="z-[10000]" />
-              <div className="fixed md:absolute left-1/2 md:left-auto md:right-0 -translate-x-1/2 md:translate-x-0 mt-3 top-20 md:top-auto w-[calc(100vw-3rem)] md:w-[460px] bg-white border border-slate-200 rounded-[32px] shadow-[0_60px_120px_-20px_rgba(0,0,0,0.3)] z-[10001] p-3 animate-in fade-in zoom-in-95 duration-200 ring-4 ring-black/5 md:ring-0 overflow-hidden">
-                <div className="px-6 py-5 border-b border-slate-50 mb-2 flex justify-between items-center bg-slate-50/30 rounded-t-[24px]">
-                  <div className="flex flex-col items-start text-left">
-                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">{t('notifications')}</p>
-                    <p className="text-[10px] font-bold text-brand-accent uppercase tracking-wider mt-0.5">2 NIEUWE MELDINGEN</p>
+              <div className="fixed md:absolute left-1/2 md:left-auto md:right-0 -translate-x-1/2 md:translate-x-0 mt-3 top-20 md:top-auto w-[calc(100vw-3rem)] md:w-[400px] bg-white border border-slate-200 rounded-[24px] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.2)] z-[10001] p-2 animate-in fade-in zoom-in-95 duration-200 ring-4 ring-black/5 md:ring-0 overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-100 mb-1 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{t('notifications')}</p>
+                    <span className="px-1.5 py-0.5 bg-brand-accent/10 text-brand-accent rounded-full text-[9px] font-black uppercase tracking-wide">2 nieuw</span>
                   </div>
-                  <button onClick={() => setIsNotificationOpen(false)} className="p-1.5 text-slate-300 hover:text-slate-900 hover:bg-white rounded-full transition-all"><X size={18} /></button>
+                  <button onClick={() => setIsNotificationOpen(false)} className="p-1 text-slate-300 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-all"><X size={15} /></button>
                 </div>
-                
-                <div className="max-h-[450px] overflow-y-auto no-scrollbar py-1 space-y-1">
+
+                <div className="max-h-[320px] overflow-y-auto no-scrollbar py-0.5 space-y-0.5">
                   {notifications.map((n) => (
-                    <button key={n.id} className="w-full text-left p-5 hover:bg-slate-50 rounded-[24px] flex gap-5 transition-all group">
-                      <div className={`w-12 h-12 rounded-[18px] shrink-0 flex items-center justify-center ${n.bgColor} ${n.color} shadow-sm group-hover:scale-110 transition-transform duration-300`}>
-                        <n.icon size={22} />
+                    <button key={n.id} className="w-full text-left px-3 py-2.5 hover:bg-slate-50 rounded-xl flex gap-3 transition-all group">
+                      <div className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center ${n.bgColor} ${n.color} group-hover:scale-110 transition-transform duration-200`}>
+                        <n.icon size={16} />
                       </div>
                       <div className="flex-1 min-w-0 flex flex-col items-start text-left">
-                        <div className="flex items-center justify-between w-full mb-1">
-                          <p className="text-sm font-black text-slate-900 leading-tight">{n.title}</p>
-                          <div className="flex items-center gap-2">
-                             {!n.isRead && <div className="w-2 h-2 rounded-full bg-brand-accent shrink-0"></div>}
-                          </div>
+                        <div className="flex items-center justify-between w-full">
+                          <p className="text-xs font-black text-slate-900 leading-tight">{n.title}</p>
+                          {!n.isRead && <div className="w-1.5 h-1.5 rounded-full bg-brand-accent shrink-0 ml-2"></div>}
                         </div>
-                        <p className="text-[11px] text-slate-500 font-medium leading-relaxed pr-4">{n.message}</p>
-                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-1.5">{n.time}</p>
+                        <p className="text-[10px] text-slate-500 font-medium leading-snug mt-0.5">{n.message}</p>
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-1">{n.time}</p>
                       </div>
                     </button>
                   ))}
                 </div>
-                <div className="p-4 border-t border-slate-50 mt-2 bg-slate-50/20 rounded-b-[24px]">
-                  <button className="w-full py-4 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-sm">{t('viewAll')}</button>
+                <div className="px-2 py-2 border-t border-slate-100 mt-1">
+                  <button
+                    onClick={() => { setIsNotificationOpen(false); navigate('/notifications'); }}
+                    className="w-full py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all"
+                  >
+                    {t('viewAll')}
+                  </button>
                 </div>
               </div>
             </>

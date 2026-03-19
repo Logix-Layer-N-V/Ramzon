@@ -1,6 +1,6 @@
 
-import React, { useState, useContext } from 'react';
-import { Search, Filter, ArrowDownCircle, Download, ExternalLink, Plus, Pencil, X, CheckCircle2, Banknote } from 'lucide-react';
+import React, { useState, useContext, useMemo } from 'react';
+import { Search, Filter, ArrowDownCircle, Download, ExternalLink, Plus, Pencil, X, CheckCircle2, Banknote, ChevronUp, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { mockPayments, mockClients } from '../lib/mock-data';
 import { LanguageContext } from '../lib/context';
@@ -14,6 +14,13 @@ const PaymentsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filterMethod, setFilterMethod] = useState<string>('All');
+  const [sortKey, setSortKey] = useState<string>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
   const [filterPeriod, setFilterPeriod] = useState<'all' | 'today' | 'week' | 'month' | 'quarter' | 'custom'>('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customFromTime, setCustomFromTime] = useState('00:00');
@@ -28,7 +35,35 @@ const PaymentsPage: React.FC = () => {
     return matchSearch && matchMethod;
   });
 
+  const sorted = useMemo(() => {
+    if (!sortKey) return filteredPayments;
+    return [...filteredPayments].sort((a, b) => {
+      const av = (a as any)[sortKey];
+      const bv = (b as any)[sortKey];
+      if (typeof av === 'number' && typeof bv === 'number')
+        return sortDir === 'asc' ? av - bv : bv - av;
+      return sortDir === 'asc'
+        ? String(av ?? '').localeCompare(String(bv ?? ''))
+        : String(bv ?? '').localeCompare(String(av ?? ''));
+    });
+  }, [filteredPayments, sortKey, sortDir]);
+
   const totalAmount = filteredPayments.reduce((s, p) => s + p.amount, 0);
+
+  const SortTh = ({ col, label, className }: { col: string; label: string; className?: string }) => (
+    <th
+      className={`px-6 py-4 cursor-pointer select-none group ${className ?? ''}`}
+      onClick={() => handleSort(col)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <span className="inline-flex flex-col -space-y-0.5 opacity-30 group-hover:opacity-60 transition-opacity">
+          <ChevronUp size={9} className={sortKey === col && sortDir === 'asc' ? '!opacity-100 text-slate-700' : ''} strokeWidth={3}/>
+          <ChevronDown size={9} className={sortKey === col && sortDir === 'desc' ? '!opacity-100 text-slate-700' : ''} strokeWidth={3}/>
+        </span>
+      </span>
+    </th>
+  );
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10">
@@ -150,15 +185,15 @@ const PaymentsPage: React.FC = () => {
           <table className="w-full text-left text-sm border-collapse">
             <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
               <tr>
-                <th className="px-6 py-4">Transaction / Client</th>
-                <th className="px-6 py-4">Method</th>
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4 text-right">Amount</th>
+                <SortTh col="reference" label="Transaction / Client" />
+                <SortTh col="method" label="Method" />
+                <SortTh col="date" label="Date" />
+                <SortTh col="amount" label="Amount" className="text-right" />
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredPayments.map((p) => {
+              {sorted.map((p) => {
                 const client = mockClients.find(c => c.id === p.clientId);
                 return (
                   <tr 
