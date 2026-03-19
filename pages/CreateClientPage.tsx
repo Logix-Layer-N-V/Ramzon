@@ -3,6 +3,7 @@ import { ArrowLeft, User, Building, Mail, Phone, MapPin, Save, Hash, Info, FileT
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
 import { storage } from '../lib/storage';
+import { ClientSchema } from '../lib/schemas';
 
 const CreateClientPage: React.FC = () => {
   const navigate = useNavigate();
@@ -20,7 +21,18 @@ const CreateClientPage: React.FC = () => {
   const canSave = contactName.trim().length > 0;
 
   const handleSave = () => {
-    if (!canSave) return;
+    const validation = ClientSchema.safeParse({
+      name: contactName,
+      email: email,
+      company: company || undefined,
+      phone: phone || undefined,
+      address: address || undefined,
+      vatNumber: btw || undefined,
+    });
+    if (!validation.success) {
+      alert(validation.error.issues[0].message); // Phase 1 — inline errors in Task 8
+      return;
+    }
     const existing = storage.clients.get();
     const newClient = {
       id: `c${Date.now()}`,

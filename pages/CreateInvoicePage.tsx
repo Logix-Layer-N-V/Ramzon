@@ -44,7 +44,7 @@ const CreateInvoicePage: React.FC = () => {
   const [isConverted, setIsConverted] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [committedDocNumber, setCommittedDocNumber] = useState('');
-  const [invoiceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 30);
@@ -299,7 +299,7 @@ const CreateInvoicePage: React.FC = () => {
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice Date</label>
-              <input aria-label="Invoice date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none" />
+              <input aria-label="Invoice date" type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none" />
             </div>
             <div className="space-y-2">
               <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">Due Date</label>
