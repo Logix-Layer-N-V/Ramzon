@@ -1,26 +1,33 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
-import { ArrowLeft, Save, Plus, Trash2, Receipt, Users, Search, Send, Check, Sparkles, X, TrendingUp, Banknote } from 'lucide-react';
+import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
+import { ArrowLeft, Save, Plus, Trash2, Receipt, Users, Search, Send, Check, Sparkles, X, TrendingUp, Banknote, Ruler } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
+import { InvoiceSchema } from '../lib/schemas';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { mockClients, mockInvoices, RAMZON_SERVICES, RAMZON_PRODUCT_CATALOG, RAMZON_HOUTSOORTEN } from '../lib/mock-data';
-import { Estimate } from '../types';
+import { mockClients, mockInvoices, mockUsers, RAMZON_SERVICES, RAMZON_PRODUCT_CATALOG, RAMZON_HOUTSOORTEN } from '../lib/mock-data';
+import { Estimate, Invoice, WoodSpecies } from '../types';
 import { previewDocNumber, commitDocNumber } from '../lib/docNumbering';
-import { getLatestExchangeRate } from '../lib/storage';
+import { getLatestExchangeRate, storage } from '../lib/storage';
+import DocPDFModal from '../components/DocPDFModal';
 
 type ItemType = 'product' | 'service' | 'item';
-interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; qty: number; unit: string; price: number; discount: number; }
+interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; qty: number; unit: string; price: number; discount: number; mmW?: number; mmH?: number; }
+interface CatalogItem { id: string; type: ItemType; name: string; desc: string; price: number; unit: string; }
 
-const CATALOG_ITEMS = [
-  ...RAMZON_SERVICES.map(s => ({
-    id: s.id, type: 'service' as ItemType, name: s.name, desc: s.description, price: s.price, unit: s.unit,
-  })),
-  ...RAMZON_PRODUCT_CATALOG.flatMap(cat =>
-    cat.subcategories.map(sub => ({
-      id: `${cat.category}-${sub.name}`, type: 'product' as ItemType,
-      name: sub.name, desc: cat.category, price: sub.basePrice, unit: 'PCS',
-    }))
-  ),
-];
+const SERVICE_ITEMS_INV = RAMZON_SERVICES.map(s => ({
+  id: s.id, type: 'service' as ItemType, name: s.name, desc: s.description, price: s.price, unit: s.unit,
+}));
+const STATIC_PRODUCT_ITEMS_INV = RAMZON_PRODUCT_CATALOG.flatMap(cat =>
+  cat.subcategories.map(sub => ({
+    id: `${cat.category}-${sub.name}`, type: 'product' as ItemType,
+    name: sub.name, desc: cat.category, price: sub.basePrice,
+    unit: cat.category === 'Deuren' ? 'm²' : 'PCS',
+  }))
+);
+const catToDescInv = (cat: string) => {
+  if (cat === 'Doors') return 'Deuren';
+  if (cat === 'Frames' || cat === 'Window Frames') return 'Kozijnen';
+  return cat;
+};
 
 const CreateInvoicePage: React.FC = () => {
   const navigate = useNavigate();
@@ -35,21 +42,47 @@ const CreateInvoicePage: React.FC = () => {
   const [items, setItems] = useState<LineItem[]>([]);
   const [saved, setSaved] = useState(false);
   const [isConverted, setIsConverted] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [committedDocNumber, setCommittedDocNumber] = useState('');
+  const [invoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [docNumber] = useState(() => isEdit ? '' : previewDocNumber('inv'));
+  const [selectedRep, setSelectedRep] = useState<string>(() =>
+    localStorage.getItem('erp_active_user_name') ?? mockUsers.find(u => u.role === 'Admin' && u.status === 'Active')?.name ?? ''
+  );
+  const [paidAmount, setPaidAmount] = useState<number>(0);
   const [itemSearch, setItemSearch] = useState('');
   const [showItemSearch, setShowItemSearch] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const searchRef = useRef<HTMLDivElement>(null);
 
+  // Dynamic catalog: merge services + storage products (fallback to static if empty)
+  const [storedProducts] = useState(() => storage.products.get());
+  const [woodSpeciesList] = useState<WoodSpecies[]>(() => {
+    const s = storage.woodSpecies.get();
+    return s.length > 0 ? s : [];
+  });
+  const getMarkup = (name: string) => woodSpeciesList.find(sp => sp.name === name)?.markup ?? 0;
+
+  const catalogItems = useMemo<CatalogItem[]>(() => {
+    const storedMapped: CatalogItem[] = storedProducts.map(p => ({
+      id: p.id, type: 'product' as ItemType,
+      name: p.name, desc: catToDescInv(p.category ?? ''),
+      price: p.pricePerUnit,
+      unit: (p.unit === 'pcs' || p.unit === 'PCS') ? 'PCS' : p.unit,
+    }));
+    const products: CatalogItem[] = storedMapped.length > 0 ? storedMapped : STATIC_PRODUCT_ITEMS_INV;
+    return [...SERVICE_ITEMS_INV, ...products] as CatalogItem[];
+  }, [storedProducts]);
+
   // Category chips derived from catalog
   const CATALOG_CATEGORIES = [
-    { id: 'all',     label: 'All',      icon: '✦',  count: CATALOG_ITEMS.length },
-    { id: 'service', label: 'Services', icon: '⚙️', count: CATALOG_ITEMS.filter(i => i.type === 'service').length },
+    { id: 'all',     label: 'All',      icon: '✦',  count: catalogItems.length },
+    { id: 'service', label: 'Services', icon: '⚙️', count: catalogItems.filter(i => i.type === 'service').length },
     ...['Deuren','Mouldings','Lijsten','Kozijnen','Crating'].map(cat => ({
       id: cat,
       label: cat === 'Deuren' ? 'Doors' : cat === 'Lijsten' ? 'Boards' : cat === 'Kozijnen' ? 'Frames' : cat,
       icon:  cat === 'Deuren' ? '🚪' : cat === 'Mouldings' ? '〰️' : cat === 'Lijsten' ? '📏' : cat === 'Kozijnen' ? '🪟' : '📦',
-      count: CATALOG_ITEMS.filter(i => i.desc === cat).length,
+      count: catalogItems.filter(i => i.desc === cat).length,
     })).filter(c => c.count > 0),
   ];
 
@@ -133,7 +166,7 @@ const CreateInvoicePage: React.FC = () => {
     'c':'Crating','cr':'Crating','cra':'Crating','crat':'Crating','crating':'Crating',
   };
   const filteredCatalog = (() => {
-    let list = CATALOG_ITEMS;
+    let list = catalogItems;
     if (activeCategory !== 'all')
       list = list.filter(i => activeCategory === 'service' ? i.type === 'service' : i.desc === activeCategory);
     if (!isSlashMode && itemSearch.trim()) {
@@ -143,13 +176,15 @@ const CreateInvoicePage: React.FC = () => {
     return (itemSearch.trim() || activeCategory !== 'all') ? list : list.slice(0, 15);
   })();
 
-  const addFromCatalog = (item: typeof CATALOG_ITEMS[0]) => {
+  const addFromCatalog = (item: typeof catalogItems[0]) => {
     setItems(prev => [...prev, {
       id: Math.random().toString(36).slice(2),
       type: item.type,
       description: item.type === 'product' ? `${item.desc} — ${item.name}` : item.name,
       houtsoort: item.type === 'product' ? RAMZON_HOUTSOORTEN[0] : '',
       qty: 1, unit: item.unit, price: item.price, discount: 0,
+      mmW: item.unit === 'm²' ? 800 : undefined,
+      mmH: item.unit === 'm²' ? 2100 : undefined,
     }]);
     setItemSearch('');
     setShowItemSearch(false);
@@ -164,16 +199,59 @@ const CreateInvoicePage: React.FC = () => {
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
   const updateItem = (id: string, field: keyof LineItem, val: any) => setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
   const handleSave = () => {
-    if (!isEdit) commitDocNumber('inv');
+    const result = InvoiceSchema.omit({ dueDate: true }).safeParse({
+      clientId: selectedClient,
+      date: invoiceDate,
+      items: items.map(i => ({ description: i.description, qty: i.qty, price: i.price })),
+    });
+    if (!result.success) {
+      alert(result.error.issues[0].message);
+      return;
+    }
+    const num = isEdit ? docNumber : commitDocNumber('inv');
+    setCommittedDocNumber(num);
+    const clientObj = mockClients.find(c => c.id === selectedClient);
+    const inv: Invoice = {
+      id: isEdit && editId ? editId : Math.random().toString(36).slice(2, 10),
+      invoiceNumber: num,
+      clientId: selectedClient,
+      clientName: clientObj?.name ?? selectedClient,
+      date: invoiceDate,
+      dueDate: '',
+      currency,
+      exchangeRate,
+      items: items.map(i => ({
+        id: i.id,
+        productId: '',
+        description: i.description,
+        quantity: i.qty,
+        unitPrice: i.price,
+        total: itemTotal(i),
+      })),
+      subtotal,
+      taxRate,
+      taxAmount: tax,
+      totalAmount: total,
+      status: 'Pending',
+    };
+    const existing = storage.invoices.get();
+    if (isEdit && editId) {
+      storage.invoices.save(existing.map(e => e.id === editId ? inv : e));
+    } else {
+      storage.invoices.save([...existing, inv]);
+    }
     setSaved(true);
-    setTimeout(() => navigate('/invoices'), 1500);
+    setShowPdfModal(true);
   };
 
-  const subtotal = items.reduce((acc, item) => acc + item.price * item.qty * (1 - item.discount / 100), 0);
+  const itemArea = (i: LineItem) => (i.mmW && i.mmH) ? (i.mmW / 1000) * (i.mmH / 1000) : 1;
+  const itemTotal = (i: LineItem) => i.price * (1 + getMarkup(i.houtsoort) / 100) * i.qty * (1 - i.discount / 100) * itemArea(i);
+  const subtotal = items.reduce((acc, item) => acc + itemTotal(item), 0);
   const tax = subtotal * (taxRate / 100);
   const total = subtotal + tax;
 
   return (
+    <>
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
       <div className="flex items-center justify-between">
         <button onClick={() => navigate('/invoices')} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold transition-all">
@@ -240,6 +318,37 @@ const CreateInvoicePage: React.FC = () => {
                 <p className="text-[10px] text-slate-400 font-medium">1 {currency} = SRD {(exchangeRate).toFixed(2)}</p>
               </div>
             )}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <Users size={12} /> Sales Rep
+              </label>
+              <select aria-label="Sales rep" value={selectedRep} onChange={e => { setSelectedRep(e.target.value); localStorage.setItem('erp_active_user_name', e.target.value); }}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none appearance-none">
+                <option value="">— No Rep —</option>
+                {mockUsers.filter(u => u.status === 'Active').map(u => (
+                  <option key={u.id} value={u.name}>{u.name} ({u.role})</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <Banknote size={12} /> Partial Payment ({currencySymbol})
+              </label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={paidAmount || ''}
+                placeholder="0.00"
+                onChange={e => setPaidAmount(parseFloat(e.target.value) || 0)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none"
+              />
+              {paidAmount > 0 && (
+                <p className="text-[10px] font-black text-emerald-600">
+                  Saldo: {currencySymbol}{Math.max(0, total - paidAmount).toFixed(2)}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -344,7 +453,7 @@ const CreateInvoicePage: React.FC = () => {
                       ) : (() => {
                         const services = filteredCatalog.filter(i => i.type === 'service');
                         const products = filteredCatalog.filter(i => i.type === 'product');
-                        const grouped  = products.reduce((acc, item) => { (acc[item.desc] = acc[item.desc] || []).push(item); return acc; }, {} as Record<string, typeof products>);
+                        const grouped: Record<string, CatalogItem[]> = products.reduce<Record<string, CatalogItem[]>>((acc, item) => { if (!acc[item.desc]) acc[item.desc] = []; acc[item.desc].push(item); return acc; }, {});
                         return (
                           <>
                             {services.length > 0 && (
@@ -434,32 +543,34 @@ const CreateInvoicePage: React.FC = () => {
           {items.length > 0 && (
             <div className="border border-slate-200 rounded-2xl overflow-hidden">
               {/* Column header */}
-              <div className="hidden md:grid md:grid-cols-[36px_1fr_100px_56px_52px_108px_60px_80px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-200">
-                {['','Description','Wood','Qty','Unit','Price','Disc %','Total',''].map((h,i) => (
+              <div className="hidden md:grid md:grid-cols-[56px_100px_1fr_52px_108px_60px_80px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-200">
+                {['Qty','Wood','Description','Unit','Price','Disc %','Total',''].map((h,i) => (
                   <p key={i} className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{h}</p>
                 ))}
               </div>
               {items.map((item, idx) => (
-                <div key={item.id}
-                  className="flex flex-wrap md:grid md:grid-cols-[36px_1fr_100px_56px_52px_108px_60px_80px_32px] gap-2 items-center px-4 py-3 border-b last:border-0 border-slate-100 hover:bg-slate-50/50 transition-colors group">
-                  {/* Type icon */}
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-base ${item.type === 'service' ? 'bg-purple-100' : item.type === 'product' ? 'bg-blue-100' : 'bg-slate-100'}`}>
-                    {item.type === 'product' ? '📦' : item.type === 'service' ? '⚙️' : '📝'}
-                  </div>
+                <React.Fragment key={item.id}>
+                <div
+                  className="flex flex-wrap md:grid md:grid-cols-[56px_100px_1fr_52px_108px_60px_80px_32px] gap-2 items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                  {/* Qty */}
+                  <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
+                    className="w-14 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-sm font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
+                  {/* Wood type */}
+                  {item.type === 'product' ? (
+                    <div className="flex flex-row items-center gap-1 w-full">
+                      <select value={item.houtsoort} onChange={e => updateItem(item.id,'houtsoort',e.target.value)} aria-label="Wood type"
+                        className="flex-1 min-w-0 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all">
+                        {RAMZON_HOUTSOORTEN.map(h => <option key={h}>{h}</option>)}
+                      </select>
+                      {item.houtsoort && getMarkup(item.houtsoort) > 0 && (
+                        <span className="shrink-0 px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-md text-[9px] font-black">+{getMarkup(item.houtsoort)}%</span>
+                      )}
+                    </div>
+                  ) : <div className="hidden md:block"/>}
                   {/* Description */}
                   <input value={item.description} onChange={e => updateItem(item.id,'description',e.target.value)}
                     placeholder="Description…"
                     className="flex-1 md:flex-none min-w-[120px] px-2.5 py-1.5 bg-transparent border border-transparent hover:border-slate-200 focus:border-blue-300 focus:bg-white rounded-xl text-sm font-medium outline-none transition-all placeholder:text-slate-300"/>
-                  {/* Wood type */}
-                  {item.type === 'product' ? (
-                    <select value={item.houtsoort} onChange={e => updateItem(item.id,'houtsoort',e.target.value)} aria-label="Wood type"
-                      className="px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all w-full">
-                      {RAMZON_HOUTSOORTEN.map(h => <option key={h}>{h}</option>)}
-                    </select>
-                  ) : <div className="hidden md:block"/>}
-                  {/* Qty */}
-                  <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
-                    className="w-14 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-sm font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
                   {/* Unit */}
                   <input value={item.unit} onChange={e => updateItem(item.id,'unit',e.target.value)} aria-label="Unit" placeholder="PCS"
                     className="w-12 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-xs font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
@@ -475,9 +586,9 @@ const CreateInvoicePage: React.FC = () => {
                       className="w-full bg-transparent text-sm font-bold outline-none min-w-0"/>
                     <span className="text-xs text-slate-400 shrink-0">%</span>
                   </div>
-                  {/* Total */}
+                  {/* Total (effective price incl. markup + discount) */}
                   <div className="px-2.5 py-1.5 bg-slate-900 text-white rounded-xl text-sm font-black text-right shrink-0 w-full md:w-auto">
-                    {currencySymbol}{(item.qty * item.price * (1 - item.discount / 100)).toFixed(2)}
+                    {currencySymbol}{itemTotal(item).toFixed(2)}
                   </div>
                   {/* Delete */}
                   <button onClick={() => removeItem(item.id)} title="Remove line"
@@ -485,6 +596,30 @@ const CreateInvoicePage: React.FC = () => {
                     <Trash2 size={13}/>
                   </button>
                 </div>
+                {/* Measurement sub-row — only for m² product items */}
+                {item.unit === 'm²' && item.type === 'product' && (
+                  <div className="flex items-center gap-2 flex-wrap pl-[188px] pr-4 pb-2.5 -mt-1 border-b border-slate-100 bg-slate-50/40">
+                    <Ruler size={11} className="text-slate-400 shrink-0"/>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Afmeting:</span>
+                    <input type="number" value={item.mmW ?? ''} min={0}
+                      onChange={e => updateItem(item.id, 'mmW', +e.target.value)}
+                      placeholder="Breedte"
+                      className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-center bg-white outline-none focus:border-blue-300"/>
+                    <span className="text-slate-300 font-bold text-sm">×</span>
+                    <input type="number" value={item.mmH ?? ''} min={0}
+                      onChange={e => updateItem(item.id, 'mmH', +e.target.value)}
+                      placeholder="Hoogte"
+                      className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-center bg-white outline-none focus:border-blue-300"/>
+                    <span className="text-[10px] text-slate-400 font-bold">mm</span>
+                    {item.mmW && item.mmH ? (
+                      <span className="px-2 py-0.5 bg-blue-50 border border-blue-100 text-blue-700 rounded-lg text-[10px] font-black">
+                        = {((item.mmW / 1000) * (item.mmH / 1000)).toFixed(4)} m²
+                      </span>
+                    ) : null}
+                    <span className="ml-auto text-[9px] text-slate-400 font-bold italic">prijs is per m²</span>
+                  </div>
+                )}
+                </React.Fragment>
               ))}
             </div>
           )}
@@ -528,6 +663,41 @@ const CreateInvoicePage: React.FC = () => {
         </div>
       </div>
     </div>
+
+    {showPdfModal && (
+      <DocPDFModal
+        docType="invoice"
+        docNumber={committedDocNumber}
+        date={invoiceDate}
+        clientName={mockClients.find(c => c.id === selectedClient)?.name ?? selectedClient}
+        clientCompany={mockClients.find(c => c.id === selectedClient)?.company}
+        clientAddress={mockClients.find(c => c.id === selectedClient)?.address}
+        clientPhone={mockClients.find(c => c.id === selectedClient)?.phone}
+        clientEmail={mockClients.find(c => c.id === selectedClient)?.email}
+        clientVAT={mockClients.find(c => c.id === selectedClient)?.vatNumber}
+        rep={selectedRep || undefined}
+        paidAmount={paidAmount > 0 ? paidAmount : undefined}
+        currency={currency}
+        currencySymbol={currencySymbol}
+        items={items.map(i => ({
+          id: i.id,
+          description: i.description,
+          houtsoort: i.houtsoort,
+          spec: '',
+          qty: i.qty,
+          unit: i.unit,
+          price: i.price,
+          discount: i.discount,
+          mmW: i.mmW,
+          mmH: i.mmH,
+        }))}
+        subtotal={subtotal}
+        tax={tax}
+        total={total}
+        onClose={() => { setShowPdfModal(false); navigate('/invoices'); }}
+      />
+    )}
+    </>
   );
 };
 

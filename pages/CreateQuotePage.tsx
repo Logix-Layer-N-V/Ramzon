@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { ArrowLeft, Plus, ClipboardList, Send, Save, Trash2, Check, X, Search, FileText, TrendingUp, Ruler } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
+import { QuoteSchema } from '../lib/schemas';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { mockClients, mockEstimates, mockUsers, RAMZON_SERVICES, RAMZON_PRODUCT_CATALOG, RAMZON_HOUTSOORTEN } from '../lib/mock-data';
 import { previewDocNumber, commitDocNumber } from '../lib/docNumbering';
@@ -213,6 +214,16 @@ const CreateQuotePage: React.FC = () => {
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
   const updateItem = (id: string, field: keyof LineItem, val: any) => setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
   const handleSave = () => {
+    const result = QuoteSchema.safeParse({
+      clientId:   client,
+      date,
+      validUntil,
+      items: items.map(i => ({ description: i.description, qty: i.qty, price: i.price })),
+    });
+    if (!result.success) {
+      alert(result.error.issues[0].message);
+      return;
+    }
     const num = isEdit ? docNumber : commitDocNumber('est');
     setCommittedDocNumber(num);
     const clientObj = mockClients.find(c => c.id === client);
