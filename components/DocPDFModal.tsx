@@ -202,39 +202,50 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={async () => {
-              const area = (item: ModalLineItem) =>
-                item.mmW && item.mmH ? (item.mmW / 1000) * (item.mmH / 1000) : 1;
-              const blob = await pdf(
-                <DocPDF
-                  docType={docType}
-                  docNumber={docNumber}
-                  date={date}
-                  validUntil={validUntil}
-                  clientName={clientName}
-                  clientCompany={clientCompany}
-                  clientAddress={clientAddress}
-                  rep={rep}
-                  paidAmount={paidAmount}
-                  currency={currency}
-                  currencySymbol={currencySymbol}
-                  items={items.map(i => {
-                    const a = area(i);
-                    const discountFactor = docType === 'invoice' ? (1 - (i.discount ?? 0) / 100) : 1;
-                    return {
-                      description: i.description,
-                      qty: i.qty,
-                      unit: i.unit || 'pcs',
-                      price: i.price,
-                      total: i.qty * i.price * a * discountFactor,
-                    };
-                  })}
-                  subtotal={subtotal}
-                  tax={tax}
-                  total={total}
-                />
-              ).toBlob();
-              const url = URL.createObjectURL(blob);
-              window.open(url, '_blank');
+              try {
+                const blob = await pdf(
+                  <DocPDF
+                    docType={docType}
+                    docNumber={docNumber}
+                    date={date}
+                    validUntil={validUntil}
+                    clientName={clientName}
+                    clientCompany={clientCompany}
+                    clientAddress={clientAddress}
+                    clientPhone={clientPhone}
+                    clientEmail={clientEmail}
+                    clientVAT={clientVAT}
+                    companyName={companyName}
+                    companyAddress={companyAddress}
+                    companyPhone={companyPhone}
+                    companyEmail={companyEmail}
+                    rep={rep}
+                    paidAmount={paidAmount}
+                    currency={currency}
+                    currencySymbol={currencySymbol}
+                    items={items.map(i => {
+                      const effectivePrice = i.price * (docType === 'invoice' ? (1 - (i.discount ?? 0) / 100) : 1);
+                      return {
+                        description: i.description,
+                        qty: i.qty,
+                        unit: i.unit || 'pcs',
+                        houtsoort: i.houtsoort || undefined,
+                        price: effectivePrice,
+                        total: i.qty * effectivePrice * itemArea(i),
+                      };
+                    })}
+                    subtotal={subtotal}
+                    tax={tax}
+                    total={total}
+                  />
+                ).toBlob();
+                const url = URL.createObjectURL(blob);
+                setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                window.open(url, '_blank');
+              } catch (err) {
+                alert('PDF generation failed. Please try again.');
+                if (import.meta.env.DEV) console.error('PDF error:', err);
+              }
             }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black transition-all shadow"
           >
