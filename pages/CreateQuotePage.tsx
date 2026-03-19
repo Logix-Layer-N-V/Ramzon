@@ -296,6 +296,8 @@ const CreateQuotePage: React.FC = () => {
   const subtotal = items.reduce((s, i) => s + itemSubtotal(i), 0);
   const tax = items.reduce((s, i) => s + itemSubtotal(i) * i.taxRate / 100, 0);
   const total = subtotal + tax;
+  // Locale-aware number formatter: USD → 1,234,567.89 · SRD/EUR → 1.234.567,89
+  const fmt = (n: number) => n.toLocaleString(currency === 'USD' ? 'en-US' : 'nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <>
@@ -401,7 +403,7 @@ const CreateQuotePage: React.FC = () => {
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Line Items</h3>
             {items.length > 0 && (
               <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                {items.length} item{items.length !== 1 ? 's' : ''} · {currencySymbol}{subtotal.toFixed(2)}
+                {items.length} item{items.length !== 1 ? 's' : ''} · {currencySymbol}{fmt(subtotal)}
               </span>
             )}
           </div>
@@ -586,7 +588,7 @@ const CreateQuotePage: React.FC = () => {
           {items.length > 0 && (
             <div className="border border-slate-200 rounded-2xl overflow-hidden">
               {/* Column header */}
-              <div className="hidden md:grid md:grid-cols-[48px_76px_1fr_72px_38px_64px_84px_72px_68px] gap-1.5 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
+              <div className="hidden md:grid md:grid-cols-[48px_76px_1fr_72px_38px_64px_84px_110px_110px] gap-1.5 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
                 {[
                   { label: 'Qty',          align: '' },
                   { label: 'Wood',         align: '' },
@@ -594,9 +596,9 @@ const CreateQuotePage: React.FC = () => {
                   { label: 'Spec / Notes', align: '' },
                   { label: 'Unit',         align: 'text-center' },
                   { label: 'BTW%',         align: 'text-center' },
-                  { label: 'Price',        align: 'text-right' },
-                  { label: 'Subtotaal',    align: 'text-right' },
-                  { label: 'Total',        align: 'text-right' },
+                  { label: 'Price',        align: 'text-right pr-2' },
+                  { label: 'Subtotaal',    align: 'text-right pr-2' },
+                  { label: 'Total',        align: 'text-right pr-2' },
                 ].map(({ label, align }, i) => (
                   <p key={i} className={`text-[7px] font-black text-slate-400 uppercase tracking-widest ${align}`}>{label}</p>
                 ))}
@@ -604,7 +606,7 @@ const CreateQuotePage: React.FC = () => {
               {items.map((item, idx) => (
                 <React.Fragment key={item.id}>
                 <div
-                  className="relative flex flex-wrap md:grid md:grid-cols-[48px_76px_1fr_72px_38px_64px_84px_72px_68px] gap-1.5 items-center px-3 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                  className="relative flex flex-wrap md:grid md:grid-cols-[48px_76px_1fr_72px_38px_64px_84px_110px_110px] gap-1.5 items-center px-3 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                   {/* Qty */}
                   <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
                     className="w-full px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-xs font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
@@ -644,12 +646,12 @@ const CreateQuotePage: React.FC = () => {
                       className="flex-1 bg-transparent text-xs font-bold outline-none min-w-0 text-right"/>
                   </div>
                   {/* Subtotaal (pre-tax) */}
-                  <div className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-[10px] font-black text-right shrink-0 w-full md:w-auto">
-                    {currencySymbol}{itemSubtotal(item).toFixed(2)}
+                  <div className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-[10px] font-black text-right w-full">
+                    {currencySymbol}{fmt(itemSubtotal(item))}
                   </div>
                   {/* Total (incl. markup + tax) */}
                   <div className="px-2 py-1 bg-slate-900 text-white rounded-lg text-xs font-black text-right w-full">
-                    {currencySymbol}{itemTotal(item).toFixed(2)}
+                    {currencySymbol}{fmt(itemTotal(item))}
                   </div>
                   {/* Delete — absolute overlay on hover */}
                   <button onClick={() => removeItem(item.id)} title="Remove line"
@@ -692,15 +694,15 @@ const CreateQuotePage: React.FC = () => {
             <div className="flex flex-wrap gap-8">
               <div>
                 <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">Subtotal</p>
-                <p className="text-xl font-black">{currencySymbol}{subtotal.toFixed(2)}</p>
+                <p className="text-xl font-black">{currencySymbol}{fmt(subtotal)}</p>
               </div>
               <div>
                 <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">VAT</p>
-                <p className="text-xl font-black">{currencySymbol}{tax.toFixed(2)}</p>
+                <p className="text-xl font-black">{currencySymbol}{fmt(tax)}</p>
               </div>
               <div>
                 <p className="text-[10px] text-brand-accent uppercase font-black tracking-widest mb-1">Total</p>
-                <p className="text-3xl font-black text-brand-accent">{currencySymbol}{total.toFixed(2)}</p>
+                <p className="text-3xl font-black text-brand-accent">{currencySymbol}{fmt(total)}</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-3">
