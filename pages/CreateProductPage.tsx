@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Save, Check, Package, Ruler, Calculator, Box, Plus, Hash, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Save, Check, Package, Ruler, Calculator, Box, Plus, Hash, ChevronRight, Pencil, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { mockWoodProducts } from '../lib/mock-data';
 import { storage } from '../lib/storage';
-import type { DoorModel, ProfileSize, WoodSpecies, DoorPriceEntry } from '../types';
+import type { DoorModel, ProfileSize, WoodSpecies, DoorPriceEntry, WoodProduct } from '../types';
 
 const PRODUCT_CATEGORIES = ['Doors', 'Mouldings', 'Frames', 'Window Frames', 'Crating'];
 const CRATE_TYPES = ['Standard crate (small)', 'Standard crate (medium)', 'Standard crate (large)', 'Custom crate', 'Pallet box', 'Export crate'];
@@ -78,6 +77,12 @@ const CreateProductPage: React.FC = () => {
   const [selectedProfile, setSelectedProfile] = useState<ProfileSize | null>(null);
   const [selectedSpecies, setSelectedSpecies] = useState<WoodSpecies | null>(null);
 
+  // Inline edit state
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
+  const [editingProfileLabel, setEditingProfileLabel] = useState('');
+  const [editingSpeciesId, setEditingSpeciesId] = useState<string | null>(null);
+  const [editingSpeciesName, setEditingSpeciesName] = useState('');
+
   // Other fields
   const [name, setName] = useState('');
   const [breedte, setBreedte] = useState<number>(800);
@@ -96,12 +101,25 @@ const CreateProductPage: React.FC = () => {
   const [houtsoort, setHoutsoort] = useState('Teak');
   const [pricePerUnit, setPricePerUnit] = useState<number>(0);
   const [unit, setUnit] = useState('m²');
+  const [calculationType, setCalculationType] = useState<'pcs' | 'm2' | 'lm'>('lm');
 
+  // Auto-set calculation type and unit when category changes
   useEffect(() => {
-    if (category === 'Doors') setUnit('m²');
-    else if (['Mouldings', 'Frames', 'Window Frames'].includes(category)) setUnit('lm');
-    else setUnit('pcs');
+    if (category === 'Doors') {
+      setUnit('m²'); setCalculationType('m2');
+    } else if (['Mouldings', 'Frames', 'Window Frames'].includes(category)) {
+      setCalculationType('lm');
+    } else {
+      setCalculationType('pcs');
+    }
   }, [category]);
+
+  // Sync unit to calculationType for non-door products
+  useEffect(() => {
+    if (category !== 'Doors') {
+      setUnit(calculationType === 'm2' ? 'm²' : calculationType === 'lm' ? 'lm' : 'pcs');
+    }
+  }, [calculationType, category]);
 
   // Auto-generate SKU from selections
   useEffect(() => {
@@ -131,12 +149,14 @@ const CreateProductPage: React.FC = () => {
 
   useEffect(() => {
     if (id) {
-      const p = mockWoodProducts.find(x => x.id === id);
+      const p = storage.products.get().find((x: WoodProduct) => x.id === id);
       if (p) {
         setName(p.name); setHoutsoort(p.woodType);
-        setCategory((p as any).category || 'Doors');
+        setCategory(p.category || 'Doors');
         setPricePerUnit(p.pricePerUnit); setStock(p.stock);
         setUnit(p.unit); setBreedte(p.width); setHoogte(p.length); setThickness(p.thickness);
+        if (p.sku) setSku(p.sku);
+        if (p.calculationType) setCalculationType(p.calculationType);
       }
     }
   }, [id]);
@@ -162,7 +182,68 @@ const CreateProductPage: React.FC = () => {
     setWoodSpeciesList(updated); storage.woodSpecies.save(updated);
   };
 
+  const saveProfileEdit = (id: string) => {
+    if (!editingProfileLabel.trim()) return;
+    const parts = editingProfileLabel.replace('mm','').split('×');
+    const updated = profileSizes.map(p => p.id === id
+      ? { ...p, label: editingProfileLabel.includes('mm') ? editingProfileLabel : `${editingProfileLabel}mm`, mmW: +(parts[0]||p.mmW), mmH: +(parts[1]||p.mmH) }
+      : p
+    );
+    setProfileSizes(updated); storage.profileSizes.save(updated);
+    if (selectedProfile?.id === id) setSelectedProfile(updated.find(p => p.id === id) ?? null);
+    setEditingProfileId(null);
+  };
+  const deleteProfile = (id: string) => {
+    const updated = profileSizes.filter(p => p.id !== id);
+    setProfileSizes(updated); storage.profileSizes.save(updated);
+    if (selectedProfile?.id === id) setSelectedProfile(null);
+  };
+
+  const saveSpeciesEdit = (id: string) => {
+    if (!editingSpeciesName.trim()) return;
+    const updated = woodSpeciesList.map(w => w.id === id ? { ...w, name: editingSpeciesName.trim() } : w);
+    setWoodSpeciesList(updated); storage.woodSpecies.save(updated);
+    if (selectedSpecies?.id === id) setSelectedSpecies(updated.find(w => w.id === id) ?? null);
+    setEditingSpeciesId(null);
+  };
+  const deleteSpecies = (id: string) => {
+    const updated = woodSpeciesList.filter(w => w.id !== id);
+    setWoodSpeciesList(updated); storage.woodSpecies.save(updated);
+    if (selectedSpecies?.id === id) setSelectedSpecies(null);
+  };
+
   const handleSave = () => {
+    const isDoorProduct = category === 'Doors';
+    const autoName = isDoorProduct
+      ? `${selectedSpecies?.name ?? ''} ${selectedModel?.name ?? ''}`.trim()
+      : name;
+    const product: WoodProduct & { [k: string]: any } = {
+      id: id ?? `prod_${Date.now()}`,
+      name: autoName || name,
+      woodType: isDoorProduct ? (selectedSpecies?.name ?? '') : houtsoort,
+      thickness: isDoorProduct ? 40 : thickness,
+      width:  breedte,
+      length: isDoorProduct ? hoogte : (['Mouldings', 'Frames', 'Window Frames'].includes(category) ? lengte : 0),
+      unit: (isDoorProduct ? 'm²' : unit) as WoodProduct['unit'],
+      pricePerUnit: isDoorProduct ? pricePerM2 : pricePerUnit,
+      stock,
+      category,
+      calculationType: isDoorProduct ? 'm2' : calculationType,
+      ...(isDoorProduct && { sku, modelId: selectedModel?.id, profileId: selectedProfile?.id, speciesId: selectedSpecies?.id }),
+      ...(!isDoorProduct && {
+        productType: category === 'Crating' ? crateType
+          : category === 'Mouldings' ? mouldingProduct
+          : category === 'Frames' ? frameSize
+          : category === 'Window Frames' ? windowFrameSize
+          : '',
+      }),
+    };
+    const existing = storage.products.get();
+    if (id) {
+      storage.products.save(existing.map((p: WoodProduct) => p.id === id ? product : p));
+    } else {
+      storage.products.save([...existing, product]);
+    }
     setSaved(true);
     setTimeout(() => navigate('/products'), 1200);
   };
@@ -249,13 +330,41 @@ const CreateProductPage: React.FC = () => {
         <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="grid grid-cols-2 gap-2">
             {profileSizes.map(p => (
-              <button key={p.id} onClick={() => setSelectedProfile(p)}
-                className={`px-4 py-3 rounded-xl text-sm font-bold border text-left transition-all ${
+              editingProfileId === p.id ? (
+                <div key={p.id} className="px-3 py-2 rounded-xl border-2 border-slate-900 bg-white flex flex-col gap-2">
+                  <input
+                    autoFocus
+                    value={editingProfileLabel}
+                    onChange={e => setEditingProfileLabel(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveProfileEdit(p.id); if (e.key === 'Escape') setEditingProfileId(null); }}
+                    placeholder="e.g. 900×2100mm"
+                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none"
+                  />
+                  <div className="flex gap-1.5">
+                    <button onClick={() => saveProfileEdit(p.id)} className="flex-1 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-black">Opslaan</button>
+                    <button onClick={() => setEditingProfileId(null)} className="px-2 py-1 text-slate-400 hover:text-slate-700 rounded-lg text-[10px] font-bold">✕</button>
+                  </div>
+                </div>
+              ) : (
+                <div key={p.id} className={`group relative rounded-xl border text-left transition-all ${
                   selectedProfile?.id === p.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-200 hover:border-slate-400 text-slate-700'
                 }`}>
-                <div className="font-black">{p.label}</div>
-                <div className="text-xs opacity-60">{(p.mmW/1000).toFixed(2)} × {(p.mmH/1000).toFixed(2)} m</div>
-              </button>
+                  <button className="w-full px-4 py-3 text-left" onClick={() => setSelectedProfile(p)}>
+                    <div className="font-black text-sm">{p.label}</div>
+                    <div className="text-xs opacity-60">{(p.mmW/1000).toFixed(2)} × {(p.mmH/1000).toFixed(2)} m</div>
+                  </button>
+                  <div className="absolute top-1.5 right-1.5 hidden group-hover:flex gap-0.5">
+                    <button onClick={e => { e.stopPropagation(); setEditingProfileId(p.id); setEditingProfileLabel(p.label); }}
+                      className={`p-1 rounded-lg transition-all ${selectedProfile?.id === p.id ? 'text-white/60 hover:text-white hover:bg-white/10' : 'text-slate-300 hover:text-slate-700 hover:bg-slate-100'}`}>
+                      <Pencil size={11}/>
+                    </button>
+                    <button onClick={e => { e.stopPropagation(); deleteProfile(p.id); }}
+                      className={`p-1 rounded-lg transition-all ${selectedProfile?.id === p.id ? 'text-white/60 hover:text-red-300 hover:bg-white/10' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'}`}>
+                      <X size={11}/>
+                    </button>
+                  </div>
+                </div>
+              )
             ))}
           </div>
           <InlineAdd label="profile size (e.g. 900×2100mm)" onAdd={addProfileSize}/>
@@ -287,13 +396,41 @@ const CreateProductPage: React.FC = () => {
         <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="grid grid-cols-2 gap-2">
             {woodSpeciesList.map(ws => (
-              <button key={ws.id} onClick={() => setSelectedSpecies(ws)}
-                className={`px-4 py-3 rounded-xl text-sm font-bold border text-left transition-all flex items-center gap-3 ${
+              editingSpeciesId === ws.id ? (
+                <div key={ws.id} className="px-3 py-2 rounded-xl border-2 border-slate-900 bg-white flex flex-col gap-2">
+                  <input
+                    autoFocus
+                    value={editingSpeciesName}
+                    onChange={e => setEditingSpeciesName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveSpeciesEdit(ws.id); if (e.key === 'Escape') setEditingSpeciesId(null); }}
+                    placeholder="Naam houtsoort..."
+                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none"
+                  />
+                  <div className="flex gap-1.5">
+                    <button onClick={() => saveSpeciesEdit(ws.id)} className="flex-1 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-black">Opslaan</button>
+                    <button onClick={() => setEditingSpeciesId(null)} className="px-2 py-1 text-slate-400 hover:text-slate-700 rounded-lg text-[10px] font-bold">✕</button>
+                  </div>
+                </div>
+              ) : (
+                <div key={ws.id} className={`group relative rounded-xl border text-left transition-all ${
                   selectedSpecies?.id === ws.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-200 hover:border-slate-400 text-slate-700'
                 }`}>
-                {ws.color && <span className="w-4 h-4 rounded-full flex-shrink-0 border border-black/10" style={{ backgroundColor: ws.color }}/>}
-                {ws.name}
-              </button>
+                  <button className="w-full px-4 py-3 flex items-center gap-3" onClick={() => setSelectedSpecies(ws)}>
+                    {ws.color && <span className="w-4 h-4 rounded-full flex-shrink-0 border border-black/10" style={{ backgroundColor: ws.color }}/>}
+                    <span className="text-sm font-bold">{ws.name}</span>
+                  </button>
+                  <div className="absolute top-1.5 right-1.5 hidden group-hover:flex gap-0.5">
+                    <button onClick={e => { e.stopPropagation(); setEditingSpeciesId(ws.id); setEditingSpeciesName(ws.name); }}
+                      className={`p-1 rounded-lg transition-all ${selectedSpecies?.id === ws.id ? 'text-white/60 hover:text-white hover:bg-white/10' : 'text-slate-300 hover:text-slate-700 hover:bg-slate-100'}`}>
+                      <Pencil size={11}/>
+                    </button>
+                    <button onClick={e => { e.stopPropagation(); deleteSpecies(ws.id); }}
+                      className={`p-1 rounded-lg transition-all ${selectedSpecies?.id === ws.id ? 'text-white/60 hover:text-red-300 hover:bg-white/10' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'}`}>
+                      <X size={11}/>
+                    </button>
+                  </div>
+                </div>
+              )
             ))}
           </div>
           <InlineAdd label="wood species" onAdd={addWoodSpecies}/>
@@ -409,6 +546,23 @@ const CreateProductPage: React.FC = () => {
                 <div className="space-y-1.5">
                   <label className={LABEL}>Unit</label>
                   <div className="px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm font-black text-slate-600">{unit}</div>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className={LABEL}>Calculation Type</label>
+                  <div className="flex gap-2 flex-wrap">
+                    <button type="button" onClick={() => setCalculationType('pcs')}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${calculationType === 'pcs' ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-400'}`}>
+                      📦 Fixed Item (PCS)
+                    </button>
+                    <button type="button" onClick={() => setCalculationType('m2')}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${calculationType === 'm2' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300'}`}>
+                      📐 Area-based (m²)
+                    </button>
+                    <button type="button" onClick={() => setCalculationType('lm')}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${calculationType === 'lm' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-emerald-300'}`}>
+                      📏 Length-based (lm)
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

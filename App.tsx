@@ -35,8 +35,12 @@ import ExpenseVendorsPage from './pages/ExpenseVendorsPage';
 import DocumentationPage from './pages/DocumentationPage';
 import ProductCategoriesPage from './pages/ProductCategoriesPage';
 import ServiceCategoriesPage from './pages/ServiceCategoriesPage';
+import NotificationsPage from './pages/NotificationsPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Language, translations } from './lib/translations';
 import { LanguageContext, Currency, TaxRate } from './lib/context';
+import { storage } from './lib/storage';
+import { DEMO_PRODUCTS } from './lib/mock-data';
 
 const Layout: React.FC<{ 
   children: React.ReactNode; 
@@ -67,7 +71,7 @@ const Layout: React.FC<{
           onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
         
-        <main className="flex-1 overflow-y-auto w-full no-scrollbar relative z-0 bg-white">
+        <main className="flex-1 overflow-y-auto w-full no-scrollbar relative bg-white">
           <div className="p-5 sm:p-6 md:p-8 min-h-full animate-in fade-in duration-500">
             {children}
           </div>
@@ -184,6 +188,13 @@ const App: React.FC = () => {
     else localStorage.removeItem('companyLogo');
   }, [companyLogo]);
 
+  // Seed demo products into storage if empty (first load / fresh install)
+  useEffect(() => {
+    if (storage.products.get().length === 0) {
+      storage.products.save(DEMO_PRODUCTS);
+    }
+  }, []);
+
   const t = (key: keyof typeof translations.en) => {
     return translations[lang][key] || translations.en[key];
   };
@@ -230,6 +241,7 @@ const App: React.FC = () => {
           <Route path="/*" element={
             isAuthenticated ? (
               <Layout onLogout={handleLogout} isSidebarCollapsed={isSidebarCollapsed} setIsSidebarCollapsed={setIsSidebarCollapsed}>
+                <ErrorBoundary>
                 <Routes>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/invoices" element={<InvoicesPage />} />
@@ -274,8 +286,10 @@ const App: React.FC = () => {
                   <Route path="/clients/:id" element={<ClientDetailPage />} />
                   <Route path="/clients/edit/:id" element={<EditClientPage />} />
                   <Route path="/settings" element={<SettingsPage viewMode="page" setViewMode={()=>{}} />} />
+                  <Route path="/notifications" element={<NotificationsPage />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
+                </ErrorBoundary>
               </Layout>
             ) : <Navigate to="/login" replace />
           } />

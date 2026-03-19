@@ -1,26 +1,19 @@
 
 import React, { useState, useContext, useEffect } from 'react';
-import { 
-  Palette, 
-  Move, 
-  Plus, 
-  Trash2, 
-  Save, 
-  ChevronDown, 
-  Sparkles, 
-  Wand2, 
-  Eye, 
-  Box, 
-  FileText, 
-  ClipboardList, 
-  Receipt, 
-  Wallet, 
+import {
+  Move,
+  Plus,
+  Save,
+  Wand2,
+  Eye,
+  FileText,
+  ClipboardList,
+  Receipt,
+  Wallet,
   CreditCard,
-  Grid,
   Check,
   AlignLeft,
   Settings2,
-  Paperclip,
   Building,
   Scale,
   CreditCard as PaymentIcon,
@@ -31,17 +24,15 @@ import {
   Printer,
   AlignRight,
   AlignCenter,
-  Type,
-  Type as FontSizeIcon,
-  Bold as FontWeightIcon,
-  Globe
+  Upload,
+  Sliders,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
 import { storage, NoteTemplate } from '../lib/storage';
 
-// Map string icon names → Lucide components for note templates
-const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ICON_MAP: Record<string, React.ComponentType<any>> = {
   MessageSquareText, FileText, Wand2,
 };
 
@@ -52,82 +43,643 @@ const DEFAULT_NOTE_TEMPLATES: NoteTemplate[] = [
 ];
 
 type DocumentType = 'invoice' | 'estimate' | 'payment' | 'credit' | 'note';
-type HeaderStyle = 'centered' | 'split';
-type Alignment = 'left' | 'center' | 'right';
-type FontFamily = 'sans' | 'serif' | 'mono';
-type FontSize = 'small' | 'medium' | 'large';
-type FontWeight = 'normal' | 'medium' | 'bold' | 'black';
+type HeaderStyle   = 'centered' | 'split';
+type FontFamily    = 'sans' | 'serif' | 'mono';
+type FontSize      = 'small' | 'medium' | 'large';
+type FontWeight    = 'normal' | 'medium' | 'bold' | 'black';
+
+// ── Translation map ───────────────────────────────────────────────────────────
+
+const APPTXT: Record<string, Record<string, string>> = {
+  nl: {
+    pageTitle: 'Document Stijlen', pageSubtitle: 'Volledig beheer over uw factuur & offerte layout',
+    preview: 'Voorbeeld', save: 'Opslaan', saved: 'Opgeslagen!',
+    tabEditor: 'Template Editor', tabHeaders: 'PDF Headers', tabNotes: 'Notities & Terms',
+    docSections: 'Document Secties', docType: 'Document Type',
+    invoices: 'Facturen', estimates: 'Offertes', payments: 'Betalingsbonnen', credits: "Creditnota's", notes: 'Aangepaste Nota\'s',
+    sections: 'Secties', addBlock: 'Blok toevoegen',
+    colors: 'Kleuren & Branding', accentColor: 'Accent kleur', reset: 'Reset',
+    headerBg: 'Header achtergrond', tableHdr: 'Tabel koptekst',
+    brand: 'Merk', dark: 'Donker', light: 'Licht', none: 'Geen',
+    typography: 'Typografie', fontFamily: 'Lettertype', textScale: 'Tekstgrootte',
+    small: 'Klein', medium: 'Middel', large: 'Groot',
+    weight: 'Gewicht', reg: 'Reg', med: 'Med', bold: 'Bold', black: 'Black',
+    docTitle: 'Document Titel', titleSize: 'Grootte', titleStyle: 'Stijl',
+    normal: 'Normaal', uppercase: 'Hoofdl.', stamp: 'Stempel',
+    customLabel: 'Aangepaste Naam',
+    logoHeader: 'Logo & Header', logoSize: 'Logo grootte', headerLayout: 'Header indeling',
+    split: 'Split', centered: 'Gecentreerd',
+    companyFields: 'Bedrijfsinfo Velden',
+    clientBlock: 'Klantblok', style: 'Stijl', clean: 'Clean', boxed: 'Kader',
+    position: 'Positie', right: 'Rechts', left: 'Links', below: 'Onder',
+    tableStyle: 'Tabelstijl', rowLines: 'Rijscheidingslijnen',
+    horizontal: 'Horizontaal', grid: 'Grid',
+    footerContent: 'Footer Inhoud', bankDetails: 'Bankgegevens', legalText: 'Juridische Disclaimer',
+    saveApply: 'Opslaan & Toepassen', savedLabel: 'Opgeslagen!',
+    livePreview: 'Live Preview', liveChanges: 'Wijzigingen zijn direct zichtbaar',
+    visible: 'Zichtbaar', hidden: 'Verborgen',
+    headerTitle: 'Document Header', headerSub: 'Stel in hoe bedrijfsinfo verschijnt op alle PDF exports',
+    headerStructure: 'Header Structuur', logoAlignment: 'Logo Uitlijning',
+    titleSizeLabel: 'Documenttitel Grootte', clientStyleLabel: 'Klantblok Stijl',
+    companyInfoSync: 'Bedrijfsinfo gesynchroniseerd vanuit Instellingen',
+    editCompany: 'Bedrijfsinfo bewerken', uploadLogo: 'Upload Logo',
+    notesTitle: 'Standaard Notities', notesSub: 'Standaard tekst voor de Notities sectie op documenten',
+    add: 'Toevoegen', newTemplate: 'Nieuw Template',
+    templateName: 'Template naam (bijv. Betalingsherinnering)',
+    templateContent: 'Standaard tekst voor de Notities sectie...',
+    cancel: 'Annuleren',
+    previewTitle: 'PDF Layout Voorbeeld', type: 'Type', close: 'Sluiten',
+    naam: 'Naam', adres: 'Adres', telefoon: 'Telefoon', email: 'Email', btwNr: 'BTW nr', kkfNr: 'KKF nr',
+    clientFields: 'Client Info Velden', company: 'Bedrijf',
+    metaCols: 'Meta Kolommen', tableCols: 'Tabel Kolommen',
+    datum: 'Datum', nr: 'Nummer', termijn: 'Termijn', vervaldatum: 'Vervaldatum', rep: 'Rep', project: 'Project',
+    omschrijving: 'Omschrijving', afmeting: 'Afmeting', qty: 'Aantal', eenheid: 'Eenheid',
+    houtsoort: 'Houtsoort', prijs: 'Prijs', totaal: 'Totaal',
+  },
+  en: {
+    pageTitle: 'Document Styles', pageSubtitle: 'Full control over your invoice & quote layout',
+    preview: 'Preview', save: 'Save', saved: 'Saved!',
+    tabEditor: 'Template Editor', tabHeaders: 'PDF Headers', tabNotes: 'Notes & Terms',
+    docSections: 'Document Sections', docType: 'Document Type',
+    invoices: 'Invoices', estimates: 'Quotes', payments: 'Payments', credits: 'Credit Notes', notes: 'Custom Notes',
+    sections: 'Sections', addBlock: 'Add block',
+    colors: 'Colors & Branding', accentColor: 'Accent color', reset: 'Reset',
+    headerBg: 'Header background', tableHdr: 'Table header',
+    brand: 'Brand', dark: 'Dark', light: 'Light', none: 'None',
+    typography: 'Typography', fontFamily: 'Font family', textScale: 'Text scale',
+    small: 'Small', medium: 'Medium', large: 'Large',
+    weight: 'Weight', reg: 'Reg', med: 'Med', bold: 'Bold', black: 'Black',
+    docTitle: 'Document Title', titleSize: 'Size', titleStyle: 'Style',
+    normal: 'Normal', uppercase: 'Uppercase', stamp: 'Stamp',
+    customLabel: 'Custom Name',
+    logoHeader: 'Logo & Header', logoSize: 'Logo size', headerLayout: 'Header layout',
+    split: 'Split', centered: 'Centered',
+    companyFields: 'Company Info Fields',
+    clientBlock: 'Client Block', style: 'Style', clean: 'Clean', boxed: 'Boxed',
+    position: 'Position', right: 'Right', left: 'Left', below: 'Below',
+    tableStyle: 'Table Style', rowLines: 'Row separators',
+    horizontal: 'Horizontal', grid: 'Grid',
+    footerContent: 'Footer Content', bankDetails: 'Bank Details', legalText: 'Legal Disclaimer',
+    saveApply: 'Save & Apply', savedLabel: 'Saved!',
+    livePreview: 'Live Preview', liveChanges: 'Changes are visible instantly',
+    visible: 'Visible', hidden: 'Hidden',
+    headerTitle: 'Document Header', headerSub: 'Configure how company info appears on all PDF exports',
+    headerStructure: 'Header Structure', logoAlignment: 'Logo Alignment',
+    titleSizeLabel: 'Document Title Size', clientStyleLabel: 'Client Block Style',
+    companyInfoSync: 'Company info synced from Settings',
+    editCompany: 'Edit Company Info', uploadLogo: 'Upload Logo',
+    notesTitle: 'Default Notes', notesSub: 'Default text for the Notes section on documents',
+    add: 'Add', newTemplate: 'New Template',
+    templateName: 'Template name (e.g. Payment Reminder)',
+    templateContent: 'Default text for the Notes section...',
+    cancel: 'Cancel',
+    previewTitle: 'PDF Layout Preview', type: 'Type', close: 'Close',
+    naam: 'Name', adres: 'Address', telefoon: 'Phone', email: 'Email', btwNr: 'VAT no.', kkfNr: 'KKF no.',
+    clientFields: 'Client Info Fields', company: 'Company',
+    metaCols: 'Meta Columns', tableCols: 'Table Columns',
+    datum: 'Date', nr: 'Number', termijn: 'Terms', vervaldatum: 'Due Date', rep: 'Rep', project: 'Project',
+    omschrijving: 'Description', afmeting: 'Dimensions', qty: 'Qty', eenheid: 'Unit',
+    houtsoort: 'Wood Type', prijs: 'Price', totaal: 'Total',
+  },
+};
+(['es', 'fr', 'zh', 'pt', 'de'] as const).forEach(l => { APPTXT[l] = APPTXT.en; });
+
+// ── Small helper UI components ────────────────────────────────────────────────
+
+const SettingsSec: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+    <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
+      <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{label}</span>
+    </div>
+    <div className="p-4">{children}</div>
+  </div>
+);
+
+const SettingsLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">{children}</span>
+);
+
+const OptionRow: React.FC<{ options: { value: string; label: string }[]; active: string; onChange: (v: string) => void }> = ({ options, active, onChange }) => (
+  <div className="flex gap-1">
+    {options.map(o => (
+      <button
+        key={o.value}
+        onClick={() => onChange(o.value)}
+        className={`flex-1 py-1.5 rounded text-[9px] font-black uppercase tracking-wide border transition-all ${active === o.value ? 'border-brand-primary bg-brand-accent-light text-brand-primary' : 'border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'}`}
+      >
+        {o.label}
+      </button>
+    ))}
+  </div>
+);
+
+// ── Live document preview ──────────────────────────────────────────────────────
+
+interface LivePreviewProps {
+  accentColor: string;
+  headerBg: 'brand' | 'dark' | 'light' | 'none';
+  tableHeaderMode: 'dark' | 'brand' | 'light' | 'none';
+  logoSize: 'sm' | 'md' | 'lg';
+  showFields: Record<string, boolean>;
+  clientPosition: 'right' | 'left' | 'below';
+  tableRows: 'horizontal' | 'grid' | 'none';
+  titleStyle: 'normal' | 'uppercase' | 'stamp';
+  fontFamily: FontFamily;
+  titleSize: 'sm' | 'md' | 'lg';
+  clientStyle: 'clean' | 'boxed';
+  headerStyle: HeaderStyle;
+  companyFieldsOrder: string[];
+  customTitles: Record<string, string>;
+  clientFieldsOrder: string[];
+  showClientFields: Record<string, boolean>;
+}
+
+const DEFAULT_TITLES: Record<string, string> = {
+  invoice: 'Factuur', estimate: 'Offerte', quote: 'Offerte', payment: 'Betaling', credit: 'Creditnota',
+};
+
+const LivePreview: React.FC<LivePreviewProps> = ({
+  accentColor, headerBg, tableHeaderMode, logoSize, showFields,
+  clientPosition, tableRows, titleStyle, fontFamily, titleSize, clientStyle, headerStyle,
+  companyFieldsOrder, customTitles, clientFieldsOrder, showClientFields,
+}) => {
+  const { companyName, companyLogo, companyAddress, companyPhone, companyEmail, companyBTW, companyKKF } = useContext(LanguageContext) as any;
+
+  const hdrHasBg = headerBg !== 'none';
+  const hdrBgStyle: React.CSSProperties =
+    headerBg === 'brand' ? { backgroundColor: accentColor } :
+    headerBg === 'dark'  ? { backgroundColor: '#1e293b' } :
+    headerBg === 'light' ? { backgroundColor: '#f8fafc' } : {};
+  const hdrPadding   = hdrHasBg ? '-mx-8 -mt-8 mb-6 px-8 pt-8 pb-6' : 'border-b-2 border-slate-200 pb-5 mb-5';
+  const hdrTextMain  = hdrHasBg ? 'text-white' : 'text-slate-900';
+  const hdrTextSub   = hdrHasBg ? 'text-white/70' : 'text-slate-500';
+  const hdrTextMuted = hdrHasBg ? 'text-white/50' : 'text-slate-400';
+
+  const tblHdrStyle: React.CSSProperties =
+    tableHeaderMode === 'dark'  ? { backgroundColor: '#1e293b', color: 'white' } :
+    tableHeaderMode === 'brand' ? { backgroundColor: accentColor, color: 'white' } :
+    tableHeaderMode === 'light' ? { backgroundColor: '#f8fafc', color: '#64748b' } :
+    { color: '#475569', borderBottom: '2px solid #e2e8f0' };
+
+  const logoH     = logoSize === 'sm' ? 'h-6' : logoSize === 'lg' ? 'h-14' : 'h-10';
+  const tblRowCls = tableRows === 'grid' ? 'border border-slate-100' : tableRows === 'horizontal' ? 'border-b border-slate-100' : '';
+  const titleSzCls = titleSize === 'sm' ? 'text-xs' : titleSize === 'lg' ? 'text-xl' : 'text-base';
+  const docLabelRaw = customTitles['invoice'] || DEFAULT_TITLES['invoice'];
+  const displayLabel = titleStyle === 'uppercase' ? docLabelRaw.toUpperCase() : docLabelRaw;
+  const docTitleCls = `${titleSzCls} font-black ${hdrHasBg ? 'text-white' : 'text-slate-900'}${titleStyle === 'stamp' ? ' border-2 border-current px-2 py-0.5 inline-block' : ''}${titleStyle === 'uppercase' ? ' uppercase tracking-widest' : ' tracking-tight'}`;
+  const docNumCls = `font-mono text-xs mt-0.5 ${hdrHasBg ? 'text-white/60' : 'text-slate-400'}`;
+  const fontCls = fontFamily === 'serif' ? 'font-serif' : fontFamily === 'mono' ? 'font-mono' : 'font-sans';
+
+  const SAMPLE = [
+    { desc: 'Enkele Deur Teak', wood: 'Teak', qty: 3, unit: 'stuks', total: 750 },
+    { desc: 'Kozijn Mahonie', wood: 'Mahonie', qty: 1, unit: 'm²', total: 180 },
+    { desc: 'Vloerhout herschaven', wood: 'Kopi', qty: 135, unit: 'm²', total: 1080 },
+  ];
+
+  const renderField = (key: string) => {
+    switch (key) {
+      case 'name':    return showFields.name !== false    ? <p key="name"    className={`font-black text-sm leading-tight ${hdrTextMain}`}>{companyName || 'Ramzon N.V.'}</p> : null;
+      case 'address': return showFields.address !== false ? <p key="address" className={`text-xs mt-0.5 ${hdrTextSub}`}>{companyAddress || 'Paramaribo, Suriname'}</p> : null;
+      case 'phone':   return showFields.phone !== false   ? <p key="phone"   className={`text-xs ${hdrTextSub}`}>{companyPhone || '+597 123 456'}</p> : null;
+      case 'email':   return showFields.email !== false   ? <p key="email"   className={`text-xs ${hdrTextSub}`}>{companyEmail || 'info@ramzon.com'}</p> : null;
+      case 'btw':     return showFields.btw !== false     ? <p key="btw"     className={`text-xs ${hdrTextMuted}`}>BTW: {companyBTW || '2000012965'}</p> : null;
+      case 'kkf':     return showFields.kkf !== false     ? <p key="kkf"     className={`text-xs ${hdrTextMuted}`}>KKF: {companyKKF || '12345'}</p> : null;
+      default: return null;
+    }
+  };
+
+  const SAMPLE_CLIENT: Record<string, string> = {
+    name: 'Dinesh Abhelak', company: 'Abhelak Constructions',
+    address: 'Kanaalstraat 14, Paramaribo', phone: '+597 859 4052',
+    email: 'dinesh@abhelak.sr', vat: 'SR8800123',
+  };
+  const ClientBlk = ({ align = 'right' }: { align?: 'left' | 'right' }) => (
+    <div className={`${clientStyle === 'boxed' ? 'border border-slate-200 rounded px-3 py-2' : ''} ${align === 'right' ? 'text-right' : 'text-left'}`}>
+      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Aan</p>
+      {clientFieldsOrder.map(key => {
+        if (showClientFields[key] === false) return null;
+        if (key === 'name')    return <p key="name"    className="font-bold text-slate-900 text-sm leading-tight">{SAMPLE_CLIENT.name}</p>;
+        if (key === 'company') return <p key="company" className="text-xs text-slate-500 font-medium mt-0.5">{SAMPLE_CLIENT.company}</p>;
+        if (key === 'address') return <p key="address" className="text-xs text-slate-400 mt-0.5">{SAMPLE_CLIENT.address}</p>;
+        if (key === 'phone')   return <p key="phone"   className="text-xs text-slate-400 mt-0.5">{SAMPLE_CLIENT.phone}</p>;
+        if (key === 'email')   return <p key="email"   className="text-xs text-slate-400">{SAMPLE_CLIENT.email}</p>;
+        if (key === 'vat')     return <p key="vat"     className="text-xs text-slate-400 mt-0.5">BTW: {SAMPLE_CLIENT.vat}</p>;
+        return null;
+      })}
+    </div>
+  );
+
+  return (
+    <div className={`bg-white p-8 ${fontCls} text-sm text-slate-800 border border-slate-200`} style={{ minHeight: '1000px' }}>
+
+      {/* Header */}
+      {headerStyle === 'split' ? (
+        <div className={hdrPadding} style={hdrBgStyle}>
+          <div className="flex items-start justify-between gap-6">
+            <div className="flex items-start gap-3">
+              {companyLogo ? (
+                <img src={companyLogo} alt="" className={`${logoH} w-auto object-contain${hdrHasBg ? ' brightness-0 invert' : ''}`} style={{ maxWidth: '140px' }} />
+              ) : (
+                <span className={`font-black italic text-base ${hdrTextMain}`}>{companyName || 'RAMZON'}</span>
+              )}
+              <div>{companyFieldsOrder.map(k => renderField(k))}</div>
+            </div>
+            <div className="text-right shrink-0">
+              <p className={docTitleCls}>{displayLabel}</p>
+              <p className={docNumCls}>#F-2025-001</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className={`${hdrPadding} text-center`} style={hdrBgStyle}>
+          {companyLogo ? (
+            <img src={companyLogo} alt="" className={`${logoH} w-auto object-contain mx-auto mb-2${hdrHasBg ? ' brightness-0 invert' : ''}`} style={{ maxWidth: '140px' }} />
+          ) : (
+            <span className={`font-black italic text-xl block mb-2 ${hdrTextMain}`}>{companyName || 'RAMZON N.V.'}</span>
+          )}
+          {companyFieldsOrder.map(k => renderField(k))}
+          <p className={`mt-3 ${docTitleCls}`}>{displayLabel}</p>
+          <p className={docNumCls}>#F-2025-001</p>
+        </div>
+      )}
+
+      {/* Meta row */}
+      <div className={`flex${clientPosition === 'below' ? '' : ' justify-between'} items-start mb-5 pb-4 border-b border-slate-200`}>
+        {clientPosition === 'left' && <ClientBlk align="left" />}
+        <div className="flex gap-6">
+          <div>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Datum</p>
+            <p className="font-bold text-slate-900 text-sm">13-03-2025</p>
+          </div>
+          <div>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Betaaltermijn</p>
+            <p className="font-bold text-slate-900 text-sm">30 dagen</p>
+          </div>
+          <div>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Valuta</p>
+            <p className="font-bold text-slate-900 text-sm">USD</p>
+          </div>
+        </div>
+        {clientPosition === 'right' && <ClientBlk align="right" />}
+      </div>
+      {clientPosition === 'below' && <div className="mb-5"><ClientBlk align="left" /></div>}
+
+      {/* Table */}
+      <table className="w-full mb-5 border-collapse text-xs">
+        <thead>
+          <tr>
+            {['Omschrijving', 'Houtsoort', 'Aantal', 'Eenh.', 'Totaal'].map(h => (
+              <th key={h} className="text-left py-2 px-2 text-[9px] uppercase tracking-widest font-black" style={tblHdrStyle}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {SAMPLE.map((row, i) => (
+            <tr key={i} className={tblRowCls}>
+              <td className="py-2 px-2 font-medium">{row.desc}</td>
+              <td className="py-2 px-2 text-slate-500">{row.wood}</td>
+              <td className="py-2 px-2 text-right font-bold">{row.qty}</td>
+              <td className="py-2 px-2 text-center text-slate-500">{row.unit}</td>
+              <td className="py-2 px-2 text-right font-black">${row.total.toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Totals */}
+      <div className="flex justify-end mb-6">
+        <div className="w-56">
+          <div className="flex justify-between py-1.5 text-xs border-t border-slate-200">
+            <span className="text-slate-500">Subtotaal</span><span className="font-bold">$2,010.00</span>
+          </div>
+          <div className="flex justify-between py-1.5 text-xs border-b border-slate-100">
+            <span className="text-slate-500">BTW (21%)</span><span className="font-bold">$422.10</span>
+          </div>
+          <div className="flex justify-between py-2 border-t-2 border-slate-900">
+            <span className="font-black text-slate-900">TOTAAL</span><span className="font-black text-slate-900">$2,432.10</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-slate-200 pt-4 grid grid-cols-2 gap-4 text-[10px] text-slate-500">
+        <div>
+          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Betalingsgegevens</p>
+          <p>ING Bank: NL88 INGB 0123 4567 89</p>
+        </div>
+        <div>
+          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Voorwaarden</p>
+          <p>Betalingstermijn is 14 dagen.</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Main AppearancePage ────────────────────────────────────────────────────────
 
 const AppearancePage: React.FC = () => {
-  const { 
-    companyName, companyLogo, companyAddress, 
-    companyPhone, companyEmail, companyWebsite, 
-    companyKKF, companyBTW 
-  } = useContext(LanguageContext);
+  const {
+    lang,
+    companyName, companyLogo, companyAddress,
+    companyPhone, companyEmail,
+    companyKKF, companyBTW, setCompanyLogo,
+  } = useContext(LanguageContext) as any;
   const navigate = useNavigate();
-  
-  const [activeTab, setActiveTab] = useState<'builder' | 'header' | 'footer' | 'themes' | 'notities'>('builder');
+
+  const L = APPTXT[lang] ?? APPTXT.en;
+
+  const [activeTab, setActiveTab] = useState<'style' | 'header' | 'notities'>('style');
+  const [previewZoom, setPreviewZoom] = useState(52);
   const [activeDocType, setActiveDocType] = useState<DocumentType>('invoice');
-  const [docTheme, setDocTheme] = useState<'minimal' | 'corporate' | 'modern' | 'compact'>('corporate');
   const [showPreview, setShowPreview] = useState(false);
-  
-  // Header Customization States
-  const [headerStyle, setHeaderStyle] = useState<HeaderStyle>('split');
-  const [logoAlignment, setLogoAlignment] = useState<Alignment>('left');
+  const [applySaved, setApplySaved] = useState(false);
 
-  // Typography Customization States
-  const [fontFamily, setFontFamily] = useState<FontFamily>('sans');
-  const [fontSize, setFontSize] = useState<FontSize>('medium');
-  const [fontWeight, setFontWeight] = useState<FontWeight>('bold');
+  // Header customization
+  const [headerStyle, setHeaderStyle] = useState<HeaderStyle>(
+    () => (localStorage.getItem('erp_doc_header_style') as any) ?? 'split'
+  );
+  const [logoAlignment, setLogoAlignment] = useState<'left' | 'center' | 'right'>(
+    () => (localStorage.getItem('erp_doc_logo_align') as any) ?? 'left'
+  );
 
-  // Notes Templates State — persisted to localStorage
+  // Typography
+  const [fontFamily, setFontFamily] = useState<FontFamily>(
+    () => (localStorage.getItem('erp_doc_font_family') as any) ?? 'sans'
+  );
+  const [fontSize, setFontSize] = useState<FontSize>(
+    () => (localStorage.getItem('erp_doc_font_size') as any) ?? 'medium'
+  );
+  const [fontWeight, setFontWeight] = useState<FontWeight>(
+    () => (localStorage.getItem('erp_doc_font_weight') as any) ?? 'bold'
+  );
+
+  // Document title
+  const [titleSize, setTitleSize] = useState<'sm' | 'md' | 'lg'>(
+    () => (localStorage.getItem('erp_doc_title_size') as any) ?? 'md'
+  );
+  const [titleStyle, setTitleStyle] = useState<'normal' | 'uppercase' | 'stamp'>(
+    () => (localStorage.getItem('erp_doc_title_style') as any) ?? 'normal'
+  );
+  const [customTitles, setCustomTitles] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('erp_doc_custom_titles') ?? '{}'); } catch { return {}; }
+  });
+
+  // Customer block
+  const [clientStyle, setClientStyle] = useState<'clean' | 'boxed'>(
+    () => (localStorage.getItem('erp_doc_client_style') as any) ?? 'clean'
+  );
+  const [clientPosition, setClientPosition] = useState<'right' | 'left' | 'below'>(
+    () => (localStorage.getItem('erp_doc_client_position') as any) ?? 'right'
+  );
+
+  // Colors & branding
+  const [accentColor, setAccentColor] = useState<string>(
+    () => localStorage.getItem('erp_doc_accent_color') ?? '#8B1D2A'
+  );
+  const [headerBg, setHeaderBg] = useState<'brand' | 'dark' | 'light' | 'none'>(
+    () => (localStorage.getItem('erp_doc_header_bg') as any) ?? 'none'
+  );
+  const [tableHeaderMode, setTableHeaderMode] = useState<'dark' | 'brand' | 'light' | 'none'>(
+    () => (localStorage.getItem('erp_doc_table_header') as any) ?? 'dark'
+  );
+
+  // Logo size
+  const [logoSize, setLogoSize] = useState<'sm' | 'md' | 'lg'>(
+    () => (localStorage.getItem('erp_doc_logo_size') as any) ?? 'md'
+  );
+
+  // Company field visibility + order
+  const [showFields, setShowFields] = useState<Record<string, boolean>>(() => {
+    const raw = localStorage.getItem('erp_doc_show_fields');
+    return raw ? JSON.parse(raw) : { name: true, address: true, phone: true, email: true, btw: true, kkf: true };
+  });
+  const [companyFieldsOrder, setCompanyFieldsOrder] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('erp_doc_company_fields_order') ?? '["name","address","phone","email","btw","kkf"]'); }
+    catch { return ['name', 'address', 'phone', 'email', 'btw', 'kkf']; }
+  });
+
+  // Client field visibility + order
+  const [clientFieldsOrder, setClientFieldsOrder] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('erp_doc_client_fields_order') ?? '["name","company","address","phone","email","vat"]'); }
+    catch { return ['name', 'company', 'address', 'phone', 'email', 'vat']; }
+  });
+  const [showClientFields, setShowClientFields] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('erp_doc_show_client_fields') ?? '{}'); } catch { return {}; }
+  });
+
+  // Client fields drag state
+  const [ckDragIdx,     setCkDragIdx]     = useState<number | null>(null);
+  const [ckDragOverIdx, setCkDragOverIdx] = useState<number | null>(null);
+  const handleCkDragStart = (i: number) => setCkDragIdx(i);
+  const handleCkDragOver  = (e: React.DragEvent, i: number) => { e.preventDefault(); setCkDragOverIdx(i); };
+  const handleCkDrop      = (targetIdx: number) => {
+    if (ckDragIdx === null || ckDragIdx === targetIdx) { setCkDragIdx(null); setCkDragOverIdx(null); return; }
+    const parts = [...clientFieldsOrder];
+    const [moved] = parts.splice(ckDragIdx, 1);
+    parts.splice(targetIdx, 0, moved);
+    setClientFieldsOrder(parts);
+    setCkDragIdx(null); setCkDragOverIdx(null);
+  };
+  const handleCkDragEnd = () => { setCkDragIdx(null); setCkDragOverIdx(null); };
+
+  // Meta columns order + visibility
+  const [metaColsOrder, setMetaColsOrder] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('erp_doc_meta_cols_order') ?? '["datum","nr","termijn","vervaldatum","rep","project"]'); }
+    catch { return ['datum', 'nr', 'termijn', 'vervaldatum', 'rep', 'project']; }
+  });
+  const [showMetaCols, setShowMetaCols] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('erp_doc_show_meta_cols') ?? '{}'); } catch { return {}; }
+  });
+  const [mcDragIdx,     setMcDragIdx]     = useState<number | null>(null);
+  const [mcDragOverIdx, setMcDragOverIdx] = useState<number | null>(null);
+  const handleMcDragStart = (i: number) => setMcDragIdx(i);
+  const handleMcDragOver  = (e: React.DragEvent, i: number) => { e.preventDefault(); setMcDragOverIdx(i); };
+  const handleMcDrop      = (targetIdx: number) => {
+    if (mcDragIdx === null || mcDragIdx === targetIdx) { setMcDragIdx(null); setMcDragOverIdx(null); return; }
+    const parts = [...metaColsOrder];
+    const [moved] = parts.splice(mcDragIdx, 1);
+    parts.splice(targetIdx, 0, moved);
+    setMetaColsOrder(parts);
+    setMcDragIdx(null); setMcDragOverIdx(null);
+  };
+  const handleMcDragEnd = () => { setMcDragIdx(null); setMcDragOverIdx(null); };
+
+  // Table columns order + visibility
+  const [tableColsOrder, setTableColsOrder] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('erp_doc_table_cols_order') ?? '["omschrijving","afmeting","qty","eenheid","houtsoort","prijs","totaal"]'); }
+    catch { return ['omschrijving', 'afmeting', 'qty', 'eenheid', 'houtsoort', 'prijs', 'totaal']; }
+  });
+  const [showTableCols, setShowTableCols] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('erp_doc_show_table_cols') ?? '{}'); } catch { return {}; }
+  });
+  const [tcDragIdx,     setTcDragIdx]     = useState<number | null>(null);
+  const [tcDragOverIdx, setTcDragOverIdx] = useState<number | null>(null);
+  const handleTcDragStart = (i: number) => setTcDragIdx(i);
+  const handleTcDragOver  = (e: React.DragEvent, i: number) => { e.preventDefault(); setTcDragOverIdx(i); };
+  const handleTcDrop      = (targetIdx: number) => {
+    if (tcDragIdx === null || tcDragIdx === targetIdx) { setTcDragIdx(null); setTcDragOverIdx(null); return; }
+    const parts = [...tableColsOrder];
+    const [moved] = parts.splice(tcDragIdx, 1);
+    parts.splice(targetIdx, 0, moved);
+    setTableColsOrder(parts);
+    setTcDragIdx(null); setTcDragOverIdx(null);
+  };
+  const handleTcDragEnd = () => { setTcDragIdx(null); setTcDragOverIdx(null); };
+
+  // Company fields drag state
+  const [cfDragIdx,     setCfDragIdx]     = useState<number | null>(null);
+  const [cfDragOverIdx, setCfDragOverIdx] = useState<number | null>(null);
+  const handleCfDragStart = (i: number) => setCfDragIdx(i);
+  const handleCfDragOver  = (e: React.DragEvent, i: number) => { e.preventDefault(); setCfDragOverIdx(i); };
+  const handleCfDrop      = (targetIdx: number) => {
+    if (cfDragIdx === null || cfDragIdx === targetIdx) { setCfDragIdx(null); setCfDragOverIdx(null); return; }
+    const parts = [...companyFieldsOrder];
+    const [moved] = parts.splice(cfDragIdx, 1);
+    parts.splice(targetIdx, 0, moved);
+    setCompanyFieldsOrder(parts);
+    setCfDragIdx(null); setCfDragOverIdx(null);
+  };
+  const handleCfDragEnd = () => { setCfDragIdx(null); setCfDragOverIdx(null); };
+
+  // Table row style
+  const [tableRows, setTableRows] = useState<'horizontal' | 'grid' | 'none'>(
+    () => (localStorage.getItem('erp_doc_table_rows') as any) ?? 'horizontal'
+  );
+
+  // Footer text
+  const [bankDetails, setBankDetails] = useState(
+    () => localStorage.getItem('erp_bank_details') ?? `ING Bank: NL88 INGB 0123 4567 89\nBTW nr: ${companyBTW ?? ''}\nKKF: ${companyKKF ?? ''}`
+  );
+  const [legalDisclaimer, setLegalDisclaimer] = useState(
+    () => localStorage.getItem('erp_legal_disclaimer') ?? 'Betalingstermijn is 14 dagen. Op al onze leveringen zijn de algemene voorwaarden van toepassing.'
+  );
+  useEffect(() => { localStorage.setItem('erp_bank_details', bankDetails); }, [bankDetails]);
+  useEffect(() => { localStorage.setItem('erp_legal_disclaimer', legalDisclaimer); }, [legalDisclaimer]);
+
+  // Drag-and-drop — document sections
+  const [dragIdx,     setDragIdx]     = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const handleDragStart = (i: number) => setDragIdx(i);
+  const handleDragOver  = (e: React.DragEvent, i: number) => { e.preventDefault(); setDragOverIdx(i); };
+  const handleDrop      = (targetIdx: number) => {
+    if (dragIdx === null || dragIdx === targetIdx) { setDragIdx(null); setDragOverIdx(null); return; }
+    const parts = [...docSkeletons[activeDocType]];
+    const [moved] = parts.splice(dragIdx, 1);
+    parts.splice(targetIdx, 0, moved);
+    setDocSkeletons(prev => ({ ...prev, [activeDocType]: parts }));
+    setDragIdx(null); setDragOverIdx(null);
+  };
+  const handleDragEnd = () => { setDragIdx(null); setDragOverIdx(null); };
+
+  // Skeleton label editing
+  const [editingSkeletonId,    setEditingSkeletonId]    = useState<string | null>(null);
+  const [editingSkeletonLabel, setEditingSkeletonLabel] = useState('');
+  const saveSkeletonLabel = () => {
+    if (!editingSkeletonId || !editingSkeletonLabel.trim()) { setEditingSkeletonId(null); return; }
+    setDocSkeletons(prev => ({
+      ...prev,
+      [activeDocType]: prev[activeDocType].map(item =>
+        item.id === editingSkeletonId ? { ...item, label: editingSkeletonLabel.trim() } : item
+      )
+    }));
+    setEditingSkeletonId(null);
+  };
+
+  // Drag-and-drop — header tab
+  const [headerSectionsOrder, setHeaderSectionsOrder] = useState<string[]>(
+    () => JSON.parse(localStorage.getItem('erp_header_sections_order') ?? '["structure","logo","titleSize","clientStyle"]')
+  );
+  const [hDragIdx,     setHDragIdx]     = useState<number | null>(null);
+  const [hDragOverIdx, setHDragOverIdx] = useState<number | null>(null);
+  const handleHDragStart = (i: number) => setHDragIdx(i);
+  const handleHDragOver  = (e: React.DragEvent, i: number) => { e.preventDefault(); setHDragOverIdx(i); };
+  const handleHDrop      = (targetIdx: number) => {
+    if (hDragIdx === null || hDragIdx === targetIdx) { setHDragIdx(null); setHDragOverIdx(null); return; }
+    const parts = [...headerSectionsOrder];
+    const [moved] = parts.splice(hDragIdx, 1);
+    parts.splice(targetIdx, 0, moved);
+    setHeaderSectionsOrder(parts);
+    localStorage.setItem('erp_header_sections_order', JSON.stringify(parts));
+    setHDragIdx(null); setHDragOverIdx(null);
+  };
+  const handleHDragEnd = () => { setHDragIdx(null); setHDragOverIdx(null); };
+
+  // Apply layouts — persist all settings
+  const handleApplyLayouts = () => {
+    localStorage.setItem('erp_doc_font_family',           fontFamily);
+    localStorage.setItem('erp_doc_font_size',             fontSize);
+    localStorage.setItem('erp_doc_font_weight',           fontWeight);
+    localStorage.setItem('erp_doc_header_style',          headerStyle);
+    localStorage.setItem('erp_doc_logo_align',            logoAlignment);
+    localStorage.setItem('erp_doc_title_size',            titleSize);
+    localStorage.setItem('erp_doc_title_style',           titleStyle);
+    localStorage.setItem('erp_doc_client_style',          clientStyle);
+    localStorage.setItem('erp_doc_client_position',       clientPosition);
+    localStorage.setItem('erp_doc_accent_color',          accentColor);
+    localStorage.setItem('erp_doc_header_bg',             headerBg);
+    localStorage.setItem('erp_doc_table_header',          tableHeaderMode);
+    localStorage.setItem('erp_doc_logo_size',             logoSize);
+    localStorage.setItem('erp_doc_show_fields',           JSON.stringify(showFields));
+    localStorage.setItem('erp_doc_table_rows',            tableRows);
+    localStorage.setItem('erp_doc_custom_titles',         JSON.stringify(customTitles));
+    localStorage.setItem('erp_doc_company_fields_order',  JSON.stringify(companyFieldsOrder));
+    localStorage.setItem('erp_doc_client_fields_order',   JSON.stringify(clientFieldsOrder));
+    localStorage.setItem('erp_doc_show_client_fields',    JSON.stringify(showClientFields));
+    localStorage.setItem('erp_doc_meta_cols_order',        JSON.stringify(metaColsOrder));
+    localStorage.setItem('erp_doc_show_meta_cols',         JSON.stringify(showMetaCols));
+    localStorage.setItem('erp_doc_table_cols_order',       JSON.stringify(tableColsOrder));
+    localStorage.setItem('erp_doc_show_table_cols',        JSON.stringify(showTableCols));
+    setApplySaved(true);
+    setTimeout(() => setApplySaved(false), 2000);
+  };
+
+  // Note templates
   const [noteTemplates, setNoteTemplates] = useState<NoteTemplate[]>(() => {
     const saved = storage.noteTemplates.get();
     return saved.length ? saved : DEFAULT_NOTE_TEMPLATES;
   });
-  const [showAddTemplate, setShowAddTemplate] = useState(false);
-  const [newTemplateName, setNewTemplateName] = useState('');
+  const [showAddTemplate,   setShowAddTemplate]   = useState(false);
+  const [newTemplateName,   setNewTemplateName]   = useState('');
   const [newTemplateContent, setNewTemplateContent] = useState('');
-
-  // Persist note templates to localStorage whenever they change
   useEffect(() => { storage.noteTemplates.save(noteTemplates); }, [noteTemplates]);
 
-  // Document skeletons with ordering and visibility
+  // Document skeletons
   const [docSkeletons, setDocSkeletons] = useState({
-    invoice: [
+    invoice:  [
       { id: 'h1', label: 'Branding Header (Logo & Info)', enabled: true },
       { id: 'm1', label: 'Metadata Row (Date, #, Terms)', enabled: true },
-      { id: 't1', label: 'Items Table (Wood Specs)', enabled: true },
-      { id: 's1', label: 'BTW & Tax Line', enabled: true },
+      { id: 't1', label: 'Items Table (Wood Specs)',      enabled: true },
+      { id: 's1', label: 'BTW & Tax Line',                enabled: true },
       { id: 'p1', label: 'Footer Section (Notes & Totals)', enabled: true },
     ],
     estimate: [
       { id: 'h1', label: 'Branding Header', enabled: true },
-      { id: 'm1', label: 'Metadata Row', enabled: true },
-      { id: 't1', label: 'Items Table', enabled: true },
-      { id: 's1', label: 'BTW Line', enabled: true },
-      { id: 'p1', label: 'Footer Section', enabled: true },
+      { id: 'm1', label: 'Metadata Row',    enabled: true },
+      { id: 't1', label: 'Items Table',     enabled: true },
+      { id: 's1', label: 'BTW Line',        enabled: true },
+      { id: 'p1', label: 'Footer Section',  enabled: true },
     ],
-    payment: [
+    payment:  [
       { id: 'h1', label: 'Branding Header', enabled: true },
-      { id: 'm1', label: 'Metadata Row', enabled: true },
-      { id: 't1', label: 'Receipt Items', enabled: true },
-      { id: 's1', label: 'BTW Line', enabled: true },
-      { id: 'p1', label: 'Footer Section', enabled: true },
+      { id: 'm1', label: 'Metadata Row',    enabled: true },
+      { id: 't1', label: 'Receipt Items',   enabled: true },
+      { id: 's1', label: 'BTW Line',        enabled: true },
+      { id: 'p1', label: 'Footer Section',  enabled: true },
     ],
-    credit: [
+    credit:   [
       { id: 'h1', label: 'Branding Header', enabled: true },
-      { id: 'm1', label: 'Metadata Row', enabled: true },
-      { id: 't1', label: 'Credit Items', enabled: true },
-      { id: 's1', label: 'BTW Line', enabled: true },
-      { id: 'p1', label: 'Footer Section', enabled: true },
+      { id: 'm1', label: 'Metadata Row',    enabled: true },
+      { id: 't1', label: 'Credit Items',    enabled: true },
+      { id: 's1', label: 'BTW Line',        enabled: true },
+      { id: 'p1', label: 'Footer Section',  enabled: true },
     ],
-    note: [
+    note:     [
       { id: 'h1', label: 'Branding Header', enabled: true },
-      { id: 'm1', label: 'Metadata Row', enabled: true },
-      { id: 't1', label: 'Note Content', enabled: true },
-      { id: 'p1', label: 'Footer Section', enabled: true },
-    ]
+      { id: 'm1', label: 'Metadata Row',    enabled: true },
+      { id: 't1', label: 'Note Content',    enabled: true },
+      { id: 'p1', label: 'Footer Section',  enabled: true },
+    ],
   });
 
   const toggleSkeletonItem = (type: DocumentType, id: string) => {
@@ -137,688 +689,838 @@ const AppearancePage: React.FC = () => {
     }));
   };
 
-  const isEnabled = (type: DocumentType, partId: string) => {
-    return docSkeletons[type].find(p => p.id === partId)?.enabled;
+  const isEnabled = (type: DocumentType, partId: string) =>
+    docSkeletons[type].find(p => p.id === partId)?.enabled;
+
+  // Field label maps
+  const fieldLabels: Record<string, string> = {
+    name: L.naam, address: L.adres, phone: L.telefoon, email: L.email, btw: L.btwNr, kkf: L.kkfNr,
   };
+  const clientFieldLabels: Record<string, string> = {
+    name: L.naam, company: L.company, address: L.adres, phone: L.telefoon, email: L.email, vat: L.btwNr,
+  };
+  const metaColLabels: Record<string, string> = {
+    datum: L.datum, nr: L.nr, termijn: L.termijn, vervaldatum: L.vervaldatum, rep: L.rep, project: L.project,
+  };
+  const tableColLabels: Record<string, string> = {
+    omschrijving: L.omschrijving, afmeting: L.afmeting, qty: L.qty, eenheid: L.eenheid,
+    houtsoort: L.houtsoort, prijs: L.prijs, totaal: L.totaal,
+  };
+
+  // Default document titles
+  const defaultTitles: Record<string, string> = {
+    invoice: 'Factuur', estimate: 'Offerte', quote: 'Offerte', payment: 'Betaling', credit: 'Creditnota',
+  };
+
+  // ── Tab content renderer ────────────────────────────────────────────────────
 
   const renderTabContent = () => {
-    switch(activeTab) {
-      case 'builder':
+    switch (activeTab) {
+
+      // ── TEMPLATE EDITOR ─────────────────────────────────────────────────────
+      case 'style':
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-300">
-            <div className="lg:col-span-4 space-y-6">
-              <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-xl space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Select Document</h3>
-                  <Settings2 size={16} className="text-slate-400" />
-                </div>
-                <div className="grid grid-cols-1 gap-2">
-                  {[
-                    { id: 'invoice', label: 'Invoices', icon: Receipt },
-                    { id: 'estimate', label: 'Estimates', icon: ClipboardList },
-                    { id: 'payment', label: 'Payment Receipts', icon: Wallet },
-                    { id: 'credit', label: 'Credit Notes', icon: CreditCard },
-                    { id: 'note', label: 'Custom Notes', icon: FileText },
-                  ].map(doc => (
-                    <button 
-                      key={doc.id}
-                      onClick={() => setActiveDocType(doc.id as DocumentType)}
-                      className={`flex items-center gap-4 px-4 py-3 rounded-2xl transition-all group border ${activeDocType === doc.id ? 'bg-brand-primary text-white border-brand-primary shadow-lg' : 'bg-white text-slate-600 border-slate-100 hover:border-slate-300 hover:bg-slate-50'}`}
-                    >
-                      <doc.icon size={18} className={activeDocType === doc.id ? 'text-white' : 'text-slate-400 group-hover:text-slate-600'} />
-                      <span className="text-xs font-black uppercase tracking-wider">{doc.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 animate-in fade-in duration-300">
 
-              <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-xl space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Layout Engine</h3>
-                  <Palette size={16} className="text-brand-accent" />
-                </div>
-                <div className="flex flex-col gap-2">
-                   {['minimal', 'corporate', 'modern', 'compact'].map(theme => (
-                     <button 
-                      key={theme}
-                      onClick={() => setDocTheme(theme as any)}
-                      className={`px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest border transition-all ${docTheme === theme ? 'bg-brand-accent-light border-brand-accent text-brand-primary' : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50'}`}
-                     >
-                       {theme.charAt(0).toUpperCase() + theme.slice(1)} Template
-                     </button>
-                   ))}
-                </div>
-              </div>
+            {/* ── Left: Settings panels ── */}
+            <div className="xl:col-span-5 space-y-2.5">
 
-              <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-xl space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Typography Settings</h3>
-                  <Type size={16} className="text-brand-primary" />
-                </div>
-                <div className="space-y-6">
-                   <div className="space-y-2">
-                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Font Family</label>
-                     <div className="flex gap-1.5 p-1 bg-slate-50 rounded-xl border border-slate-100">
-                        {['sans', 'serif', 'mono'].map((f) => (
-                          <button 
-                            key={f}
-                            onClick={() => setFontFamily(f as any)}
-                            className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${fontFamily === f ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
-                          >
-                            {f}
-                          </button>
-                        ))}
-                     </div>
-                   </div>
-
-                   <div className="space-y-2">
-                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Text Scaling</label>
-                     <div className="flex gap-1.5 p-1 bg-slate-50 rounded-xl border border-slate-100">
-                        {['small', 'medium', 'large'].map((s) => (
-                          <button 
-                            key={s}
-                            onClick={() => setFontSize(s as any)}
-                            className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${fontSize === s ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
-                          >
-                            {s.charAt(0)}
-                          </button>
-                        ))}
-                     </div>
-                   </div>
-
-                   <div className="space-y-2">
-                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Base Weight</label>
-                     <div className="flex gap-1.5 p-1 bg-slate-50 rounded-xl border border-slate-100">
-                        {['normal', 'medium', 'bold', 'black'].map((w) => (
-                          <button 
-                            key={w}
-                            onClick={() => setFontWeight(w as any)}
-                            className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${fontWeight === w ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
-                          >
-                            {w === 'normal' ? 'N' : w === 'medium' ? 'M' : w === 'bold' ? 'B' : 'BL'}
-                          </button>
-                        ))}
-                     </div>
-                   </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="lg:col-span-8 space-y-6">
-              <div className="bg-white p-12 rounded-[48px] border border-slate-200 shadow-[0_40px_120px_-20px_rgba(0,0,0,0.1)] min-h-[700px] flex flex-col gap-4 relative">
-                <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">PDF Document Skeleton: {activeDocType.toUpperCase()}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button className="p-2 text-slate-300 hover:text-slate-900 transition-all"><AlignLeft size={18} /></button>
-                    <button className="p-2 text-slate-300 hover:text-slate-900 transition-all"><Grid size={18} /></button>
-                  </div>
-                </div>
-
+              {/* Document Sections (merged from old builder tab) */}
+              <SettingsSec label={L.docSections}>
                 <div className="space-y-3">
-                  {docSkeletons[activeDocType].map((item, idx) => (
-                    <div 
-                      key={item.id}
-                      className={`group relative flex items-center justify-between p-6 rounded-[24px] border transition-all duration-500 hover:scale-[1.01] ${item.enabled ? 'bg-white border-slate-200 shadow-sm opacity-100' : 'bg-slate-50 border-slate-100 opacity-40 grayscale'}`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="cursor-grab active:cursor-grabbing text-slate-200 group-hover:text-slate-400 transition-colors">
-                          <Move size={18} />
+                  {/* Doc type selector */}
+                  <div className="grid grid-cols-1 gap-1">
+                    {[
+                      { id: 'invoice',  label: L.invoices,  icon: Receipt },
+                      { id: 'estimate', label: L.estimates, icon: ClipboardList },
+                      { id: 'payment',  label: L.payments,  icon: Wallet },
+                      { id: 'credit',   label: L.credits,   icon: CreditCard },
+                      { id: 'note',     label: L.notes,     icon: FileText },
+                    ].map(doc => (
+                      <button
+                        key={doc.id}
+                        onClick={() => setActiveDocType(doc.id as DocumentType)}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all border text-left ${activeDocType === doc.id ? 'bg-brand-primary text-white border-brand-primary shadow' : 'bg-white text-slate-600 border-slate-100 hover:border-slate-200 hover:bg-slate-50'}`}
+                      >
+                        <doc.icon size={14} className={activeDocType === doc.id ? 'text-white' : 'text-slate-400'} />
+                        <span className="text-[10px] font-black uppercase tracking-wider">{doc.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Section ordering */}
+                  <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                    <SettingsLabel>{L.sections}: {activeDocType.toUpperCase()}</SettingsLabel>
+                    {docSkeletons[activeDocType].map((item, idx) => (
+                      <div
+                        key={item.id}
+                        draggable
+                        onDragStart={() => handleDragStart(idx)}
+                        onDragOver={e => handleDragOver(e, idx)}
+                        onDrop={() => handleDrop(idx)}
+                        onDragEnd={handleDragEnd}
+                        className={`group flex items-center gap-2 p-2.5 rounded border transition-all select-none
+                          ${item.enabled ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-50'}
+                          ${dragIdx === idx ? 'opacity-30' : ''}
+                          ${dragOverIdx === idx && dragIdx !== idx ? 'border-t-2 border-brand-primary' : ''}`}
+                      >
+                        <Move size={12} className="text-slate-300 cursor-grab shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          {editingSkeletonId === item.id ? (
+                            <input
+                              autoFocus
+                              value={editingSkeletonLabel}
+                              onChange={e => setEditingSkeletonLabel(e.target.value)}
+                              onBlur={saveSkeletonLabel}
+                              onKeyDown={e => { if (e.key === 'Enter') saveSkeletonLabel(); if (e.key === 'Escape') setEditingSkeletonId(null); }}
+                              className="w-full text-xs font-black text-slate-900 bg-slate-50 border border-brand-primary rounded px-2 py-0.5 outline-none"
+                            />
+                          ) : (
+                            <p className="text-xs font-black text-slate-700 truncate">{item.label}</p>
+                          )}
                         </div>
-                        <div>
-                          <p className="text-sm font-black text-slate-900 tracking-tight">{item.label}</p>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Part 0{idx + 1}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <button 
+                        <button
                           onClick={() => toggleSkeletonItem(activeDocType, item.id)}
-                          className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${item.enabled ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-200 text-slate-500 border-transparent'}`}
+                          className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border transition-all ${item.enabled ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-300'}`}
                         >
-                          {item.enabled ? 'VISIBLE' : 'HIDDEN'}
+                          {item.enabled ? L.visible : L.hidden}
                         </button>
-                        <button className="p-2 text-slate-200 hover:text-slate-900 opacity-0 group-hover:opacity-100 transition-all">
-                          <Settings2 size={16} />
+                        <button
+                          onClick={() => { setEditingSkeletonId(item.id); setEditingSkeletonLabel(item.label); }}
+                          className="p-1 text-slate-200 hover:text-brand-primary opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <Settings2 size={11} />
                         </button>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              </SettingsSec>
+
+              <SettingsSec label={L.colors}>
+                <div className="space-y-4">
+                  <div>
+                    <SettingsLabel>{L.accentColor}</SettingsLabel>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={accentColor}
+                        onChange={e => setAccentColor(e.target.value)}
+                        className="w-9 h-9 rounded cursor-pointer border border-slate-200 p-0.5 bg-white"
+                      />
+                      <span className="font-mono text-sm text-slate-700 bg-slate-50 px-2 py-1 rounded border border-slate-200">{accentColor}</span>
+                      <button
+                        onClick={() => setAccentColor('#8B1D2A')}
+                        className="text-[9px] font-black text-slate-400 hover:text-slate-600 ml-auto uppercase tracking-widest"
+                      >
+                        {L.reset}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <SettingsLabel>{L.headerBg}</SettingsLabel>
+                    <OptionRow
+                      options={[{value:'brand',label:L.brand},{value:'dark',label:L.dark},{value:'light',label:L.light},{value:'none',label:L.none}]}
+                      active={headerBg}
+                      onChange={v => setHeaderBg(v as 'brand'|'dark'|'light'|'none')}
+                    />
+                  </div>
+                  <div>
+                    <SettingsLabel>{L.tableHdr}</SettingsLabel>
+                    <OptionRow
+                      options={[{value:'dark',label:L.dark},{value:'brand',label:L.brand},{value:'light',label:L.light},{value:'none',label:L.none}]}
+                      active={tableHeaderMode}
+                      onChange={v => setTableHeaderMode(v as 'dark'|'brand'|'light'|'none')}
+                    />
+                  </div>
+                </div>
+              </SettingsSec>
+
+              <SettingsSec label={L.typography}>
+                <div className="space-y-3">
+                  <div>
+                    <SettingsLabel>{L.fontFamily}</SettingsLabel>
+                    <OptionRow
+                      options={[{value:'sans',label:'Sans'},{value:'serif',label:'Serif'},{value:'mono',label:'Mono'}]}
+                      active={fontFamily}
+                      onChange={v => setFontFamily(v as FontFamily)}
+                    />
+                  </div>
+                  <div>
+                    <SettingsLabel>{L.textScale}</SettingsLabel>
+                    <OptionRow
+                      options={[{value:'small',label:L.small},{value:'medium',label:L.medium},{value:'large',label:L.large}]}
+                      active={fontSize}
+                      onChange={v => setFontSize(v as FontSize)}
+                    />
+                  </div>
+                  <div>
+                    <SettingsLabel>{L.weight}</SettingsLabel>
+                    <OptionRow
+                      options={[{value:'normal',label:L.reg},{value:'medium',label:L.med},{value:'bold',label:L.bold},{value:'black',label:L.black}]}
+                      active={fontWeight}
+                      onChange={v => setFontWeight(v as FontWeight)}
+                    />
+                  </div>
+                </div>
+              </SettingsSec>
+
+              <SettingsSec label={L.docTitle}>
+                <div className="space-y-3">
+                  <div>
+                    <SettingsLabel>{L.titleSize}</SettingsLabel>
+                    <OptionRow
+                      options={[{value:'sm',label:L.small},{value:'md',label:L.medium},{value:'lg',label:L.large}]}
+                      active={titleSize}
+                      onChange={v => setTitleSize(v as 'sm'|'md'|'lg')}
+                    />
+                  </div>
+                  <div>
+                    <SettingsLabel>{L.titleStyle}</SettingsLabel>
+                    <OptionRow
+                      options={[{value:'normal',label:L.normal},{value:'uppercase',label:L.uppercase},{value:'stamp',label:L.stamp}]}
+                      active={titleStyle}
+                      onChange={v => setTitleStyle(v as 'normal'|'uppercase'|'stamp')}
+                    />
+                  </div>
+                  <div>
+                    <SettingsLabel>{L.customLabel}</SettingsLabel>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {(['invoice', 'estimate', 'payment', 'credit'] as const).map(dt => (
+                        <div key={dt} className="flex flex-col gap-0.5">
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{dt}</span>
+                          <input
+                            value={customTitles[dt] ?? defaultTitles[dt] ?? dt}
+                            onChange={e => setCustomTitles(prev => ({ ...prev, [dt]: e.target.value }))}
+                            className="w-full px-2 py-1.5 text-xs font-bold border border-slate-200 rounded bg-white focus:outline-none focus:border-brand-primary/50"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </SettingsSec>
+
+              <SettingsSec label={L.logoHeader}>
+                <div className="space-y-3">
+                  <div>
+                    <SettingsLabel>{L.logoSize}</SettingsLabel>
+                    <OptionRow
+                      options={[{value:'sm',label:L.small},{value:'md',label:L.medium},{value:'lg',label:L.large}]}
+                      active={logoSize}
+                      onChange={v => setLogoSize(v as 'sm'|'md'|'lg')}
+                    />
+                  </div>
+                  <div>
+                    <SettingsLabel>{L.headerLayout}</SettingsLabel>
+                    <OptionRow
+                      options={[{value:'split',label:L.split},{value:'centered',label:L.centered}]}
+                      active={headerStyle}
+                      onChange={v => setHeaderStyle(v as HeaderStyle)}
+                    />
+                  </div>
+                </div>
+              </SettingsSec>
+
+              <SettingsSec label={L.companyFields}>
+                <div className="space-y-1.5">
+                  {companyFieldsOrder.map((key, idx) => (
+                    <div
+                      key={key}
+                      draggable
+                      onDragStart={() => handleCfDragStart(idx)}
+                      onDragOver={e => handleCfDragOver(e, idx)}
+                      onDrop={() => handleCfDrop(idx)}
+                      onDragEnd={handleCfDragEnd}
+                      className={`flex items-center gap-2 p-2 rounded border bg-white select-none cursor-grab transition-all
+                        ${cfDragIdx === idx ? 'opacity-30' : ''}
+                        ${cfDragOverIdx === idx && cfDragIdx !== idx ? 'border-t-2 border-brand-primary' : 'border-slate-100 hover:border-slate-200'}`}
+                    >
+                      <Move size={12} className="text-slate-300 shrink-0" />
+                      <span className="flex-1 text-xs font-black uppercase tracking-wide text-slate-600">{fieldLabels[key] ?? key}</span>
+                      <button
+                        onClick={() => setShowFields(prev => ({ ...prev, [key]: !(prev[key] !== false) }))}
+                        className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border transition-all ${showFields[key] !== false ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-300'}`}
+                      >
+                        {showFields[key] !== false ? L.visible : L.hidden}
+                      </button>
                     </div>
                   ))}
                 </div>
+              </SettingsSec>
 
-                <div className="mt-12 p-8 border-2 border-dashed border-slate-100 rounded-[32px] flex flex-col items-center justify-center gap-4 text-slate-300 group hover:border-brand-accent hover:text-brand-primary transition-all cursor-pointer">
-                  <Plus size={32} className="group-hover:rotate-90 transition-transform duration-500" />
-                  <p className="text-[10px] font-black uppercase tracking-widest">Append Custom Data Block</p>
+              <SettingsSec label={L.clientFields}>
+                <div className="space-y-1.5">
+                  {clientFieldsOrder.map((key, idx) => (
+                    <div
+                      key={key}
+                      draggable
+                      onDragStart={() => handleCkDragStart(idx)}
+                      onDragOver={e => handleCkDragOver(e, idx)}
+                      onDrop={() => handleCkDrop(idx)}
+                      onDragEnd={handleCkDragEnd}
+                      className={`flex items-center gap-2 p-2 rounded border bg-white select-none cursor-grab transition-all
+                        ${ckDragIdx === idx ? 'opacity-30' : ''}
+                        ${ckDragOverIdx === idx && ckDragIdx !== idx ? 'border-t-2 border-brand-primary' : 'border-slate-100 hover:border-slate-200'}`}
+                    >
+                      <Move size={12} className="text-slate-300 shrink-0" />
+                      <span className="flex-1 text-xs font-black uppercase tracking-wide text-slate-600">{clientFieldLabels[key] ?? key}</span>
+                      <button
+                        onClick={() => setShowClientFields(prev => ({ ...prev, [key]: !(prev[key] !== false) }))}
+                        className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border transition-all ${showClientFields[key] !== false ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-300'}`}
+                      >
+                        {showClientFields[key] !== false ? L.visible : L.hidden}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </SettingsSec>
+
+              <SettingsSec label={L.clientBlock}>
+                <div className="space-y-3">
+                  <div>
+                    <SettingsLabel>{L.style}</SettingsLabel>
+                    <OptionRow
+                      options={[{value:'clean',label:L.clean},{value:'boxed',label:L.boxed}]}
+                      active={clientStyle}
+                      onChange={v => setClientStyle(v as 'clean'|'boxed')}
+                    />
+                  </div>
+                  <div>
+                    <SettingsLabel>{L.position}</SettingsLabel>
+                    <OptionRow
+                      options={[{value:'right',label:L.right},{value:'left',label:L.left},{value:'below',label:L.below}]}
+                      active={clientPosition}
+                      onChange={v => setClientPosition(v as 'right'|'left'|'below')}
+                    />
+                  </div>
+                </div>
+              </SettingsSec>
+
+              <SettingsSec label={L.tableStyle}>
+                <div>
+                  <SettingsLabel>{L.rowLines}</SettingsLabel>
+                  <OptionRow
+                    options={[{value:'horizontal',label:L.horizontal},{value:'grid',label:L.grid},{value:'none',label:L.none}]}
+                    active={tableRows}
+                    onChange={v => setTableRows(v as 'horizontal'|'grid'|'none')}
+                  />
+                </div>
+              </SettingsSec>
+
+              <SettingsSec label={L.metaCols}>
+                <div className="space-y-1.5">
+                  {metaColsOrder.map((key, idx) => (
+                    <div
+                      key={key}
+                      draggable
+                      onDragStart={() => handleMcDragStart(idx)}
+                      onDragOver={e => handleMcDragOver(e, idx)}
+                      onDrop={() => handleMcDrop(idx)}
+                      onDragEnd={handleMcDragEnd}
+                      className={`flex items-center gap-2 p-2 rounded border bg-white select-none cursor-grab transition-all
+                        ${mcDragIdx === idx ? 'opacity-30' : ''}
+                        ${mcDragOverIdx === idx && mcDragIdx !== idx ? 'border-t-2 border-brand-primary' : 'border-slate-100 hover:border-slate-200'}`}
+                    >
+                      <Move size={12} className="text-slate-300 shrink-0" />
+                      <span className="flex-1 text-xs font-black uppercase tracking-wide text-slate-600">{metaColLabels[key] ?? key}</span>
+                      <button
+                        onClick={() => setShowMetaCols(prev => ({ ...prev, [key]: !(prev[key] !== false) }))}
+                        className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border transition-all ${showMetaCols[key] !== false ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-300'}`}
+                      >
+                        {showMetaCols[key] !== false ? L.visible : L.hidden}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </SettingsSec>
+
+              <SettingsSec label={L.tableCols}>
+                <div className="space-y-1.5">
+                  {tableColsOrder.map((key, idx) => (
+                    <div
+                      key={key}
+                      draggable
+                      onDragStart={() => handleTcDragStart(idx)}
+                      onDragOver={e => handleTcDragOver(e, idx)}
+                      onDrop={() => handleTcDrop(idx)}
+                      onDragEnd={handleTcDragEnd}
+                      className={`flex items-center gap-2 p-2 rounded border bg-white select-none cursor-grab transition-all
+                        ${tcDragIdx === idx ? 'opacity-30' : ''}
+                        ${tcDragOverIdx === idx && tcDragIdx !== idx ? 'border-t-2 border-brand-primary' : 'border-slate-100 hover:border-slate-200'}`}
+                    >
+                      <Move size={12} className="text-slate-300 shrink-0" />
+                      <span className="flex-1 text-xs font-black uppercase tracking-wide text-slate-600">{tableColLabels[key] ?? key}</span>
+                      <button
+                        onClick={() => setShowTableCols(prev => ({ ...prev, [key]: !(prev[key] !== false) }))}
+                        className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border transition-all ${showTableCols[key] !== false ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-300'}`}
+                      >
+                        {showTableCols[key] !== false ? L.visible : L.hidden}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </SettingsSec>
+
+              <SettingsSec label={L.footerContent}>
+                <div className="space-y-3">
+                  <div>
+                    <SettingsLabel>{L.bankDetails}</SettingsLabel>
+                    <textarea
+                      value={bankDetails}
+                      onChange={e => setBankDetails(e.target.value)}
+                      rows={3}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded text-xs resize-none focus:outline-none focus:border-brand-primary/50"
+                    />
+                  </div>
+                  <div>
+                    <SettingsLabel>{L.legalText}</SettingsLabel>
+                    <textarea
+                      value={legalDisclaimer}
+                      onChange={e => setLegalDisclaimer(e.target.value)}
+                      rows={3}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded text-xs resize-none focus:outline-none focus:border-brand-primary/50"
+                    />
+                  </div>
+                </div>
+              </SettingsSec>
+
+              <button
+                onClick={handleApplyLayouts}
+                className={`w-full py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg ${applySaved ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-slate-900 text-white shadow-slate-300 hover:bg-slate-800'}`}
+              >
+                {applySaved ? <><Check size={15} /> {L.savedLabel}</> : <><Save size={15} /> {L.saveApply}</>}
+              </button>
+            </div>
+
+            {/* ── Right: Live preview ── */}
+            <div className="xl:col-span-7">
+              <div className="rounded-lg border border-slate-200 overflow-hidden sticky top-4 bg-slate-100" style={{ height: '680px' }}>
+                <div className="flex items-center justify-between px-4 py-2.5 bg-white border-b border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{L.livePreview}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-bold text-slate-400 tabular-nums">{previewZoom}%</span>
+                    <input
+                      type="range"
+                      min={30}
+                      max={90}
+                      step={2}
+                      value={previewZoom}
+                      onChange={e => setPreviewZoom(Number(e.target.value))}
+                      className="w-20 h-1 accent-brand-primary cursor-pointer"
+                    />
+                  </div>
+                </div>
+                <div className="overflow-hidden relative" style={{ height: '636px' }}>
+                  <div style={{
+                    position: 'absolute', top: 0, left: '50%',
+                    transform: `translateX(-50%) scale(${previewZoom / 100})`,
+                    transformOrigin: 'top center',
+                    width: '860px', pointerEvents: 'none',
+                  }}>
+                    <LivePreview
+                      accentColor={accentColor}
+                      headerBg={headerBg}
+                      tableHeaderMode={tableHeaderMode}
+                      logoSize={logoSize}
+                      showFields={showFields}
+                      clientPosition={clientPosition}
+                      tableRows={tableRows}
+                      titleStyle={titleStyle}
+                      fontFamily={fontFamily}
+                      titleSize={titleSize}
+                      clientStyle={clientStyle}
+                      headerStyle={headerStyle}
+                      companyFieldsOrder={companyFieldsOrder}
+                      customTitles={customTitles}
+                      clientFieldsOrder={clientFieldsOrder}
+                      showClientFields={showClientFields}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         );
+
+      // ── PDF HEADERS ──────────────────────────────────────────────────────────
       case 'header':
         return (
-          <div className="bg-white p-10 rounded-[32px] border border-slate-200 shadow-[0_20px_60px_rgba(0,0,0,0.05)] space-y-8 animate-in fade-in duration-300">
-             <div className="flex justify-between items-start">
-               <div>
-                 <h3 className="text-xl font-black text-slate-900 tracking-tighter italic">Document Header Configurator</h3>
-                 <p className="text-sm font-medium text-slate-500">Customize how your company info appears on all generated PDF exports</p>
-               </div>
-             </div>
-             
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Header Structure Style</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button 
-                        onClick={() => setHeaderStyle('centered')}
-                        className={`p-4 border-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${headerStyle === 'centered' ? 'border-brand-primary bg-brand-accent-light' : 'border-slate-100 bg-white'}`}
-                      >
-                        Centered Brand
-                      </button>
-                      <button 
-                        onClick={() => setHeaderStyle('split')}
-                        className={`p-4 border-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${headerStyle === 'split' ? 'border-brand-primary bg-brand-accent-light' : 'border-slate-100 bg-white'}`}
-                      >
-                        Split Info/Title
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Logo Alignment</label>
-                    <div className="flex gap-2">
-                       <button 
-                        onClick={() => setLogoAlignment('left')}
-                        className={`px-6 py-3 border-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${logoAlignment === 'left' ? 'border-brand-primary bg-brand-accent-light' : 'border-slate-100 bg-white'}`}
-                       >
-                         <AlignLeft size={16} /> Left
-                       </button>
-                       <button 
-                        onClick={() => setLogoAlignment('center')}
-                        className={`px-6 py-3 border-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${logoAlignment === 'center' ? 'border-brand-primary bg-brand-accent-light' : 'border-slate-100 bg-white'}`}
-                       >
-                         <AlignCenter size={16} /> Center
-                       </button>
-                       <button 
-                        onClick={() => setLogoAlignment('right')}
-                        className={`px-6 py-3 border-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${logoAlignment === 'right' ? 'border-brand-primary bg-brand-accent-light' : 'border-slate-100 bg-white'}`}
-                       >
-                         <AlignRight size={16} /> Right
-                       </button>
-                    </div>
-                  </div>
-                </div>
+          <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm space-y-6 animate-in fade-in duration-300">
+            <div>
+              <h3 className="text-lg font-black text-slate-900 tracking-tighter">{L.headerTitle}</h3>
+              <p className="text-sm font-medium text-slate-500 mt-0.5">{L.headerSub}</p>
+            </div>
 
-                <div className="bg-slate-50 p-8 rounded-3xl border border-slate-100 flex flex-col items-center justify-center text-center gap-4">
-                  <div className="p-4 bg-white rounded-2xl shadow-sm">
-                    <Building size={32} className="text-brand-primary" />
-                  </div>
-                  <p className="text-xs font-bold text-slate-500 italic max-w-[200px]">Header information is automatically synced from Company Settings</p>
-                  <button 
-                    onClick={() => navigate('/settings')}
-                    className="text-[10px] font-black text-brand-primary uppercase tracking-widest hover:underline hover:opacity-80 transition-all"
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-3">
+                {headerSectionsOrder.map((sectionId, idx) => (
+                  <div
+                    key={sectionId}
+                    draggable
+                    onDragStart={() => handleHDragStart(idx)}
+                    onDragOver={e => handleHDragOver(e, idx)}
+                    onDrop={() => handleHDrop(idx)}
+                    onDragEnd={handleHDragEnd}
+                    className={`group p-4 rounded-lg border bg-white transition-all select-none
+                      ${hDragIdx === idx ? 'opacity-30 scale-95' : ''}
+                      ${hDragOverIdx === idx && hDragIdx !== idx ? 'border-t-2 border-brand-primary shadow-md' : 'border-slate-100 shadow-sm hover:shadow-md'}`}
                   >
-                    Edit Company Info
-                  </button>
-                </div>
-             </div>
-          </div>
-        );
-      case 'footer':
-        return (
-          <div className="bg-white p-10 rounded-[32px] border border-slate-200 shadow-[0_20px_60px_rgba(0,0,0,0.05)] space-y-8 animate-in fade-in duration-300">
-             <div className="flex justify-between items-start">
-               <div>
-                 <h3 className="text-xl font-black text-slate-900 tracking-tighter italic">Legal & Payment Footer Editor</h3>
-                 <p className="text-sm font-medium text-slate-500">Manage bank details, BTW numbers, and IBAN info for document footers</p>
-               </div>
-             </div>
-             
-             <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="p-6 border border-slate-100 rounded-2xl bg-slate-50 space-y-4">
-                      <div className="flex items-center gap-3">
-                        <PaymentIcon size={18} className="text-brand-primary" />
-                        <span className="text-xs font-black uppercase tracking-widest">Bank Details Block</span>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="cursor-grab active:cursor-grabbing text-slate-300 group-hover:text-slate-500 shrink-0">
+                        <Move size={13} />
                       </div>
-                      <textarea className="w-full h-32 p-3 bg-white border border-slate-200 rounded-xl text-xs font-medium resize-none" defaultValue={`ING Bank: NL88 INGB 0123 4567 89\nBTW nr: ${companyBTW}\nKKF: ${companyKKF}`} />
-                   </div>
-                   <div className="p-6 border border-slate-100 rounded-2xl bg-slate-50 space-y-4">
-                      <div className="flex items-center gap-3">
-                        <Scale size={18} className="text-brand-primary" />
-                        <span className="text-xs font-black uppercase tracking-widest">Legal Disclaimer Block</span>
-                      </div>
-                      <textarea className="w-full h-32 p-3 bg-white border border-slate-200 rounded-xl text-xs font-medium resize-none" defaultValue={"Betalingstermijn is 14 dagen. Op al onze leveringen zijn de algemene voorwaarden van toepassing."} />
-                   </div>
-                </div>
-             </div>
-          </div>
-        );
-      case 'notities':
-        return (
-          <div className="bg-white p-10 rounded-[32px] border border-slate-200 shadow-[0_20px_60px_rgba(0,0,0,0.05)] space-y-8 animate-in fade-in duration-300">
-             <div className="flex justify-between items-start">
-               <div>
-                 <h3 className="text-xl font-black text-slate-900 tracking-tighter italic">Default Notes Management</h3>
-                 <p className="text-sm font-medium text-slate-500">Configure default text that appears in the "Notes" section of your documents</p>
-               </div>
-               <button
-                 onClick={() => setShowAddTemplate(true)}
-                 className="px-5 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-lg hover:bg-red-800 transition-all active:scale-95"
-               >
-                 <Plus size={14} /> Add Template
-               </button>
-             </div>
-
-             {/* Add Template Modal */}
-             {showAddTemplate && (
-               <div className="p-6 bg-blue-50/40 border-2 border-blue-100 rounded-[24px] space-y-4 animate-in slide-in-from-top-3 duration-300">
-                 <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">New Notes Template</h4>
-                 <div className="space-y-3">
-                   <input
-                     aria-label="Template name"
-                     placeholder="Template name (e.g. Payment Reminder)"
-                     value={newTemplateName}
-                     onChange={e => setNewTemplateName(e.target.value)}
-                     className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-blue-300"
-                   />
-                   <textarea
-                     aria-label="Template content"
-                     placeholder="Enter the default text that will appear in the Notes section..."
-                     value={newTemplateContent}
-                     onChange={e => setNewTemplateContent(e.target.value)}
-                     rows={4}
-                     className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none resize-none focus:border-blue-300"
-                   />
-                 </div>
-                 <div className="flex gap-3 justify-end">
-                   <button onClick={() => { setShowAddTemplate(false); setNewTemplateName(''); setNewTemplateContent(''); }}
-                     className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-500 hover:bg-slate-50 transition-all">
-                     Cancel
-                   </button>
-                   <button onClick={() => {
-                     if (!newTemplateName.trim()) return;
-                     setNoteTemplates(prev => [...prev, { name: newTemplateName, content: newTemplateContent, iconName: 'MessageSquareText' }]);
-                     setNewTemplateName(''); setNewTemplateContent(''); setShowAddTemplate(false);
-                   }} className="px-5 py-2 bg-brand-primary text-white rounded-xl text-xs font-black hover:bg-red-800 transition-all shadow-lg">
-                     Save Template
-                   </button>
-                 </div>
-               </div>
-             )}
-
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {noteTemplates.map((note, i) => {
-                  const NoteIcon = ICON_MAP[note.iconName] ?? FileText;
-                  return (
-                    <div key={i} className="p-6 bg-slate-50 border border-slate-100 rounded-[24px] hover:bg-white hover:shadow-xl transition-all cursor-pointer group relative">
-                      <button
-                        title="Remove template"
-                        onClick={() => setNoteTemplates(prev => prev.filter((_, idx) => idx !== i))}
-                        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-slate-300 hover:text-red-500"
-                      >
-                        <X size={14} />
-                      </button>
-                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-brand-primary shadow-sm mb-4 group-hover:scale-110 transition-transform">
-                        <NoteIcon size={20} />
-                      </div>
-                      <h4 className="text-sm font-black text-slate-900 mb-2">{note.name}</h4>
-                      <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic">"{note.content}"</p>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        {sectionId === 'structure' ? L.headerStructure
+                          : sectionId === 'logo' ? L.logoAlignment
+                          : sectionId === 'titleSize' ? L.titleSizeLabel
+                          : L.clientStyleLabel}
+                      </span>
                     </div>
-                  );
-                })}
-             </div>
-          </div>
-        );
-      case 'themes':
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pt-2 animate-in fade-in duration-300">
-            {[
-              { name: 'Modern Minimalist', desc: 'Light, spacious and professional', author: 'Ramzon' },
-              { name: 'Corporate Grid', desc: 'Standard business layout with heavy table styling', author: 'Enterprise' },
-              { name: 'Eco-Teak Branding', desc: 'Natural tones for timber specialists', author: 'WoodDesign' }
-            ].map((theme, i) => (
-              <div key={theme.name} className="bg-white border border-slate-200 rounded-[32px] overflow-hidden group shadow-lg hover:shadow-2xl transition-all relative">
-                <div className="h-56 bg-slate-100 relative overflow-hidden flex items-center justify-center">
-                  <LayoutTemplate size={48} className="text-slate-200 group-hover:scale-110 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 to-transparent"></div>
-                  {i === 0 && (
-                    <div className="absolute top-4 left-4 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-lg">Active</div>
+
+                    {sectionId === 'structure' && (
+                      <div className="flex gap-2">
+                        <button onClick={() => setHeaderStyle('centered')}
+                          className={`flex-1 p-2.5 border rounded text-[10px] font-black uppercase tracking-widest transition-all ${headerStyle === 'centered' ? 'border-brand-primary bg-brand-accent-light text-brand-primary' : 'border-slate-100 text-slate-400'}`}>
+                          {L.centered}
+                        </button>
+                        <button onClick={() => setHeaderStyle('split')}
+                          className={`flex-1 p-2.5 border rounded text-[10px] font-black uppercase tracking-widest transition-all ${headerStyle === 'split' ? 'border-brand-primary bg-brand-accent-light text-brand-primary' : 'border-slate-100 text-slate-400'}`}>
+                          {L.split}
+                        </button>
+                      </div>
+                    )}
+                    {sectionId === 'logo' && (
+                      <div className="flex gap-2">
+                        {(['left', 'center', 'right'] as const).map(a => (
+                          <button key={a} onClick={() => setLogoAlignment(a)}
+                            className={`flex-1 p-2.5 border rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${logoAlignment === a ? 'border-brand-primary bg-brand-accent-light text-brand-primary' : 'border-slate-100 text-slate-400'}`}>
+                            {a === 'left' ? <AlignLeft size={13} /> : a === 'center' ? <AlignCenter size={13} /> : <AlignRight size={13} />}
+                            {a.charAt(0).toUpperCase() + a.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {sectionId === 'titleSize' && (
+                      <OptionRow
+                        options={[{value:'sm',label:L.small},{value:'md',label:L.medium},{value:'lg',label:L.large}]}
+                        active={titleSize}
+                        onChange={v => setTitleSize(v as 'sm'|'md'|'lg')}
+                      />
+                    )}
+                    {sectionId === 'clientStyle' && (
+                      <OptionRow
+                        options={[{value:'clean',label:L.clean},{value:'boxed',label:L.boxed}]}
+                        active={clientStyle}
+                        onChange={v => setClientStyle(v as 'clean'|'boxed')}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-slate-50 p-6 rounded-lg border border-slate-100 flex flex-col items-center justify-center text-center gap-4">
+                <div className="p-3 bg-white rounded-xl shadow-sm">
+                  {companyLogo ? (
+                    <img src={companyLogo} className="w-20 h-14 object-contain" alt="Logo" />
+                  ) : (
+                    <Building size={28} className="text-brand-primary" />
                   )}
                 </div>
-                <div className="p-6 flex flex-col gap-1">
-                  <h3 className="font-black text-slate-900 text-base">{theme.name}</h3>
-                  <p className="text-xs text-slate-500 font-bold italic">{theme.desc}</p>
+                <label className="flex flex-col items-center gap-2 cursor-pointer group">
+                  <span className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-600 group-hover:border-brand-primary group-hover:text-brand-primary transition-all shadow-sm">
+                    <Upload size={11} /> {L.uploadLogo}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = ev => setCompanyLogo && setCompanyLogo(ev.target?.result as string);
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+                <p className="text-xs font-bold text-slate-400 italic">{L.companyInfoSync}</p>
+                <button
+                  onClick={() => navigate('/settings')}
+                  className="text-[10px] font-black text-brand-primary uppercase tracking-widest hover:underline transition-all"
+                >
+                  {L.editCompany}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+
+      // ── NOTES & TERMS ────────────────────────────────────────────────────────
+      case 'notities':
+        return (
+          <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm space-y-6 animate-in fade-in duration-300">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 tracking-tighter">{L.notesTitle}</h3>
+                <p className="text-sm font-medium text-slate-500 mt-0.5">{L.notesSub}</p>
+              </div>
+              <button
+                onClick={() => setShowAddTemplate(true)}
+                className="px-4 py-2 bg-brand-primary text-white rounded-lg text-xs font-black flex items-center gap-2 shadow hover:bg-red-800 transition-all active:scale-95"
+              >
+                <Plus size={13} /> {L.add}
+              </button>
+            </div>
+
+            {showAddTemplate && (
+              <div className="p-5 bg-blue-50/40 border-2 border-blue-100 rounded-lg space-y-4 animate-in slide-in-from-top-3 duration-300">
+                <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">{L.newTemplate}</h4>
+                <div className="space-y-3">
+                  <input
+                    aria-label="Template naam"
+                    placeholder={L.templateName}
+                    value={newTemplateName}
+                    onChange={e => setNewTemplateName(e.target.value)}
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-blue-300"
+                  />
+                  <textarea
+                    aria-label="Template inhoud"
+                    placeholder={L.templateContent}
+                    value={newTemplateContent}
+                    onChange={e => setNewTemplateContent(e.target.value)}
+                    rows={4}
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none resize-none focus:border-blue-300"
+                  />
                 </div>
-                <div className="px-6 pb-6 pt-2 flex gap-2">
-                    <button className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl active:scale-95">Sample PDF</button>
-                    {i !== 0 && <button className="flex-1 py-3 border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95">Activate</button>}
+                <div className="flex gap-3 justify-end">
+                  <button onClick={() => { setShowAddTemplate(false); setNewTemplateName(''); setNewTemplateContent(''); }}
+                    className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-500 hover:bg-slate-50 transition-all">
+                    {L.cancel}
+                  </button>
+                  <button onClick={() => {
+                    if (!newTemplateName.trim()) return;
+                    setNoteTemplates(prev => [...prev, { name: newTemplateName, content: newTemplateContent, iconName: 'MessageSquareText' }]);
+                    setNewTemplateName(''); setNewTemplateContent(''); setShowAddTemplate(false);
+                  }} className="px-5 py-2 bg-brand-primary text-white rounded-lg text-xs font-black hover:bg-red-800 transition-all shadow">
+                    {L.save}
+                  </button>
                 </div>
               </div>
-            ))}
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {noteTemplates.map((note, i) => {
+                const NoteIcon = ICON_MAP[note.iconName] ?? FileText;
+                return (
+                  <div key={i} className="p-5 bg-slate-50 border border-slate-100 rounded-lg hover:bg-white hover:shadow-lg transition-all cursor-pointer group relative">
+                    <button
+                      title="Verwijder template"
+                      onClick={() => setNoteTemplates(prev => prev.filter((_, idx) => idx !== i))}
+                      className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-slate-300 hover:text-red-500"
+                    >
+                      <X size={13} />
+                    </button>
+                    <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center text-brand-primary shadow-sm mb-3 group-hover:scale-110 transition-transform">
+                      <NoteIcon size={18} />
+                    </div>
+                    <h4 className="text-sm font-black text-slate-900 mb-1.5">{note.name}</h4>
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic">"{note.content}"</p>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         );
     }
   };
 
-  const getThemeClasses = () => {
-    // Determine base styles from theme
-    let baseStyles = {
-      container: 'gap-12 p-16 font-sans',
-      header: 'border-b border-slate-200 pb-8',
-      table: 'border-none',
-      tableHead: 'bg-transparent border-b-2 border-slate-100 text-slate-400 font-medium',
-      totalCard: 'bg-transparent border-t border-slate-200 text-slate-900 p-4',
-      typography: 'font-normal tracking-normal'
-    };
-
-    switch (docTheme) {
-      case 'modern':
-        baseStyles = {
-          container: 'gap-16 p-20 font-sans bg-white',
-          header: 'pb-12 border-b-4 border-brand-accent/20',
-          table: 'border-separate border-spacing-y-2',
-          tableHead: 'bg-slate-50/80 rounded-xl text-slate-900 font-black px-6',
-          totalCard: 'bg-brand-primary text-white p-8 rounded-[32px] shadow-2xl',
-          typography: 'font-bold tracking-tight'
-        };
-        break;
-      case 'compact':
-        baseStyles = {
-          container: 'gap-6 p-8 font-sans text-[11px]',
-          header: 'pb-4 border-b border-slate-100',
-          table: 'border-collapse',
-          tableHead: 'bg-slate-100 text-slate-600 font-black py-2 px-2',
-          totalCard: 'bg-slate-50 border border-slate-200 p-4 rounded-xl',
-          typography: 'font-bold leading-tight'
-        };
-        break;
-      case 'corporate':
-        baseStyles = {
-          container: 'gap-20 p-24 font-serif',
-          header: 'border-b-2 border-slate-900 pb-10',
-          table: 'border-collapse',
-          tableHead: 'bg-slate-900 text-white uppercase font-black py-3 px-4',
-          totalCard: 'bg-white border-2 border-slate-900 p-6 shadow-md',
-          typography: 'font-black tracking-tighter'
-        };
-        break;
-    }
-
-    // Override with manual typography settings
-    const familyMap = {
-      sans: 'font-sans',
-      serif: 'font-serif',
-      mono: 'font-mono'
-    };
-    
-    const sizeMap = {
-      small: 'text-[11px]',
-      medium: 'text-[13px]',
-      large: 'text-[15px]'
-    };
-
-    const weightMap = {
-      normal: 'font-normal',
-      medium: 'font-medium',
-      bold: 'font-bold',
-      black: 'font-black'
-    };
-
-    return {
-      ...baseStyles,
-      typography: `${familyMap[fontFamily]} ${sizeMap[fontSize]} ${weightMap[fontWeight]}`
-    };
-  };
-
-  const styles = getThemeClasses();
+  // ── Main render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-20">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-20">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-4xl font-black tracking-tighter text-slate-900">Document Styles</h1>
-          <p className="text-slate-500 font-bold italic mt-1 leading-none">Customize the visual output of your Invoice & Estimate system</p>
+          <h1 className="text-3xl font-black tracking-tighter text-slate-900">{L.pageTitle}</h1>
+          <p className="text-slate-500 font-bold italic mt-1 text-sm leading-none">{L.pageSubtitle}</p>
         </div>
         <div className="flex gap-3">
-          <button 
+          <button
             onClick={() => setShowPreview(true)}
-            className="bg-white border border-slate-200 text-slate-600 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2"
+            className="bg-white border border-slate-200 text-slate-600 px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2"
           >
-            <Eye size={18} /> Live Preview
+            <Eye size={16} /> {L.preview}
           </button>
-          <button className="bg-slate-900 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-3 shadow-2xl shadow-slate-200 active:scale-95">
-            <Save size={20} /> Apply Layouts
+          <button
+            onClick={handleApplyLayouts}
+            className={`px-6 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2.5 shadow-lg active:scale-95 ${applySaved ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-slate-900 text-white shadow-slate-200 hover:bg-slate-800'}`}
+          >
+            {applySaved ? <><Check size={16} /> {L.saved}</> : <><Save size={16} /> {L.save}</>}
           </button>
         </div>
       </div>
 
-      <div className="flex border-b border-slate-200 no-scrollbar overflow-x-auto bg-slate-50/50 px-4 py-1.5 rounded-2xl shadow-inner">
+      {/* ── Tab bar ── */}
+      <div className="flex border-b border-slate-200 overflow-x-auto no-scrollbar bg-slate-50/50 px-3 py-1 rounded-lg">
         {[
-          { id: 'builder', label: 'Document Builder', icon: Box },
-          { id: 'header', label: 'PDF Headers', icon: LayoutTemplate },
-          { id: 'footer', label: 'PDF Footers', icon: Building },
-          { id: 'notities', label: 'Notes & Terms', icon: MessageSquareText },
-          { id: 'themes', label: 'Visual Themes', icon: Palette }
+          { id: 'style',    label: L.tabEditor,  icon: Sliders },
+          { id: 'header',   label: L.tabHeaders, icon: LayoutTemplate },
+          { id: 'notities', label: L.tabNotes,   icon: MessageSquareText },
         ].map(tab => (
-          <button 
+          <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all border-b-4 flex items-center gap-3 shrink-0 ${activeTab === tab.id ? 'border-brand-accent text-brand-primary' : 'border-transparent text-slate-400 hover:text-slate-900 hover:bg-white/50 rounded-lg'}`}
+            className={`px-6 py-3.5 text-[10px] font-black uppercase tracking-[0.2em] transition-all border-b-2 flex items-center gap-2.5 shrink-0 ${activeTab === tab.id ? 'border-brand-accent text-brand-primary' : 'border-transparent text-slate-400 hover:text-slate-700 hover:bg-white/60 rounded-t-lg'}`}
           >
-            <tab.icon size={18} className={activeTab === tab.id ? 'text-brand-primary' : 'opacity-40'} />
+            <tab.icon size={16} className={activeTab === tab.id ? 'text-brand-primary' : 'opacity-40'} />
             {tab.label}
           </button>
         ))}
       </div>
 
-      <div className="relative">
-        {renderTabContent()}
-      </div>
+      <div className="relative">{renderTabContent()}</div>
 
+      {/* ── Full Preview Modal ── */}
       {showPreview && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-300">
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => setShowPreview(false)}></div>
-          
-          <div className="bg-white w-full max-w-5xl h-[92vh] rounded-[40px] shadow-2xl z-10 flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100">
-            <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between shrink-0 bg-slate-50/30">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-brand-primary rounded-2xl flex items-center justify-center text-white shadow-lg">
-                  <LayoutTemplate size={24} />
+
+          <div className="bg-white w-full max-w-5xl h-[90vh] rounded-xl shadow-2xl z-10 flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand-primary rounded-lg flex items-center justify-center text-white">
+                  <LayoutTemplate size={20} />
                 </div>
                 <div>
-                  <h3 className="font-black text-slate-900 tracking-tight text-lg italic">PDF Output Preview</h3>
+                  <h3 className="font-black text-slate-900 tracking-tight">{L.previewTitle}</h3>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    Template: {docTheme.toUpperCase()} • Type: {activeDocType.toUpperCase()}
+                    {L.type}: {activeDocType.toUpperCase()}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <button className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-900 transition-all shadow-sm">
-                  <Printer size={20} />
+              <div className="flex items-center gap-2">
+                <button onClick={() => window.print()} className="p-2.5 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-slate-900 transition-all shadow-sm">
+                  <Printer size={18} />
                 </button>
-                <button className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-900 transition-all shadow-sm">
-                  <Download size={20} />
+                <button className="p-2.5 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-slate-900 transition-all shadow-sm">
+                  <Download size={18} />
                 </button>
-                <button 
+                <button
                   onClick={() => setShowPreview(false)}
-                  className="p-3 bg-slate-900 text-white rounded-2xl shadow-lg hover:bg-slate-800 active:scale-95 transition-all"
+                  className="p-2.5 bg-slate-900 text-white rounded-lg shadow hover:bg-slate-800 active:scale-95 transition-all"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
             </div>
 
-             <div className="flex-1 overflow-y-auto bg-slate-100/50 p-8 md:p-16 flex justify-center">
-                <div className="w-full max-w-[850px] min-h-[1100px] bg-white shadow-2xl border border-slate-900 flex flex-col transition-all duration-500 animate-in slide-in-from-bottom-8 p-8 space-y-6 font-sans text-slate-900">
-                   
-                   {isEnabled(activeDocType, 'h1') && (
-                     <div className="flex justify-between items-start">
-                       <div className="w-1/3">
-                         <div className="w-48 h-24 flex items-center justify-center overflow-hidden">
-                           {companyLogo ? (
-                             <img src={companyLogo} className="w-full h-full object-contain" alt="Ramzon Logo" />
-                           ) : (
-                             <div className="text-2xl font-black text-brand-primary italic">RAMZON N.V.</div>
-                           )}
-                         </div>
-                         <div className="mt-2 space-y-0.5 text-[9px] font-bold text-slate-900 uppercase">
-                           <p className="flex items-center gap-1">📍 {companyAddress}</p>
-                           <p className="flex items-center gap-1">📞 {companyPhone}</p>
-                           <p className="flex items-center gap-1">✉️ {companyEmail}</p>
-                         </div>
-                       </div>
-                       
-                       <div className="flex-1 text-center pt-4">
-                         <h1 className="text-6xl font-black text-slate-900 tracking-tighter italic" style={{ fontFamily: 'serif' }}>{activeDocType === 'invoice' ? 'Invoice' : activeDocType.charAt(0).toUpperCase() + activeDocType.slice(1)}</h1>
-                       </div>
+            <div className="flex-1 overflow-y-auto bg-slate-100/50 p-8 md:p-12 flex justify-center">
+              <div className="w-full max-w-[850px] min-h-[1100px] bg-white shadow-xl border border-slate-200 p-10 font-sans text-slate-900">
 
-                       <div className="w-1/3">
-                         <div className="bg-slate-100 border border-slate-300 p-4 min-h-[120px] rounded-sm">
-                           <h3 className="text-xs font-black text-center mb-4 uppercase tracking-wider">Customer Information</h3>
-                           <div className="text-center space-y-1">
-                             <p className="text-sm font-bold">Dinesh Abhelak</p>
-                             <p className="text-xs text-slate-600">+597 8594052</p>
-                           </div>
-                         </div>
-                       </div>
-                     </div>
-                   )}
-
-                   <div className="border-y border-slate-900 grid grid-cols-6 divide-x divide-slate-900 text-center">
-                     <div className="py-1">
-                       <p className="text-[10px] font-bold border-b border-slate-200 mb-1">Date</p>
-                       <p className="text-xs font-bold">01-Sept-2021</p>
-                     </div>
-                     <div className="py-1">
-                       <p className="text-[10px] font-bold border-b border-slate-200 mb-1">{activeDocType.toUpperCase()} #</p>
-                       <p className="text-xs font-bold">166</p>
-                     </div>
-                     <div className="py-1">
-                       <p className="text-[10px] font-bold border-b border-slate-200 mb-1">Terms</p>
-                       <p className="text-xs font-bold">COD</p>
-                     </div>
-                     <div className="py-1 bg-slate-100">
-                       <p className="text-[10px] font-bold border-b border-slate-200 mb-1">Due Date</p>
-                       <p className="text-xs font-bold">01-Sept-2021</p>
-                     </div>
-                     <div className="py-1">
-                       <p className="text-[10px] font-bold border-b border-slate-200 mb-1">Rep</p>
-                       <p className="text-xs font-bold">SS</p>
-                     </div>
-                     <div className="py-1">
-                       <p className="text-[10px] font-bold border-b border-slate-200 mb-1">Project</p>
-                       <p className="text-xs font-bold">-</p>
-                     </div>
-                   </div>
-
-                   {(isEnabled(activeDocType, 't1') || isEnabled(activeDocType, 'cr1') || isEnabled(activeDocType, 'r1')) && (
-                     <div className="border border-slate-900 min-h-[400px] flex flex-col">
-                       <table className="w-full text-left border-collapse">
-                         <thead className="border-b border-slate-900">
-                           <tr className="divide-x divide-slate-900 text-[11px] font-black uppercase">
-                             <th className="py-1 px-2 w-[40%]">Description</th>
-                             <th className="py-1 px-2 text-center w-[12%]">Measurem...</th>
-                             <th className="py-1 px-2 text-center w-[8%]">Qu...</th>
-                             <th className="py-1 px-2 text-center w-[8%]">U/M</th>
-                             <th className="py-1 px-2 text-center w-[12%]">Wood</th>
-                             <th className="py-1 px-2 text-right w-[10%]">Rate</th>
-                             <th className="py-1 px-2 text-right w-[10%]">Amount</th>
-                           </tr>
-                         </thead>
-                         <tbody className="divide-y divide-transparent">
-                           {[
-                             { desc: 'Hout drogen', measurement: '', qty: 3.75, um: 'CBM', wood: 'KOP-Kopi', rate: 80.00, total: 300.00 },
-                             { desc: 'Vloerhout her-schaven en profileren', measurement: '', qty: 135, um: 'M²', wood: '', rate: 8.00, total: 1080.00 }
-                           ].map((row, i) => (
-                             <tr key={i} className="divide-x divide-slate-900 text-xs font-medium">
-                                <td className="py-2 px-2">{row.desc}</td>
-                                <td className="py-2 px-2 text-center">{row.measurement}</td>
-                                <td className="py-2 px-2 text-center">{row.qty}</td>
-                                <td className="py-2 px-2 text-center">{row.um}</td>
-                                <td className="py-2 px-2 text-center">{row.wood}</td>
-                                <td className="py-2 px-2 text-right">{row.rate.toFixed(2)}</td>
-                                <td className="py-2 px-2 text-right">{row.total.toFixed(2)}</td>
-                             </tr>
-                           ))}
-                           <tr className="flex-1 divide-x divide-slate-900 h-[300px]">
-                             <td className="border-none"></td>
-                             <td className="border-none"></td>
-                             <td className="border-none"></td>
-                             <td className="border-none"></td>
-                             <td className="border-none"></td>
-                             <td className="border-none"></td>
-                             <td className="border-none"></td>
-                           </tr>
-                         </tbody>
-                       </table>
-                     </div>
-                   )}
-
-                   {isEnabled(activeDocType, 's1') && (
-                     <div className="border border-slate-900 grid grid-cols-12 divide-x divide-slate-900">
-                       <div className="col-span-10 py-1 px-4 text-xs font-black text-center uppercase tracking-wider">
-                         BTW tnv RAMZON NV # 2000012965 (10.0%)
-                       </div>
-                       <div className="col-span-2 py-1 px-2 text-right text-xs font-bold">
-                         USD 0.00
-                       </div>
-                     </div>
-                   )}
-
-                   <div className="mt-auto space-y-0">
-                      <div className="grid grid-cols-12 border border-slate-900 divide-x divide-slate-900">
-                         {isEnabled(activeDocType, 'p1') && (
-                           <div className="col-span-9 p-4 text-[9px] font-bold space-y-1 leading-tight">
-                             <p>1-Office Hours: mon-fri 08:00-12:00/13:00-17:00).</p>
-                             <p>2-Hakrinbank N.V SRD 20.633.15.56 II EURO 20.695.94.66 II US$ 20.802.82.73 SWIFT HAKRSRPA.</p>
-                             <p className="pl-2">For Banking transfers the transfercertificate is required.</p>
-                             <p>3-All wood products exclude: supply, finishing, glass, locksmithing</p>
-                             <p>4-All measurements in MM II Size tolerances: ± 5mm</p>
-                             <p>5-Exceeding the stated delivery time, those not lend parties the right to terminate the contract,</p>
-                             <p>6-We are not responsible for products that have not been collected within 30 days of completion.</p>
-                             <p>7-Open balances are to be paid in full immediately before the items are collected.</p>
-                             <p>8-No refund on cancellation, regardless of reason.</p>
-                             <p>9-The warranty is on the product.</p>
-                           </div>
-                         )}
-                         <div className="col-span-3 flex flex-col divide-y divide-slate-900">
-                            <div className="flex-1 p-3 flex justify-between items-center">
-                              <span className="text-xs font-black uppercase">Total</span>
-                              <span className="text-xs font-bold">USD 1,380.00</span>
-                            </div>
-                            <div className="flex-1 p-3 flex justify-between items-center">
-                              <span className="text-xs font-black uppercase">Payments</span>
-                              <span className="text-xs font-bold">USD -272.00</span>
-                            </div>
-                            <div className="flex-1 p-3 flex justify-between items-center bg-slate-50">
-                              <span className="text-xs font-black uppercase">Balance</span>
-                              <span className="text-xs font-bold">USD 1,108.00</span>
-                            </div>
-                         </div>
+                {isEnabled(activeDocType, 'h1') && (
+                  <div className="flex justify-between items-start border-b border-slate-200 pb-6 mb-6">
+                    <div>
+                      <div className="w-36 h-20 flex items-center justify-center overflow-hidden mb-2">
+                        {companyLogo ? (
+                          <img src={companyLogo} className="w-full h-full object-contain" alt="Logo" />
+                        ) : (
+                          <div className="text-xl font-black text-brand-primary italic">{companyName || 'RAMZON N.V.'}</div>
+                        )}
                       </div>
-                   </div>
+                      <div className="space-y-0.5 text-[9px] font-bold text-slate-600">
+                        {companyAddress && <p>{companyAddress}</p>}
+                        {companyPhone && <p>{companyPhone}</p>}
+                        {companyEmail && <p>{companyEmail}</p>}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <h1 className="text-base font-black text-slate-900 uppercase tracking-widest">
+                        {customTitles[activeDocType] || defaultTitles[activeDocType] || activeDocType.toUpperCase()}
+                      </h1>
+                      <p className="text-xs text-slate-400 font-mono mt-0.5">#2025-001</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-6 border-t border-b border-slate-900 divide-x divide-slate-200 text-center mb-6">
+                  {['Datum', '#', 'Termijn', 'Vervaldatum', 'Rep', 'Project'].map(h => (
+                    <div key={h} className="py-1.5">
+                      <p className="text-[9px] font-bold text-slate-400 border-b border-slate-100 mb-1">{h}</p>
+                      <p className="text-xs font-bold">—</p>
+                    </div>
+                  ))}
                 </div>
-             </div>
-            
-            <div className="px-10 py-6 border-t border-slate-50 bg-slate-50/30 flex items-center justify-between shrink-0">
-               <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Real-time Layout Engine</span>
-               </div>
-               <div className="flex gap-4">
-                  <button 
-                    onClick={() => setShowPreview(false)}
-                    className="px-8 py-3 bg-white border border-slate-200 text-slate-900 rounded-2xl text-xs font-black uppercase tracking-widest shadow-sm hover:bg-slate-50 active:scale-95 transition-all"
-                  >
-                    Adjust Layout
-                  </button>
-                  <button 
-                    onClick={() => setShowPreview(false)}
-                    className="px-10 py-3 bg-brand-primary text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl shadow-brand-primary/20 hover:opacity-90 active:scale-95 transition-all"
-                  >
-                    Deploy to PDF Server
-                  </button>
-               </div>
+
+                {isEnabled(activeDocType, 't1') && (
+                  <div className="border border-slate-200 mb-4 min-h-[300px]">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="border-b border-slate-200">
+                        <tr className="bg-slate-900 text-white text-[9px] font-black uppercase">
+                          <th className="py-1.5 px-2 w-[40%]">Omschrijving</th>
+                          <th className="py-1.5 px-2 text-center w-[12%]">Afmeting</th>
+                          <th className="py-1.5 px-2 text-center w-[8%]">Qty</th>
+                          <th className="py-1.5 px-2 text-center w-[8%]">Eenheid</th>
+                          <th className="py-1.5 px-2 text-center w-[12%]">Houtsoort</th>
+                          <th className="py-1.5 px-2 text-right w-[10%]">Prijs</th>
+                          <th className="py-1.5 px-2 text-right w-[10%]">Totaal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {[
+                          { desc: 'Hout drogen', qty: 3.75, um: 'CBM', wood: 'Kopi', rate: 80.00, total: 300.00 },
+                          { desc: 'Vloerhout herschaven', qty: 135, um: 'M²', wood: '', rate: 8.00, total: 1080.00 },
+                        ].map((row, i) => (
+                          <tr key={i} className="text-xs font-medium border-b border-slate-50">
+                            <td className="py-2 px-2">{row.desc}</td>
+                            <td className="py-2 px-2 text-center">—</td>
+                            <td className="py-2 px-2 text-center">{row.qty}</td>
+                            <td className="py-2 px-2 text-center">{row.um}</td>
+                            <td className="py-2 px-2 text-center">{row.wood || '—'}</td>
+                            <td className="py-2 px-2 text-right">{row.rate.toFixed(2)}</td>
+                            <td className="py-2 px-2 text-right">{row.total.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {isEnabled(activeDocType, 'p1') && (
+                  <div className="border border-slate-200 grid grid-cols-12 divide-x divide-slate-200">
+                    <div className="col-span-9 p-4 text-[9px] font-bold space-y-1 text-slate-500 leading-tight">
+                      <p>1 - Kantooruren: ma-vr 08:00-12:00 / 13:00-17:00</p>
+                      <p>2 - Hakrinbank N.V SRD 20.633.15.56 · EURO 20.695.94.66 · US$ 20.802.82.73</p>
+                      <p>3 - Alle houtproducten excl.: supply, afwerking, glas, sloten</p>
+                    </div>
+                    <div className="col-span-3 flex flex-col divide-y divide-slate-200">
+                      <div className="flex-1 p-3 flex justify-between items-center">
+                        <span className="text-xs font-black uppercase">Totaal</span>
+                        <span className="text-xs font-bold">USD 1,380.00</span>
+                      </div>
+                      <div className="flex-1 p-3 flex justify-between items-center bg-slate-50">
+                        <span className="text-xs font-black uppercase">Saldo</span>
+                        <span className="text-xs font-bold">USD 1,108.00</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="px-8 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Real-time Layout Engine</span>
+              </div>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="px-6 py-2.5 bg-slate-900 text-white rounded-lg text-xs font-black uppercase tracking-widest shadow hover:bg-slate-800 active:scale-95 transition-all"
+              >
+                {L.close}
+              </button>
             </div>
           </div>
         </div>
