@@ -47,9 +47,12 @@ export interface WoodProduct {
   thickness: number; // mm
   width: number;    // mm
   length: number;   // mm
-  unit: 'm³' | 'm²' | 'lm' | 'pcs';
+  unit: 'm³' | 'm²' | 'lm' | 'pcs' | 'PCS';
   pricePerUnit: number;
   stock: number;
+  category?: string;          // e.g. 'Doors' | 'Mouldings' | 'Frames' | 'Window Frames' | 'Crating'
+  sku?: string;               // product SKU code
+  calculationType?: 'pcs' | 'm2' | 'lm'; // drives price calculation in quotes/invoices
 }
 
 export interface InvoiceItem {
@@ -79,6 +82,8 @@ export interface Invoice {
   totalAmount: number;
   status: InvoiceStatus;
   notes?: string;
+  rep?: string;        // Sales rep name
+  paidAmount?: number; // Advance payment shown in PDF
 }
 
 export interface Estimate {
@@ -96,6 +101,8 @@ export interface Estimate {
   total: number;
   status: EstimateStatus;
   notes?: string;
+  rep?: string;        // Sales rep name
+  paidAmount?: number; // Advance payment shown in PDF
 }
 
 export interface User {
@@ -151,7 +158,8 @@ export interface ExchangeRate {
 export interface WoodSpecies {
   id: string;
   name: string;
-  color?: string; // display color swatch hex
+  color?: string;   // display color swatch hex
+  markup?: number;  // price markup percentage applied to base price (default 0)
 }
 
 export interface DoorModel {
@@ -161,9 +169,10 @@ export interface DoorModel {
 
 export interface ProfileSize {
   id: string;
-  label: string;  // e.g. '40×2100mm'
+  label: string;        // e.g. '800×2100mm'
   mmW: number;
   mmH: number;
+  measureType?: 'surface' | 'length'; // 'surface' = W×H area, 'length' = linear measurement
 }
 
 export interface DoorPriceEntry {

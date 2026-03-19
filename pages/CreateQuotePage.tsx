@@ -48,7 +48,14 @@ const CreateQuotePage: React.FC = () => {
   const [saved, setSaved] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [committedDocNumber, setCommittedDocNumber] = useState('');
-  const [docNumber] = useState(() => isEdit ? '' : previewDocNumber('est'));
+  const [docNumber] = useState(() => {
+    if (isEdit) {
+      const existing = storage.estimates.get().find(e => e.id === id)
+        ?? mockEstimates.find(e => e.id === id);
+      return (existing as any)?.estimateNumber ?? '';
+    }
+    return previewDocNumber('est');
+  });
   const [selectedRep, setSelectedRep] = useState<string>(() =>
     localStorage.getItem('erp_active_user_name') ?? mockUsers.find(u => u.role === 'Admin' && u.status === 'Active')?.name ?? ''
   );
@@ -230,6 +237,8 @@ const CreateQuotePage: React.FC = () => {
       taxAmount: tax,
       total,
       status: 'Draft',
+      rep: selectedRep || undefined,
+      paidAmount: paidAmount > 0 ? paidAmount : undefined,
     };
     const existing = storage.estimates.get();
     if (isEdit && id) {
@@ -244,16 +253,23 @@ const CreateQuotePage: React.FC = () => {
   const handleConvertToInvoice = () => {
     const estimateData = {
       id: id || 'new',
-      estimateNumber: `EST-${id || 'NEW'}`,
+      estimateNumber: docNumber || `EST-${id || 'NEW'}`,
       clientId: client,
+      currency,
+      exchangeRate,
       date,
       status: 'Approved',
       items: items.map(i => ({
         id: i.id,
         description: i.description,
+        houtsoort: i.houtsoort,
+        spec: i.spec,
         quantity: i.qty,
+        unit: i.unit,
         unitPrice: i.price,
         amount: i.qty * i.price,
+        mmW: i.mmW,
+        mmH: i.mmH,
       })),
       totalAmount: total,
     };
@@ -336,7 +352,7 @@ const CreateQuotePage: React.FC = () => {
               />
               {paidAmount > 0 && (
                 <p className="text-xs text-emerald-600 mt-1 font-medium">
-                  Saldo: {currencySymbol}{(total - paidAmount).toFixed(2)}
+                  Saldo: {currencySymbol}{Math.max(0, total - paidAmount).toFixed(2)}
                 </p>
               )}
             </div>
