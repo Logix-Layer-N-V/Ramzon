@@ -561,7 +561,7 @@ const CreateInvoicePage: React.FC = () => {
           {items.length > 0 && (
             <div className="border border-slate-200 rounded-2xl overflow-hidden">
               {/* Column header */}
-              <div className="hidden md:grid md:grid-cols-[44px_76px_1fr_38px_84px_46px_72px_48px_68px_22px] gap-1.5 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
+              <div className="hidden md:grid md:grid-cols-[44px_76px_160px_38px_84px_56px_72px_48px_68px_22px] gap-1.5 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
                 {['Qty','Wood','Description','Unit','Price','BTW%','Subtotaal','Disc %','Total',''].map((h,i) => (
                   <p key={i} className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{h}</p>
                 ))}
@@ -569,7 +569,7 @@ const CreateInvoicePage: React.FC = () => {
               {items.map((item, idx) => (
                 <React.Fragment key={item.id}>
                 <div
-                  className="flex flex-wrap md:grid md:grid-cols-[44px_76px_1fr_38px_84px_46px_72px_48px_68px_22px] gap-1.5 items-center px-3 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                  className="flex flex-wrap md:grid md:grid-cols-[44px_76px_160px_38px_84px_56px_72px_48px_68px_22px] gap-1.5 items-center px-3 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                   {/* Qty */}
                   <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
                     className="w-full px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-xs font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
@@ -600,7 +600,7 @@ const CreateInvoicePage: React.FC = () => {
                   </div>
                   {/* BTW% */}
                   <select value={item.taxRate} onChange={e => updateItem(item.id,'taxRate',+e.target.value)} aria-label="BTW rate"
-                    className="px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-[10px] font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all text-center">
+                    className="w-full px-1 py-1 border border-slate-200 bg-white rounded-lg text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 transition-all">
                     <option value={0}>0%</option>
                     <option value={10}>10%</option>
                   </select>
