@@ -28,6 +28,7 @@ import { mockInvoices, mockEstimates, mockPayments, mockCredits, mockClients, mo
 import { storage, getLatestExchangeRate, toSRD, NoteTemplate } from '../lib/storage';
 import { commitDocNumber } from '../lib/docNumbering';
 import type { Payment, BankAccount } from '../types';
+import DocPDFModal from '../components/DocPDFModal';
 
 const BANK_ACCOUNTS_DEFAULT: BankAccount[] = [
   { id: 'dsb_srd', bank: 'DSB Bank', currency: 'SRD', iban: 'SR29DSB0000001234', balance: 45230 },
@@ -62,6 +63,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
     localStorage.getItem(`notes_${type}_${id}`) ?? DEFAULT_NOTES
   );
   const [editingNotes, setEditingNotes] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentCurrency, setPaymentCurrency] = useState('SRD');
@@ -211,8 +213,8 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
         </button>
         <div className="flex items-center gap-1.5">
           {/* Icon-only utility buttons — blue tinted */}
-          <button title="Print"    onClick={() => window.print()}    className="w-9 h-9 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm active:scale-95"><Printer  size={15} /></button>
-          <button title="Download"                                   className="w-9 h-9 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm active:scale-95"><Download size={15} /></button>
+          <button title="Print"    onClick={() => setShowPdfModal(true)} className="w-9 h-9 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm active:scale-95"><Printer  size={15} /></button>
+          <button title="Download" onClick={() => setShowPdfModal(true)} className="w-9 h-9 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm active:scale-95"><Download size={15} /></button>
           {type !== 'reports' && (<>
             <button
               title="Edit"
@@ -261,212 +263,176 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
         </div>
       </div>
 
-      {/* Main Document Body */}
-      <div className="max-w-[850px] mx-auto bg-white border border-slate-900 shadow-2xl overflow-hidden p-8 space-y-6 font-sans text-slate-900">
-        
-        {/* Branding Header */}
-        <div className="flex justify-between items-start">
-          <div className="w-1/3">
-            <div className="w-48 h-24 flex items-center justify-center overflow-hidden">
-              {companyLogo ? (
-                <img src={companyLogo} className="w-full h-full object-contain" alt="Ramzon Logo" />
-              ) : (
-                <div className="text-2xl font-black text-brand-primary italic">RAMZON N.V.</div>
-              )}
-            </div>
-            <div className="mt-2 space-y-0.5 text-[9px] font-bold text-slate-900 uppercase">
-              <p className="flex items-center gap-1"><span className="text-brand-primary">📍</span> {companyAddress}</p>
-              <p className="flex items-center gap-1"><span className="text-brand-primary">📞</span> {companyPhone}</p>
-              <p className="flex items-center gap-1"><span className="text-brand-primary">✉️</span> {companyEmail}</p>
-            </div>
-          </div>
-          
-          <div className="flex-1 text-center pt-4">
-            <h1 className="text-6xl font-black text-slate-900 tracking-tighter italic font-serif">
-              {type === 'invoices' ? 'Invoice' : 
-               type === 'estimates' ? 'Estimate' : 
-               type === 'payments' ? 'Payment' : 
-               type === 'credits' ? 'Credit' : 
-               type === 'expenses' ? 'Expense' : 
-               type === 'recurring' ? 'Recurring' : 'Report'}
-            </h1>
-          </div>
+      {/* Main Document Body — image 2 layout */}
+      {(() => {
+        const accentColor = localStorage.getItem('erp_doc_accent_color') || '#8B1D2A';
+        const customTitles: Record<string, string> = (() => { try { return JSON.parse(localStorage.getItem('erp_doc_custom_titles') || '{}'); } catch { return {}; } })();
+        const bankDetails     = localStorage.getItem('erp_bank_details') || '';
+        const legalDisclaimer = localStorage.getItem('erp_legal_disclaimer') || '';
+        const defaultTitles: Record<string, string> = { invoices: 'Factuur', estimates: 'Offerte', payments: 'Betaling', credits: 'Creditnota', expenses: 'Expense', recurring: 'Recurring', reports: 'Report' };
+        const typeToKey: Record<string, string> = { invoices: 'invoice', estimates: 'quote', payments: 'payment', credits: 'credit' };
+        const docLabel = customTitles[typeToKey[type] ?? type] ?? defaultTitles[type] ?? 'Document';
+        const d = docData as any;
+        const invoiceTotal = d.totalAmount || d.total || 0;
+        const balance = invoiceTotal - totalPaid;
+        const cur = d.currency || currencySymbol;
+        const fmt = (n: number) => `${cur} ${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+        const fmtDate = (s: string) => { if (!s) return '—'; const p = s.split('-'); return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : s; };
 
-          <div className="w-1/3">
-            <div className="bg-slate-100 border border-slate-300 p-4 min-h-[120px] rounded-sm">
-              <h3 className="text-xs font-black text-center mb-4 uppercase tracking-wider">
-                {type === 'expenses' ? 'Vendor Information' : 
-                 type === 'reports' ? 'Report Parameters' : 'Customer Information'}
-              </h3>
-              <div className="text-center space-y-1">
-                {type === 'reports' ? (
+        const tableItems = d.items || (type === 'expenses' ? [
+          { description: d.description, quantity: 1, um: 'LOT', rate: d.amount, amount: d.amount }
+        ] : []);
+
+        return (
+          <div className="max-w-[850px] mx-auto bg-white border border-slate-200 shadow-2xl overflow-hidden p-10 font-sans text-slate-900">
+
+            {/* ── HEADER: company left | title right ── */}
+            <div className="flex items-start justify-between gap-6 pb-6 mb-6 border-b border-slate-200">
+              {/* LEFT: logo + company info */}
+              <div className="flex items-start gap-4">
+                {companyLogo ? (
+                  <img src={companyLogo} className="h-12 w-auto object-contain" alt="Logo" />
+                ) : null}
+                <div>
+                  <p className="font-black text-base text-slate-900 leading-tight">{companyName}</p>
+                  {companyAddress && <p className="text-xs text-slate-500 mt-1 uppercase leading-relaxed">{companyAddress}</p>}
+                  {companyPhone   && <p className="text-xs text-slate-500">{companyPhone}</p>}
+                  {companyEmail   && <p className="text-xs text-slate-500">{companyEmail}</p>}
+                  {companyBTW     && <p className="text-xs text-slate-400 mt-0.5">BTW: {companyBTW}</p>}
+                  {companyKKF     && <p className="text-xs text-slate-400">KKF: {companyKKF}</p>}
+                </div>
+              </div>
+              {/* RIGHT: title + doc meta */}
+              <div className="text-right shrink-0">
+                <p className="font-black italic leading-none" style={{ fontSize: '2.4rem', color: accentColor }}>{docLabel}</p>
+                <p className="font-mono text-sm text-slate-600 mt-2">{getDocTitle()}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{fmtDate(d.date)}</p>
+                {d.validUntil && <p className="text-xs text-slate-500 mt-0.5">GELDIG T/M {fmtDate(d.validUntil)}</p>}
+                {type === 'invoices' && d.dueDate && <p className="text-xs text-slate-500 mt-0.5">VERVALDATUM {fmtDate(d.dueDate)}</p>}
+              </div>
+            </div>
+
+            {/* ── CLIENT BLOCK (AAN) ── */}
+            {(type === 'invoices' || type === 'estimates' || type === 'credits') && (
+              <div className="mb-4">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Aan</p>
+                {client ? (
                   <>
-                    <p className="text-sm font-bold">Full Financial Audit</p>
-                    <p className="text-xs text-slate-600">Period: Q1 2024</p>
-                  </>
-                ) : type === 'expenses' ? (
-                  <>
-                    <p className="text-sm font-bold">{(docData as any).category || 'General Vendor'}</p>
-                    <p className="text-xs text-slate-600">{(docData as any).description}</p>
+                    <p className="font-bold text-slate-900 text-sm">{client.name}</p>
+                    {client.company && <p className="text-sm text-slate-600">{client.company}</p>}
+                    {client.address && <p className="text-xs text-slate-500 mt-0.5 uppercase">{client.address}</p>}
+                    {client.phone   && <p className="text-xs text-slate-500 mt-0.5">{client.phone}</p>}
+                    {client.email   && <p className="text-xs text-slate-500">{client.email}</p>}
+                    {(client as any).vatNumber && <p className="text-xs text-slate-400 mt-0.5">BTW: {(client as any).vatNumber}</p>}
                   </>
                 ) : (
+                  <p className="text-sm text-slate-400 italic">—</p>
+                )}
+              </div>
+            )}
+
+            {/* ── META ROW TABLE ── */}
+            <table className="w-full border-collapse border border-slate-200 mb-6 text-xs">
+              <thead>
+                <tr>
+                  {['Date', type === 'invoices' ? 'Invoice #' : 'Estimate #', 'Terms', 'Due Date', 'Rep', 'Project'].map(h => (
+                    <th key={h} className="border border-slate-200 py-1.5 px-3 text-left text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-50">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="border border-slate-200 py-1.5 px-3 font-bold">{fmtDate(d.date)}</td>
+                  <td className="border border-slate-200 py-1.5 px-3 font-bold">{getDocTitle()}</td>
+                  <td className="border border-slate-200 py-1.5 px-3 font-bold">COD</td>
+                  <td className="border border-slate-200 py-1.5 px-3 font-bold">{d.validUntil ? fmtDate(d.validUntil) : d.dueDate ? fmtDate(d.dueDate) : '—'}</td>
+                  <td className="border border-slate-200 py-1.5 px-3 font-bold">{d.rep || '—'}</td>
+                  <td className="border border-slate-200 py-1.5 px-3 font-bold">—</td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* ── ITEMS TABLE ── */}
+            {tableItems.length > 0 && (
+              <table className="w-full border-collapse text-xs mt-4 mb-6">
+                <thead>
+                  <tr>
+                    <th className="text-left py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white" style={{ backgroundColor: accentColor }}>Omschrijving</th>
+                    <th className="text-center py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white w-16" style={{ backgroundColor: accentColor }}>QTY</th>
+                    <th className="text-center py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white w-14" style={{ backgroundColor: accentColor }}>U/M</th>
+                    <th className="text-right py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white w-24" style={{ backgroundColor: accentColor }}>Prijs</th>
+                    <th className="text-right py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white w-24" style={{ backgroundColor: accentColor }}>Totaal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableItems.map((item: any, idx: number) => (
+                    <tr key={idx} className="border-b border-slate-100">
+                      <td className="py-2.5 px-3 font-medium">{item.description}</td>
+                      <td className="py-2.5 px-3 text-center font-bold">{item.quantity}</td>
+                      <td className="py-2.5 px-3 text-center text-slate-500">{item.um || item.unit || 'PCS'}</td>
+                      <td className="py-2.5 px-3 text-right">{(item.rate ?? item.unitPrice ?? item.price ?? 0).toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-right font-black">{(item.amount ?? (item.quantity * (item.unitPrice ?? item.rate ?? 0)) ?? 0).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {/* ── TOTALS ── */}
+            <div className="flex justify-end mb-8">
+              <div className="w-64">
+                <div className="flex justify-between py-2 text-sm border-t border-slate-200">
+                  <span className="text-slate-500 font-medium">Subtotaal</span>
+                  <span className="font-bold">{fmt(invoiceTotal / 1.21)}</span>
+                </div>
+                <div className="flex justify-between py-2 text-sm border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">BTW (21%)</span>
+                  <span className="font-bold">{fmt(invoiceTotal - invoiceTotal / 1.21)}</span>
+                </div>
+                <div className="flex justify-between py-3 border-t-2" style={{ borderColor: accentColor }}>
+                  <span className="font-black text-base" style={{ color: accentColor }}>TOTAAL ({cur})</span>
+                  <span className="font-black text-base" style={{ color: accentColor }}>{fmt(invoiceTotal)}</span>
+                </div>
+                {totalPaid > 0 && (
                   <>
-                    <p className="text-sm font-bold">{client?.name || client?.company || 'Client'}</p>
-                    {client?.company && client?.name && (
-                      <p className="text-xs text-slate-500 font-medium">{client.company}</p>
-                    )}
-                    <p className="text-xs text-slate-600">{client?.phone || ''}</p>
+                    <div className="flex justify-between py-2 text-sm border-t border-slate-100">
+                      <span className="text-emerald-600 font-medium">Betaald</span>
+                      <span className="font-bold text-emerald-600">− SRD {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between py-3 border-t-2 border-slate-900">
+                      <span className={`font-black text-base ${balance <= 0 ? 'text-emerald-700' : 'text-slate-900'}`}>
+                        {balance <= 0 ? '✓ BETAALD' : 'SALDO'}
+                      </span>
+                      <span className={`font-black text-base ${balance <= 0 ? 'text-emerald-700' : 'text-slate-900'}`}>
+                        {balance <= 0 ? '—' : `SRD ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                      </span>
+                    </div>
                   </>
                 )}
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Metadata Row */}
-        <div className="border-y border-slate-900 grid grid-cols-6 divide-x divide-slate-900 text-center">
-          <div className="py-1">
-            <p className="text-[10px] font-bold border-b border-slate-200 mb-1">Date</p>
-            <p className="text-xs font-bold">{(docData as any).date || '01-Sept-2021'}</p>
-          </div>
-          <div className="py-1">
-            <p className="text-[10px] font-bold border-b border-slate-200 mb-1">{type.slice(0, -1).toUpperCase()} #</p>
-            <p className="text-xs font-bold">{getDocTitle() || '166'}</p>
-          </div>
-          <div className="py-1">
-            <p className="text-[10px] font-bold border-b border-slate-200 mb-1">Terms</p>
-            <p className="text-xs font-bold">COD</p>
-          </div>
-          <div className="py-1 bg-slate-100">
-            <p className="text-[10px] font-bold border-b border-slate-200 mb-1">Due Date</p>
-            <p className="text-xs font-bold">{(docData as any).dueDate || (docData as any).date}</p>
-          </div>
-          <div className="py-1">
-            <p className="text-[10px] font-bold border-b border-slate-200 mb-1">Rep</p>
-            <p className="text-xs font-bold">SS</p>
-          </div>
-          <div className="py-1">
-            <p className="text-[10px] font-bold border-b border-slate-200 mb-1">Project</p>
-            <p className="text-xs font-bold">-</p>
-          </div>
-        </div>
-
-        {/* Items Table */}
-        <div className="border border-slate-900 min-h-[500px] flex flex-col">
-          <table className="w-full text-left border-collapse">
-            <thead className="border-b border-slate-900">
-              <tr className="divide-x divide-slate-900 text-[11px] font-black uppercase">
-                <th className="py-1 px-2 w-[40%]">Description</th>
-                <th className="py-1 px-2 text-center w-[12%]">Measurem...</th>
-                <th className="py-1 px-2 text-center w-[8%]">Qu...</th>
-                <th className="py-1 px-2 text-center w-[8%]">U/M</th>
-                <th className="py-1 px-2 text-center w-[12%]">Wood</th>
-                <th className="py-1 px-2 text-right w-[10%]">Rate</th>
-                <th className="py-1 px-2 text-right w-[10%]">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-transparent">
-              {((docData as any).items || (type === 'expenses' ? [
-                { description: (docData as any).description, measurement: '', quantity: 1, um: 'LOT', wood: '', rate: (docData as any).amount, amount: (docData as any).amount }
-              ] : type === 'reports' ? [
-                { description: 'Total Revenue', measurement: '', quantity: 1, um: 'EUR', wood: '', rate: 142850, amount: 142850 },
-                { description: 'Total Expenses', measurement: '', quantity: 1, um: 'EUR', wood: '', rate: 8400, amount: 8400 }
-              ] : [
-                { description: 'Wood drying', measurement: '', quantity: 3.75, um: 'CBM', wood: 'KOP-Kopi', rate: 80.00, amount: 300.00 },
-                { description: 'Floorboard re-planing and profiling', measurement: '', quantity: 135, um: 'M²', wood: '', rate: 8.00, amount: 1080.00 }
-              ])).map((item: any, idx: number) => (
-                <tr key={idx} className="divide-x divide-slate-900 text-xs font-medium">
-                  <td className="py-2 px-2">{item.description}</td>
-                  <td className="py-2 px-2 text-center">{item.measurement || ''}</td>
-                  <td className="py-2 px-2 text-center">{item.quantity}</td>
-                  <td className="py-2 px-2 text-center">{item.um || 'PCS'}</td>
-                  <td className="py-2 px-2 text-center">{item.wood || ''}</td>
-                  <td className="py-2 px-2 text-right">{item.rate?.toFixed(2) || item.unitPrice?.toFixed(2)}</td>
-                  <td className="py-2 px-2 text-right">{(item.amount || (item.quantity * item.unitPrice))?.toFixed(2)}</td>
-                </tr>
-              ))}
-              {/* Vertical lines filler */}
-              <tr className="flex-1 divide-x divide-slate-900 h-[400px]">
-                <td className="border-none"></td>
-                <td className="border-none"></td>
-                <td className="border-none"></td>
-                <td className="border-none"></td>
-                <td className="border-none"></td>
-                <td className="border-none"></td>
-                <td className="border-none"></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* BTW Line */}
-        <div className="border border-slate-900 grid grid-cols-12 divide-x divide-slate-900">
-          <div className="col-span-10 py-1 px-4 text-xs font-black text-center uppercase tracking-wider">
-            BTW tnv RAMZON NV # {companyBTW || '2000012965'} (10.0%)
-          </div>
-          <div className="col-span-2 py-1 px-2 text-right text-xs font-bold">
-            USD 0.00
-          </div>
-        </div>
-
-        {/* Footer Section */}
-        <div className="grid grid-cols-12 border border-slate-900 divide-x divide-slate-900">
-          {/* Notes - Editable */}
-          <div className="col-span-9 p-3 relative group">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Notes</span>
-              <button
-                onClick={() => setEditingNotes(!editingNotes)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] font-black text-brand-primary uppercase tracking-widest flex items-center gap-1 px-2 py-0.5 rounded bg-red-50 border border-red-100 hover:bg-red-100"
-              >
-                <Pencil size={9} /> {editingNotes ? t('save') : t('edit')}
-              </button>
-            </div>
-            {editingNotes ? (
-              <textarea
-                aria-label="Document notes"
-                title="Document notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full text-[9px] font-bold leading-tight resize-none outline-none border border-blue-200 rounded p-1 bg-blue-50/30 focus:bg-white transition-colors"
-                rows={14}
-                autoFocus
-              />
-            ) : (
-              <div className="text-[9px] font-bold leading-tight whitespace-pre-line text-slate-900">
-                {notes}
+            {/* ── FOOTER ── */}
+            {(bankDetails || legalDisclaimer) && (
+              <div className="border-t border-slate-200 pt-5 mt-4 grid grid-cols-2 gap-6 text-[10px] text-slate-500">
+                {bankDetails && (
+                  <div>
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Betalingsgegevens</p>
+                    <p className="whitespace-pre-wrap leading-relaxed">{bankDetails}</p>
+                  </div>
+                )}
+                {legalDisclaimer && (
+                  <div>
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Voorwaarden</p>
+                    <p className="whitespace-pre-wrap leading-relaxed">{legalDisclaimer}</p>
+                  </div>
+                )}
               </div>
             )}
+
           </div>
-          
-          {/* Totals */}
-          <div className="col-span-3 flex flex-col divide-y divide-slate-900">
-            {(() => {
-              const invoiceTotal = (docData as any).totalAmount || (docData as any).total || 0;
-              const balance = invoiceTotal - totalPaid;
-              const cur = (docData as any).currency || currencySymbol;
-              return (<>
-                <div className="flex-1 p-3 flex justify-between items-center">
-                  <span className="text-xs font-black uppercase">Total</span>
-                  <span className="text-xs font-bold">{cur} {invoiceTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="flex-1 p-3 flex justify-between items-center">
-                  <span className="text-xs font-black uppercase">Payments</span>
-                  <span className="text-xs font-bold text-emerald-700">
-                    {totalPaid > 0 ? `-SRD ${totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'SRD 0.00'}
-                  </span>
-                </div>
-                <div className={`flex-1 p-3 flex justify-between items-center ${balance <= 0 ? 'bg-emerald-50' : 'bg-slate-50'}`}>
-                  <span className="text-xs font-black uppercase">Balance</span>
-                  <span className={`text-xs font-bold ${balance <= 0 ? 'text-emerald-700' : ''}`}>
-                    {balance <= 0 ? '✓ PAID' : `SRD ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-                  </span>
-                </div>
-              </>);
-            })()}
-          </div>
-        </div>
-      </div>
+        );
+      })()}
       {/* Payment history (below document body) */}
       {type === 'invoices' && linkedPayments.length > 0 && (
         <div className="max-w-[850px] mx-auto space-y-3">
@@ -726,6 +692,48 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
               </button>
             </div>
           </div>
+        );
+      })()}
+
+      {/* ── DocPDF Modal (print / download) ── */}
+      {showPdfModal && (type === 'invoices' || type === 'estimates' || type === 'credits') && (() => {
+        const d = docData as any;
+        const docType = type === 'invoices' ? 'invoice' : 'quote';
+        const docNumber = d.invoiceNumber || d.estimateNumber || d.id || '—';
+        const subtotal = (d.totalAmount || d.total || 0) / 1.21;
+        const total    = d.totalAmount || d.total || 0;
+        const tax      = total - subtotal;
+        const cur      = d.currency || 'SRD';
+        return (
+          <DocPDFModal
+            docType={docType}
+            docNumber={docNumber}
+            date={d.date || ''}
+            validUntil={d.validUntil || d.dueDate}
+            clientName={client?.name || ''}
+            clientCompany={client?.company}
+            clientAddress={(client as any)?.address}
+            clientPhone={client?.phone}
+            clientEmail={client?.email}
+            clientVAT={(client as any)?.vatNumber}
+            rep={d.rep}
+            paidAmount={totalPaid > 0 ? totalPaid : undefined}
+            currency={cur}
+            currencySymbol={currencySymbol}
+            items={(d.items || []).map((i: any) => ({
+              id: i.id || String(Math.random()),
+              description: i.description || '',
+              houtsoort: i.houtsoort || i.wood || '',
+              spec: i.spec || '',
+              qty: i.quantity || i.qty || 1,
+              unit: i.um || i.unit || 'PCS',
+              price: i.rate || i.unitPrice || i.price || 0,
+            }))}
+            subtotal={subtotal}
+            tax={tax}
+            total={total}
+            onClose={() => setShowPdfModal(false)}
+          />
         );
       })()}
     </div>

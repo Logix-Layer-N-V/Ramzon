@@ -87,17 +87,16 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
   }, []);
 
   // ── Template settings from localStorage ─────────────────────────────────
-  const fontFamily        = localStorage.getItem('erp_doc_font_family') ?? 'sans';
-  const bankDetails       = localStorage.getItem('erp_bank_details') ?? '';
-  const legalDisclaimer   = localStorage.getItem('erp_legal_disclaimer') ?? '';
-  const headerStyle       = localStorage.getItem('erp_doc_header_style') ?? 'split';
-  const accentColor       = localStorage.getItem('erp_doc_accent_color') ?? '#8B1D2A';
-  const headerBgMode      = (localStorage.getItem('erp_doc_header_bg') ?? 'none') as 'brand' | 'dark' | 'light' | 'none';
-  const tableHeaderMode   = (localStorage.getItem('erp_doc_table_header') ?? 'dark') as 'dark' | 'brand' | 'light' | 'none';
-  const logoSz            = (localStorage.getItem('erp_doc_logo_size') ?? 'md') as 'sm' | 'md' | 'lg';
+  const fontFamily      = localStorage.getItem('erp_doc_font_family') ?? 'sans';
+  const bankDetails     = localStorage.getItem('erp_bank_details') ?? '';
+  const legalDisclaimer = localStorage.getItem('erp_legal_disclaimer') ?? '';
+  const accentColor     = localStorage.getItem('erp_doc_accent_color') ?? '#8B1D2A';
+  const logoSz          = (localStorage.getItem('erp_doc_logo_size') ?? 'md') as 'sm' | 'md' | 'lg';
+  const tableRowsStyle  = (localStorage.getItem('erp_doc_table_rows') ?? 'horizontal') as 'horizontal' | 'grid' | 'none';
+  const docTitleMode    = (localStorage.getItem('erp_doc_title_style') ?? 'normal') as 'normal' | 'uppercase' | 'stamp';
+
   const showF: Record<string, boolean> = (() => {
-    const raw = localStorage.getItem('erp_doc_show_fields');
-    return raw ? JSON.parse(raw) : { name: true, address: true, phone: true, email: true, btw: true, kkf: true };
+    try { return JSON.parse(localStorage.getItem('erp_doc_show_fields') ?? '{}'); } catch { return {}; }
   })();
   const companyFieldsOrder: string[] = (() => {
     try { return JSON.parse(localStorage.getItem('erp_doc_company_fields_order') ?? '["name","address","phone","email","btw","kkf"]'); }
@@ -110,13 +109,6 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
   const showClientF: Record<string, boolean> = (() => {
     try { return JSON.parse(localStorage.getItem('erp_doc_show_client_fields') ?? '{}'); } catch { return {}; }
   })();
-  const metaColsOrder: string[] = (() => {
-    try { return JSON.parse(localStorage.getItem('erp_doc_meta_cols_order') ?? '["datum","nr","termijn","vervaldatum","rep","project"]'); }
-    catch { return ['datum', 'nr', 'termijn', 'vervaldatum', 'rep', 'project']; }
-  })();
-  const showMetaCols: Record<string, boolean> = (() => {
-    try { return JSON.parse(localStorage.getItem('erp_doc_show_meta_cols') ?? '{}'); } catch { return {}; }
-  })();
   const tableColsOrder: string[] = (() => {
     try { return JSON.parse(localStorage.getItem('erp_doc_table_cols_order') ?? '["omschrijving","afmeting","qty","eenheid","houtsoort","prijs","totaal"]'); }
     catch { return ['omschrijving', 'afmeting', 'qty', 'eenheid', 'houtsoort', 'prijs', 'totaal']; }
@@ -127,40 +119,15 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
   const customTitlesMap: Record<string, string> = (() => {
     try { return JSON.parse(localStorage.getItem('erp_doc_custom_titles') ?? '{}'); } catch { return {}; }
   })();
-  const clientPos         = (localStorage.getItem('erp_doc_client_position') ?? 'right') as 'right' | 'left' | 'below';
-  const tableRowsStyle    = (localStorage.getItem('erp_doc_table_rows') ?? 'horizontal') as 'horizontal' | 'grid' | 'none';
-  const docTitleMode      = (localStorage.getItem('erp_doc_title_style') ?? 'normal') as 'normal' | 'uppercase' | 'stamp';
-  const clientStyle       = localStorage.getItem('erp_doc_client_style') ?? 'clean';
-  const titleSize         = localStorage.getItem('erp_doc_title_size') ?? 'md';
 
-  // ── Derived header styles ────────────────────────────────────────────────
-  const hdrHasBg = headerBgMode !== 'none';
-  const hdrBgStyle: React.CSSProperties =
-    headerBgMode === 'brand' ? { backgroundColor: accentColor } :
-    headerBgMode === 'dark'  ? { backgroundColor: '#1e293b' } :
-    headerBgMode === 'light' ? { backgroundColor: '#f8fafc' } : {};
-  const hdrPadding   = hdrHasBg ? '-mx-10 -mt-10 mb-8 px-10 pt-10 pb-7' : 'border-b-2 border-slate-200 pb-6 mb-6';
-  const hdrTextMain  = hdrHasBg ? 'text-white' : 'text-slate-900';
-  const hdrTextSub   = hdrHasBg ? 'text-white/70' : 'text-slate-500';
-  const hdrTextMuted = hdrHasBg ? 'text-white/50' : 'text-slate-400';
+  // ── Derived values ───────────────────────────────────────────────────────
+  const logoH     = logoSz === 'sm' ? 'h-8' : logoSz === 'lg' ? 'h-16' : 'h-12';
+  const tblRowCls = tableRowsStyle === 'grid' ? 'border border-slate-100' : tableRowsStyle === 'horizontal' ? 'border-b border-slate-100' : '';
+  const fontClass = fontFamily === 'serif' ? 'font-serif' : fontFamily === 'mono' ? 'font-mono' : 'font-sans';
 
-  // ── Derived table header styles ──────────────────────────────────────────
-  const tblHdrStyle: React.CSSProperties =
-    tableHeaderMode === 'dark'  ? { backgroundColor: '#1e293b', color: 'white' } :
-    tableHeaderMode === 'brand' ? { backgroundColor: accentColor, color: 'white' } :
-    tableHeaderMode === 'light' ? { backgroundColor: '#f8fafc', color: '#64748b' } :
-    { color: '#475569', borderBottom: '2px solid #e2e8f0' };
-
-  // ── Other derived values ─────────────────────────────────────────────────
-  const logoH       = logoSz === 'sm' ? 'h-8' : logoSz === 'lg' ? 'h-16' : 'h-12';
-  const tblRowCls   = tableRowsStyle === 'grid' ? 'border border-slate-100' : tableRowsStyle === 'horizontal' ? 'border-b border-slate-100' : '';
-  const titleSzCls  = titleSize === 'sm' ? 'text-xs' : titleSize === 'lg' ? 'text-xl' : 'text-base';
   const defaultTitleMap: Record<string, string> = { invoice: 'Factuur', quote: 'Offerte', payment: 'Betaling', credit: 'Creditnota' };
-  const docLabel    = customTitlesMap[docType] ?? defaultTitleMap[docType] ?? (docType === 'quote' ? 'Offerte' : 'Factuur');
+  const docLabel     = customTitlesMap[docType] ?? defaultTitleMap[docType] ?? (docType === 'quote' ? 'Offerte' : 'Factuur');
   const displayLabel = docTitleMode === 'uppercase' ? docLabel.toUpperCase() : docLabel;
-  const docTitleCls = `${titleSzCls} font-black tracking-tight ${hdrHasBg ? 'text-white' : 'text-slate-900'}${docTitleMode === 'stamp' ? ' border-2 border-current px-2 py-0.5 inline-block' : ''}${docTitleMode === 'uppercase' ? ' uppercase tracking-widest' : ''}`;
-  const docNumCls   = `font-mono text-xs mt-0.5 ${hdrHasBg ? 'text-white/60' : 'text-slate-400'}`;
-  const fontClass   = fontFamily === 'serif' ? 'font-serif' : fontFamily === 'mono' ? 'font-mono' : 'font-sans';
 
   const formatDate = (d: string) => {
     if (!d) return '—';
@@ -168,22 +135,6 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
     if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
     return d;
   };
-
-  const ClientBlock = ({ align = 'right' }: { align?: 'left' | 'right' }) => (
-    <div className={`${clientStyle === 'boxed' ? 'border border-slate-200 rounded px-4 py-3 min-w-[160px]' : ''} ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Aan</p>
-      {clientFieldsOrder.map(key => {
-        if (showClientF[key] === false) return null;
-        if (key === 'name')    return clientName    ? <p key="name"    className="font-bold text-slate-900 text-sm leading-tight">{clientName}</p>               : null;
-        if (key === 'company') return clientCompany ? <p key="company" className="text-xs text-slate-500 font-medium mt-0.5">{clientCompany}</p>                 : null;
-        if (key === 'address') return clientAddress ? <p key="address" className="text-xs text-slate-500 mt-0.5 leading-relaxed">{clientAddress}</p>             : null;
-        if (key === 'phone')   return clientPhone   ? <p key="phone"   className="text-xs text-slate-400 mt-0.5">{clientPhone}</p>                               : null;
-        if (key === 'email')   return clientEmail   ? <p key="email"   className="text-xs text-slate-400">{clientEmail}</p>                                      : null;
-        if (key === 'vat')     return clientVAT     ? <p key="vat"     className="text-xs text-slate-400 mt-0.5">BTW: {clientVAT}</p>                            : null;
-        return null;
-      })}
-    </div>
-  );
 
   return (
     <div className="fixed inset-0 z-[1100] bg-slate-950/90 backdrop-blur-sm flex flex-col">
@@ -219,6 +170,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                     companyAddress={companyAddress}
                     companyPhone={companyPhone}
                     companyEmail={companyEmail}
+                    companyLogo={companyLogo || undefined}
                     rep={rep}
                     paidAmount={paidAmount}
                     currency={currency}
@@ -276,107 +228,116 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
           style={{ minHeight: '1100px' }}
         >
 
-          {/* ── HEADER ── */}
-          {headerStyle === 'split' ? (
-            <div className={hdrPadding} style={hdrBgStyle}>
-              <div className="flex items-start justify-between gap-6">
-                <div className="flex items-start gap-4">
-                  {companyLogo && (
-                    <img
-                      src={companyLogo}
-                      alt={companyName}
-                      className={`${logoH} w-auto object-contain${hdrHasBg ? ' brightness-0 invert' : ''}`}
-                      style={{ maxWidth: '160px' }}
-                    />
-                  )}
-                  <div>
-                    {companyFieldsOrder.map(key => {
-                      if (key === 'name')    return showF.name !== false    ? <p key="name"    className={`font-black text-base leading-tight ${hdrTextMain}`}>{companyName}</p> : null;
-                      if (key === 'address') return showF.address !== false && companyAddress ? <p key="address" className={`text-xs mt-1 leading-relaxed ${hdrTextSub}`}>{companyAddress}</p> : null;
-                      if (key === 'phone')   return showF.phone !== false   && companyPhone   ? <p key="phone"   className={`text-xs ${hdrTextSub}`}>{companyPhone}</p> : null;
-                      if (key === 'email')   return showF.email !== false   && companyEmail   ? <p key="email"   className={`text-xs ${hdrTextSub}`}>{companyEmail}</p> : null;
-                      if (key === 'btw')     return showF.btw !== false     && companyBTW     ? <p key="btw"     className={`text-xs ${hdrTextMuted}`}>BTW: {companyBTW}</p> : null;
-                      if (key === 'kkf')     return showF.kkf !== false     && companyKKF     ? <p key="kkf"     className={`text-xs ${hdrTextMuted}`}>KKF: {companyKKF}</p> : null;
-                      return null;
-                    })}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className={docTitleCls}>{displayLabel}</p>
-                  <p className={docNumCls}>{docNumber}</p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className={`${hdrPadding} text-center`} style={hdrBgStyle}>
+          {/* ── HEADER: company left | title right ── */}
+          <div className="flex items-start justify-between gap-6 pb-6 mb-6 border-b border-slate-200">
+
+            {/* LEFT: logo + company fields */}
+            <div className="flex items-start gap-4">
               {companyLogo && (
                 <img
                   src={companyLogo}
                   alt={companyName}
-                  className={`${logoH} w-auto object-contain mx-auto mb-2${hdrHasBg ? ' brightness-0 invert' : ''}`}
-                  style={{ maxWidth: '160px' }}
+                  className={`${logoH} w-auto object-contain`}
+                  style={{ maxWidth: '140px' }}
                 />
               )}
-              {companyFieldsOrder.map(key => {
-                if (key === 'name')    return showF.name !== false    ? <p key="name"    className={`font-black text-lg ${hdrTextMain}`}>{companyName}</p> : null;
-                if (key === 'address') return showF.address !== false && companyAddress ? <p key="address" className={`text-xs mt-0.5 ${hdrTextSub}`}>{companyAddress}</p> : null;
-                if (key === 'phone')   return showF.phone !== false   && companyPhone   ? <p key="phone"   className={`text-xs mt-0.5 ${hdrTextMuted}`}>{companyPhone}</p> : null;
-                if (key === 'email')   return showF.email !== false   && companyEmail   ? <p key="email"   className={`text-xs mt-0.5 ${hdrTextMuted}`}>{companyEmail}</p> : null;
-                if (key === 'btw')     return showF.btw !== false     && companyBTW     ? <p key="btw"     className={`text-xs mt-0.5 ${hdrTextMuted}`}>BTW: {companyBTW}</p> : null;
-                if (key === 'kkf')     return showF.kkf !== false     && companyKKF     ? <p key="kkf"     className={`text-xs mt-0.5 ${hdrTextMuted}`}>KKF: {companyKKF}</p> : null;
-                return null;
-              })}
-              <p className={`mt-4 ${docTitleCls}`}>{displayLabel}</p>
-              <p className={docNumCls}>{docNumber}</p>
-            </div>
-          )}
-
-          {/* ── META ROW ── */}
-          {(() => {
-            const metaValues: Record<string, React.ReactNode> = {
-              datum:       <><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Datum</p><p className="font-bold text-slate-900 text-sm">{formatDate(date)}</p></>,
-              nr:          <><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">#</p><p className="font-bold text-slate-900 text-sm">{docNumber}</p></>,
-              termijn:     docType === 'quote'
-                ? <><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Geldig tot</p><p className="font-bold text-slate-900 text-sm">{validUntil ? formatDate(validUntil) : '—'}</p></>
-                : <><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Betaaltermijn</p><p className="font-bold text-slate-900 text-sm">30 dagen</p></>,
-              vervaldatum: <><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Vervaldatum</p><p className="font-bold text-slate-900 text-sm">{validUntil ? formatDate(validUntil) : '—'}</p></>,
-              rep:         <><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Rep</p><p className="font-bold text-slate-900 text-sm">{rep || '—'}</p></>,
-              project:     <><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Project</p><p className="font-bold text-slate-900 text-sm">—</p></>,
-            };
-            const visibleMeta = metaColsOrder.filter(k => showMetaCols[k] !== false);
-            return (
-              <div className={`flex${clientPos === 'below' ? '' : ' justify-between'} items-start mb-6 pb-5 border-b border-slate-200`}>
-                {clientPos === 'left' && <ClientBlock align="left" />}
-                <div className="flex gap-8">
-                  {visibleMeta.map(key => <div key={key}>{metaValues[key]}</div>)}
-                </div>
-                {clientPos === 'right' && <ClientBlock align="right" />}
+              <div>
+                {companyFieldsOrder.map(key => {
+                  if (key === 'name')    return showF.name !== false    ? <p key="name"    className="font-black text-base text-slate-900 leading-tight">{companyName}</p> : null;
+                  if (key === 'address') return showF.address !== false && companyAddress ? <p key="address" className="text-xs text-slate-500 mt-1 leading-relaxed uppercase">{companyAddress}</p> : null;
+                  if (key === 'phone')   return showF.phone !== false   && companyPhone   ? <p key="phone"   className="text-xs text-slate-500">{companyPhone}</p> : null;
+                  if (key === 'email')   return showF.email !== false   && companyEmail   ? <p key="email"   className="text-xs text-slate-500">{companyEmail}</p> : null;
+                  if (key === 'btw')     return showF.btw !== false     && companyBTW     ? <p key="btw"     className="text-xs text-slate-400">BTW: {companyBTW}</p> : null;
+                  if (key === 'kkf')     return showF.kkf !== false     && companyKKF     ? <p key="kkf"     className="text-xs text-slate-400">KKF: {companyKKF}</p> : null;
+                  return null;
+                })}
               </div>
-            );
-          })()}
-          {clientPos === 'below' && <div className="mb-6"><ClientBlock align="left" /></div>}
+            </div>
+
+            {/* RIGHT: document title + meta */}
+            <div className="text-right shrink-0">
+              <p
+                className={`font-black leading-none${docTitleMode === 'uppercase' ? ' uppercase tracking-widest' : ' italic'}${docTitleMode === 'stamp' ? ' border-2 border-current px-3 py-1 inline-block' : ''}`}
+                style={{ fontSize: '2.4rem', color: accentColor }}
+              >
+                {displayLabel}
+              </p>
+              <p className="font-mono text-sm text-slate-600 mt-2">{docNumber}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{formatDate(date)}</p>
+              {validUntil && (
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {docType === 'quote' ? 'GELDIG T/M ' : 'VERVALDATUM '}{formatDate(validUntil)}
+                </p>
+              )}
+              {docType === 'invoice' && !validUntil && (
+                <p className="text-xs text-slate-500 mt-0.5">Betaaltermijn 30 dagen</p>
+              )}
+            </div>
+          </div>
+
+          {/* ── CLIENT BLOCK (AAN) ── */}
+          <div className="mb-4">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Aan</p>
+            {clientFieldsOrder.map(key => {
+              if (showClientF[key] === false) return null;
+              if (key === 'name')    return clientName    ? <p key="name"    className="font-bold text-slate-900 text-sm leading-tight">{clientName}</p>                  : null;
+              if (key === 'company') return clientCompany ? <p key="company" className="text-sm text-slate-600 font-medium">{clientCompany}</p>                          : null;
+              if (key === 'address') return clientAddress ? <p key="address" className="text-xs text-slate-500 mt-0.5 uppercase leading-relaxed">{clientAddress}</p>     : null;
+              if (key === 'phone')   return clientPhone   ? <p key="phone"   className="text-xs text-slate-500 mt-0.5">{clientPhone}</p>                                  : null;
+              if (key === 'email')   return clientEmail   ? <p key="email"   className="text-xs text-slate-500">{clientEmail}</p>                                         : null;
+              if (key === 'vat')     return clientVAT     ? <p key="vat"     className="text-xs text-slate-400 mt-0.5">BTW: {clientVAT}</p>                               : null;
+              return null;
+            })}
+          </div>
+
+          {/* ── META ROW TABLE ── */}
+          <table className="w-full border-collapse border border-slate-200 mb-6 text-xs">
+            <thead>
+              <tr>
+                <th className="border border-slate-200 py-1.5 px-3 text-left text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-50">Date</th>
+                <th className="border border-slate-200 py-1.5 px-3 text-left text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-50">{docType === 'invoice' ? 'Invoice #' : 'Estimate #'}</th>
+                <th className="border border-slate-200 py-1.5 px-3 text-left text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-50">Terms</th>
+                <th className="border border-slate-200 py-1.5 px-3 text-left text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-50">Due Date</th>
+                <th className="border border-slate-200 py-1.5 px-3 text-left text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-50">Rep</th>
+                <th className="border border-slate-200 py-1.5 px-3 text-left text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-50">Project</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="border border-slate-200 py-1.5 px-3 font-bold">{formatDate(date)}</td>
+                <td className="border border-slate-200 py-1.5 px-3 font-bold">{docNumber}</td>
+                <td className="border border-slate-200 py-1.5 px-3 font-bold">COD</td>
+                <td className="border border-slate-200 py-1.5 px-3 font-bold">{validUntil ? formatDate(validUntil) : '—'}</td>
+                <td className="border border-slate-200 py-1.5 px-3 font-bold">{rep || '—'}</td>
+                <td className="border border-slate-200 py-1.5 px-3 font-bold">—</td>
+              </tr>
+            </tbody>
+          </table>
 
           {/* ── LINE ITEMS TABLE ── */}
           {(() => {
-            type ColDef = { label: string; align: 'left'|'center'|'right'; width?: string; cell: (item: ModalLineItem, idx: number, area: number, lineTotal: number) => React.ReactNode };
+            type ColDef = { label: string; align: 'left' | 'center' | 'right'; width?: string; cell: (item: ModalLineItem, idx: number, area: number, lineTotal: number) => React.ReactNode };
             const allCols: Record<string, ColDef> = {
               omschrijving: { label: 'Omschrijving', align: 'left',   cell: (item) => <span className="font-medium">{item.description || '—'}</span> },
               afmeting:     { label: 'Afmeting',     align: 'center', width: '90px', cell: (item) => item.mmW && item.mmH ? `${item.mmW}×${item.mmH}` : '—' },
-              qty:          { label: 'Aantal',        align: 'right',  width: '40px', cell: (item) => <span className="font-bold">{item.qty}</span> },
-              eenheid:      { label: 'Eenh.',         align: 'center', width: '40px', cell: (item) => <span className="text-slate-500">{item.unit}</span> },
-              houtsoort:    { label: 'Houtsoort',     align: 'left',   width: '80px', cell: (item) => <span className="text-slate-600">{item.houtsoort || '—'}</span> },
-              prijs:        { label: 'Prijs',         align: 'right',  width: '72px', cell: (item) => `${currencySymbol}${item.price.toFixed(2)}` },
-              totaal:       { label: 'Totaal',        align: 'right',  width: '72px', cell: (_item, _idx, _area, lineTotal) => <span className="font-black">{currencySymbol}{lineTotal.toFixed(2)}</span> },
+              qty:          { label: 'Qty',          align: 'right',  width: '48px', cell: (item) => <span className="font-bold">{item.qty}</span> },
+              eenheid:      { label: 'U/M',          align: 'center', width: '44px', cell: (item) => <span className="text-slate-500">{item.unit}</span> },
+              houtsoort:    { label: 'Wood',         align: 'left',   width: '80px', cell: (item) => <span className="text-slate-600">{item.houtsoort || '—'}</span> },
+              prijs:        { label: 'Rate',         align: 'right',  width: '72px', cell: (item) => `${currencySymbol}${item.price.toFixed(2)}` },
+              totaal:       { label: 'Amount',       align: 'right',  width: '80px', cell: (_item, _idx, _area, lineTotal) => <span className="font-black">{currencySymbol}{lineTotal.toFixed(2)}</span> },
             };
             const visCols = tableColsOrder.filter(k => showTableCols[k] !== false && allCols[k]);
-            const visColCount = visCols.length + 1; // +1 for # column
+            const visColCount = visCols.length + 1;
             return (
-              <table className="w-full mb-6 border-collapse text-xs">
+              <table className="w-full mb-6 border-collapse text-xs mt-4">
                 <thead>
                   <tr>
-                    <th className="text-left py-2 px-2 text-[9px] uppercase tracking-widest font-black" style={{ ...tblHdrStyle, width: '24px' }}>#</th>
                     {visCols.map(key => (
-                      <th key={key} className={`text-${allCols[key].align} py-2 px-2 text-[9px] uppercase tracking-widest font-black`} style={{ ...tblHdrStyle, ...(allCols[key].width ? { width: allCols[key].width } : {}) }}>
+                      <th
+                        key={key}
+                        className={`text-${allCols[key].align} py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white`}
+                        style={{ backgroundColor: accentColor, ...(allCols[key].width ? { width: allCols[key].width } : {}) }}
+                      >
                         {allCols[key].label}
                       </th>
                     ))}
@@ -390,17 +351,15 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                     return (
                       <React.Fragment key={item.id}>
                         <tr className={tblRowCls}>
-                          <td className="py-2.5 px-2 text-slate-400">{idx + 1}</td>
                           {visCols.map(key => (
-                            <td key={key} className={`py-2.5 px-2 text-${allCols[key].align}`}>
+                            <td key={key} className={`py-2.5 px-3 text-${allCols[key].align}`}>
                               {allCols[key].cell(item, idx, area, lineTotal)}
                             </td>
                           ))}
                         </tr>
                         {item.unit === 'm²' && item.mmW && item.mmH && !visCols.includes('afmeting') && (
                           <tr key={`${item.id}-dim`}>
-                            <td />
-                            <td colSpan={visColCount - 1} className="pb-2 pt-0 px-2 text-[9px] text-slate-400 italic">
+                            <td colSpan={visColCount} className="pb-2 pt-0 px-3 text-[9px] text-slate-400 italic">
                               Afmeting: {item.mmW} × {item.mmH} mm = {area.toFixed(4)} m²
                             </td>
                           </tr>
@@ -424,9 +383,9 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                 <span className="text-slate-500 font-medium">BTW (21%)</span>
                 <span className="font-bold">{currencySymbol}{tax.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between py-3 border-t-2 border-slate-900">
-                <span className="font-black text-slate-900 text-base">TOTAAL</span>
-                <span className="font-black text-slate-900 text-base">{currencySymbol}{total.toFixed(2)}</span>
+              <div className="flex justify-between py-3 border-t-2" style={{ borderColor: accentColor }}>
+                <span className="font-black text-base" style={{ color: accentColor }}>TOTAAL ({currency})</span>
+                <span className="font-black text-base" style={{ color: accentColor }}>{currencySymbol}{total.toFixed(2)}</span>
               </div>
               {paidAmount != null && paidAmount > 0 && (
                 <>
@@ -434,9 +393,9 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                     <span className="text-emerald-600 font-medium">Betaald</span>
                     <span className="font-bold text-emerald-600">− {currencySymbol}{paidAmount.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between py-3 border-t-2 border-brand-primary">
-                    <span className="font-black text-brand-primary text-base">SALDO</span>
-                    <span className="font-black text-brand-primary text-base">{currencySymbol}{Math.max(0, total - paidAmount).toFixed(2)}</span>
+                  <div className="flex justify-between py-3 border-t-2 border-slate-900">
+                    <span className="font-black text-slate-900 text-base">SALDO</span>
+                    <span className="font-black text-slate-900 text-base">{currencySymbol}{Math.max(0, total - paidAmount).toFixed(2)}</span>
                   </div>
                 </>
               )}
