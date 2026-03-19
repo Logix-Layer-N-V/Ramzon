@@ -45,6 +45,11 @@ const CreateInvoicePage: React.FC = () => {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [committedDocNumber, setCommittedDocNumber] = useState('');
   const [invoiceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().split('T')[0];
+  });
   const [docNumber] = useState(() => isEdit ? '' : previewDocNumber('inv'));
   const [selectedRep, setSelectedRep] = useState<string>(() =>
     localStorage.getItem('erp_active_user_name') ?? mockUsers.find(u => u.role === 'Admin' && u.status === 'Active')?.name ?? ''
@@ -199,9 +204,10 @@ const CreateInvoicePage: React.FC = () => {
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
   const updateItem = (id: string, field: keyof LineItem, val: any) => setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
   const handleSave = () => {
-    const result = InvoiceSchema.omit({ dueDate: true }).safeParse({
+    const result = InvoiceSchema.safeParse({
       clientId: selectedClient,
       date: invoiceDate,
+      dueDate: dueDate,
       items: items.map(i => ({ description: i.description, qty: i.qty, price: i.price })),
     });
     if (!result.success) {
@@ -217,7 +223,7 @@ const CreateInvoicePage: React.FC = () => {
       clientId: selectedClient,
       clientName: clientObj?.name ?? selectedClient,
       date: invoiceDate,
-      dueDate: '',
+      dueDate,
       currency,
       exchangeRate,
       items: items.map(i => ({
@@ -294,6 +300,15 @@ const CreateInvoicePage: React.FC = () => {
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice Date</label>
               <input aria-label="Invoice date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none" />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">Due Date</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={e => setDueDate(e.target.value)}
+                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-brand-primary/50"
+              />
             </div>
 
             {/* Currency + Rate row */}
