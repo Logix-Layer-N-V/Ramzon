@@ -48,10 +48,10 @@ const TrafficInsightsPage: React.FC = () => {
 
     const openAR = invoices
       .filter(inv => inv.status !== ('paid' as never) && inv.status !== ('cancelled' as never))
-      .reduce((s, inv) => s + Math.max(0, (inv.totalAmount || (inv as any).total || 0) - ((inv as any).paidAmount || 0)), 0);
+      .reduce((s, inv) => s + Math.max(0, inv.totalAmount || 0), 0);
 
     const avgInvoice = filteredInvoices.length > 0
-      ? filteredInvoices.reduce((s, inv) => s + (inv.totalAmount || (inv as any).total || 0), 0) / filteredInvoices.length
+      ? filteredInvoices.reduce((s, inv) => s + (inv.totalAmount || 0), 0) / filteredInvoices.length
       : 0;
 
     const linked = payments.filter(p => p.invoiceId && p.date);
@@ -110,8 +110,8 @@ const TrafficInsightsPage: React.FC = () => {
     invoices.filter(inv => inPeriod(inv.date || '')).forEach(inv => {
       const client = clients.find(c => c.id === inv.clientId);
       const name = client ? (client.company || client.name || 'Onbekend') : (inv.clientName || 'Onbekend');
-      const billed = inv.totalAmount || (inv as any).total || 0;
-      const paid   = (inv as any).paidAmount || 0;
+      const billed = inv.totalAmount || 0;
+      const paid   = 0;
       const existing = map.get(name) || { name, billed: 0, paid: 0, count: 0 };
       map.set(name, { name, billed: existing.billed + billed, paid: existing.paid + paid, count: existing.count + 1 });
     });
@@ -125,7 +125,7 @@ const TrafficInsightsPage: React.FC = () => {
     const filtered = payments.filter(p => inPeriod(p.date || ''));
     const map = new Map<string, number>();
     filtered.forEach(p => {
-      const m = (p as any).paymentMethod || p.method || 'Overig';
+      const m = p.method || 'Overig';
       map.set(m, (map.get(m) || 0) + 1);
     });
     const total = filtered.length || 1;

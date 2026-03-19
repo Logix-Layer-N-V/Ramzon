@@ -36,7 +36,7 @@ import DocumentationPage from './pages/DocumentationPage';
 import ProductCategoriesPage from './pages/ProductCategoriesPage';
 import ServiceCategoriesPage from './pages/ServiceCategoriesPage';
 import NotificationsPage from './pages/NotificationsPage';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { LocationAwareErrorBoundary } from './components/ErrorBoundary';
 import { Language, translations } from './lib/translations';
 import { LanguageContext, Currency, TaxRate } from './lib/context';
 import { storage } from './lib/storage';
@@ -241,7 +241,7 @@ const App: React.FC = () => {
           <Route path="/*" element={
             isAuthenticated ? (
               <Layout onLogout={handleLogout} isSidebarCollapsed={isSidebarCollapsed} setIsSidebarCollapsed={setIsSidebarCollapsed}>
-                <ErrorBoundary>
+                <LocationAwareErrorBoundary>
                 <Routes>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/invoices" element={<InvoicesPage />} />
@@ -289,7 +289,7 @@ const App: React.FC = () => {
                   <Route path="/notifications" element={<NotificationsPage />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
-                </ErrorBoundary>
+                </LocationAwareErrorBoundary>
               </Layout>
             ) : <Navigate to="/login" replace />
           } />
