@@ -561,7 +561,7 @@ const CreateInvoicePage: React.FC = () => {
           {items.length > 0 && (
             <div className="border border-slate-200 rounded-2xl overflow-hidden">
               {/* Column header */}
-              <div className="hidden md:grid md:grid-cols-[48px_76px_1fr_38px_64px_84px_72px_48px_68px_22px] gap-1.5 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
+              <div className="hidden md:grid md:grid-cols-[48px_76px_1fr_38px_64px_84px_72px_48px_68px] gap-1.5 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
                 {[
                   { label: 'Qty',       align: '' },
                   { label: 'Wood',      align: '' },
@@ -572,7 +572,6 @@ const CreateInvoicePage: React.FC = () => {
                   { label: 'Subtotaal', align: 'text-right' },
                   { label: 'Disc %',    align: 'text-right' },
                   { label: 'Total',     align: 'text-right' },
-                  { label: '',          align: '' },
                 ].map(({ label, align }, i) => (
                   <p key={i} className={`text-[7px] font-black text-slate-400 uppercase tracking-widest ${align}`}>{label}</p>
                 ))}
@@ -580,7 +579,7 @@ const CreateInvoicePage: React.FC = () => {
               {items.map((item, idx) => (
                 <React.Fragment key={item.id}>
                 <div
-                  className="flex flex-wrap md:grid md:grid-cols-[48px_76px_1fr_38px_64px_84px_72px_48px_68px_22px] gap-1.5 items-center px-3 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                  className="relative flex flex-wrap md:grid md:grid-cols-[48px_76px_1fr_38px_64px_84px_72px_48px_68px] gap-1.5 items-center px-3 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                   {/* Qty */}
                   <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
                     className="w-full px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-xs font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
@@ -626,12 +625,12 @@ const CreateInvoicePage: React.FC = () => {
                     <span className="text-[10px] text-slate-400 shrink-0">%</span>
                   </div>
                   {/* Total (incl. markup + discount + tax) */}
-                  <div className="px-2 py-1 bg-slate-900 text-white rounded-lg text-xs font-black text-right shrink-0 w-full md:w-auto">
+                  <div className="px-2 py-1 bg-slate-900 text-white rounded-lg text-xs font-black text-right w-full">
                     {currencySymbol}{itemTotal(item).toFixed(2)}
                   </div>
-                  {/* Delete */}
+                  {/* Delete — absolute overlay on hover */}
                   <button onClick={() => removeItem(item.id)} title="Remove line"
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all shrink-0">
+                    className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 bg-white/90 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all shadow-sm">
                     <Trash2 size={11}/>
                   </button>
                 </div>
