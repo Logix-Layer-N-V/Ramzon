@@ -586,13 +586,13 @@ const CreateQuotePage: React.FC = () => {
           {items.length > 0 && (
             <div className="border border-slate-200 rounded-2xl overflow-hidden">
               {/* Column header */}
-              <div className="hidden md:grid md:grid-cols-[48px_76px_160px_38px_80px_52px_84px_72px_68px_22px] gap-1.5 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
+              <div className="hidden md:grid md:grid-cols-[48px_76px_150px_76px_38px_52px_84px_72px_68px_22px] gap-1.5 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
                 {[
                   { label: 'Qty',          align: '' },
                   { label: 'Wood',         align: '' },
                   { label: 'Description',  align: '' },
-                  { label: 'Unit',         align: 'text-center' },
                   { label: 'Spec / Notes', align: '' },
+                  { label: 'Unit',         align: 'text-center' },
                   { label: 'BTW%',         align: 'text-center' },
                   { label: 'Price',        align: 'text-right' },
                   { label: 'Subtotaal',    align: 'text-right' },
@@ -605,7 +605,7 @@ const CreateQuotePage: React.FC = () => {
               {items.map((item, idx) => (
                 <React.Fragment key={item.id}>
                 <div
-                  className="flex flex-wrap md:grid md:grid-cols-[48px_76px_160px_38px_80px_52px_84px_72px_68px_22px] gap-1.5 items-center px-3 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                  className="flex flex-wrap md:grid md:grid-cols-[48px_76px_150px_76px_38px_52px_84px_72px_68px_22px] gap-1.5 items-center px-3 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                   {/* Qty */}
                   <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
                     className="w-full px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-xs font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
@@ -625,13 +625,13 @@ const CreateQuotePage: React.FC = () => {
                   <input value={item.description} onChange={e => updateItem(item.id,'description',e.target.value)}
                     placeholder="Description…"
                     className="flex-1 md:flex-none min-w-0 px-2 py-1 bg-transparent border border-transparent hover:border-slate-200 focus:border-blue-300 focus:bg-white rounded-lg text-xs font-medium outline-none transition-all placeholder:text-slate-300"/>
-                  {/* Unit */}
-                  <input value={item.unit} onChange={e => updateItem(item.id,'unit',e.target.value)} aria-label="Unit" placeholder="PCS"
-                    className="w-full px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-[10px] font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
-                  {/* Spec / Notes */}
+                  {/* Spec / Notes — right after Description */}
                   <input value={item.spec} onChange={e => updateItem(item.id,'spec',e.target.value)}
                     placeholder="RAL 9010…"
                     className="px-2 py-1 bg-transparent border border-transparent hover:border-slate-200 focus:border-blue-300 focus:bg-white rounded-lg text-[10px] font-medium outline-none transition-all placeholder:text-slate-300 w-full"/>
+                  {/* Unit */}
+                  <input value={item.unit} onChange={e => updateItem(item.id,'unit',e.target.value)} aria-label="Unit" placeholder="PCS"
+                    className="w-full px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-[10px] font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
                   {/* BTW% — before Price */}
                   <select value={item.taxRate} onChange={e => updateItem(item.id,'taxRate',+e.target.value)} aria-label="BTW rate"
                     className="w-full px-1 py-1 border border-slate-200 bg-white rounded-lg text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 transition-all text-center">
