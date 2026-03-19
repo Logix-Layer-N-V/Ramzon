@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -42,6 +43,10 @@ import { LanguageContext, Currency, TaxRate } from './lib/context';
 import { storage } from './lib/storage';
 import { DEMO_PRODUCTS } from './lib/mock-data';
 import { AuthProvider } from './lib/auth';
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
+});
 
 const Layout: React.FC<{ 
   children: React.ReactNode; 
@@ -216,6 +221,7 @@ const App: React.FC = () => {
   };
 
   return (
+    <QueryClientProvider client={queryClient}>
     <AuthProvider>
     <LanguageContext.Provider value={{
       lang, setLang: handleSetLang, t, theme, setTheme, 
@@ -299,6 +305,7 @@ const App: React.FC = () => {
       </Router>
     </LanguageContext.Provider>
     </AuthProvider>
+    </QueryClientProvider>
   );
 };
 
