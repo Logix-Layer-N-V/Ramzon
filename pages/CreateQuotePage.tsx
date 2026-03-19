@@ -1,25 +1,37 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
-import { ArrowLeft, Plus, ClipboardList, Send, Save, Trash2, Check, X, Search, FileText, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
+import { ArrowLeft, Plus, ClipboardList, Send, Save, Trash2, Check, X, Search, FileText, TrendingUp, Ruler } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { mockClients, mockEstimates, RAMZON_SERVICES, RAMZON_PRODUCT_CATALOG, RAMZON_HOUTSOORTEN } from '../lib/mock-data';
+import { mockClients, mockEstimates, mockUsers, RAMZON_SERVICES, RAMZON_PRODUCT_CATALOG, RAMZON_HOUTSOORTEN } from '../lib/mock-data';
 import { previewDocNumber, commitDocNumber } from '../lib/docNumbering';
-import { getLatestExchangeRate } from '../lib/storage';
+import { getLatestExchangeRate, storage } from '../lib/storage';
+import { Estimate, WoodSpecies } from '../types';
+import DocPDFModal from '../components/DocPDFModal';
 
 type ItemType = 'product' | 'service' | 'item';
-interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; spec: string; qty: number; unit: string; price: number; }
+interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; spec: string; qty: number; unit: string; price: number; mmW?: number; mmH?: number; }
+interface CatalogItem { id: string; type: ItemType; name: string; desc: string; price: number; unit: string; }
 
-const CATALOG_ITEMS = [
-  ...RAMZON_SERVICES.map(s => ({
-    id: s.id, type: 'service' as ItemType, name: s.name, desc: s.description, price: s.price, unit: s.unit,
-  })),
-  ...RAMZON_PRODUCT_CATALOG.flatMap(cat =>
-    cat.subcategories.map(sub => ({
-      id: `${cat.category}-${sub.name}`, type: 'product' as ItemType,
-      name: sub.name, desc: cat.category, price: sub.basePrice, unit: 'PCS',
-    }))
-  ),
-];
+// Static services catalog (always available)
+const SERVICE_ITEMS = RAMZON_SERVICES.map(s => ({
+  id: s.id, type: 'service' as ItemType, name: s.name, desc: s.description, price: s.price, unit: s.unit,
+}));
+
+// Static product catalog fallback (used when storage.products is empty)
+const STATIC_PRODUCT_ITEMS = RAMZON_PRODUCT_CATALOG.flatMap(cat =>
+  cat.subcategories.map(sub => ({
+    id: `${cat.category}-${sub.name}`, type: 'product' as ItemType,
+    name: sub.name, desc: cat.category, price: sub.basePrice,
+    unit: cat.category === 'Deuren' ? 'm²' : 'PCS',
+  }))
+);
+
+// Map stored WoodProduct category to catalog desc key
+const catToDesc = (cat: string) => {
+  if (cat === 'Doors') return 'Deuren';
+  if (cat === 'Frames' || cat === 'Window Frames') return 'Kozijnen';
+  return cat; // 'Mouldings', 'Crating', etc.
+};
 
 const CreateQuotePage: React.FC = () => {
   const navigate = useNavigate();
@@ -34,21 +46,46 @@ const CreateQuotePage: React.FC = () => {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [items, setItems] = useState<LineItem[]>([]);
   const [saved, setSaved] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [committedDocNumber, setCommittedDocNumber] = useState('');
   const [docNumber] = useState(() => isEdit ? '' : previewDocNumber('est'));
+  const [selectedRep, setSelectedRep] = useState<string>(() =>
+    localStorage.getItem('erp_active_user_name') ?? mockUsers.find(u => u.role === 'Admin' && u.status === 'Active')?.name ?? ''
+  );
+  const [paidAmount, setPaidAmount] = useState<number>(0);
   const [itemSearch, setItemSearch] = useState('');
   const [showItemSearch, setShowItemSearch] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const searchRef = useRef<HTMLDivElement>(null);
 
+  // Dynamic catalog: merge services + storage products (fallback to static if empty)
+  const [storedProducts] = useState(() => storage.products.get());
+  const [woodSpeciesList] = useState<WoodSpecies[]>(() => {
+    const s = storage.woodSpecies.get();
+    return s.length > 0 ? s : [];
+  });
+  const getMarkup = (name: string) => woodSpeciesList.find(sp => sp.name === name)?.markup ?? 0;
+
+  const catalogItems = useMemo<CatalogItem[]>(() => {
+    const storedMapped: CatalogItem[] = storedProducts.map(p => ({
+      id: p.id, type: 'product' as ItemType,
+      name: p.name, desc: catToDesc(p.category ?? ''),
+      price: p.pricePerUnit,
+      unit: (p.unit === 'pcs' || p.unit === 'PCS') ? 'PCS' : p.unit,
+    }));
+    const products: CatalogItem[] = storedMapped.length > 0 ? storedMapped : STATIC_PRODUCT_ITEMS;
+    return [...SERVICE_ITEMS, ...products] as CatalogItem[];
+  }, [storedProducts]);
+
   // Category chips derived from catalog
   const CATALOG_CATEGORIES = [
-    { id: 'all',     label: 'All',      icon: '✦',  count: CATALOG_ITEMS.length },
-    { id: 'service', label: 'Services', icon: '⚙️', count: CATALOG_ITEMS.filter(i => i.type === 'service').length },
+    { id: 'all',     label: 'All',      icon: '✦',  count: catalogItems.length },
+    { id: 'service', label: 'Services', icon: '⚙️', count: catalogItems.filter(i => i.type === 'service').length },
     ...['Deuren','Mouldings','Lijsten','Kozijnen','Crating'].map(cat => ({
       id: cat,
       label: cat === 'Deuren' ? 'Doors' : cat === 'Lijsten' ? 'Boards' : cat === 'Kozijnen' ? 'Frames' : cat,
       icon:  cat === 'Deuren' ? '🚪' : cat === 'Mouldings' ? '〰️' : cat === 'Lijsten' ? '📏' : cat === 'Kozijnen' ? '🪟' : '📦',
-      count: CATALOG_ITEMS.filter(i => i.desc === cat).length,
+      count: catalogItems.filter(i => i.desc === cat).length,
     })).filter(c => c.count > 0),
   ];
 
@@ -135,7 +172,7 @@ const CreateQuotePage: React.FC = () => {
     'c':'Crating','cr':'Crating','cra':'Crating','crat':'Crating','crating':'Crating',
   };
   const filteredCatalog = (() => {
-    let list = CATALOG_ITEMS;
+    let list = catalogItems;
     if (activeCategory !== 'all')
       list = list.filter(i => activeCategory === 'service' ? i.type === 'service' : i.desc === activeCategory);
     if (!isSlashMode && itemSearch.trim()) {
@@ -145,7 +182,7 @@ const CreateQuotePage: React.FC = () => {
     return (itemSearch.trim() || activeCategory !== 'all') ? list : list.slice(0, 15);
   })();
 
-  const addFromCatalog = (item: typeof CATALOG_ITEMS[0]) => {
+  const addFromCatalog = (item: typeof catalogItems[0]) => {
     setItems(prev => [...prev, {
       id: Math.random().toString(36).slice(2),
       type: item.type,
@@ -153,6 +190,8 @@ const CreateQuotePage: React.FC = () => {
       houtsoort: item.type === 'product' ? RAMZON_HOUTSOORTEN[0] : '',
       spec: '',
       qty: 1, unit: item.unit, price: item.price,
+      mmW: item.unit === 'm²' ? 800 : undefined,
+      mmH: item.unit === 'm²' ? 2100 : undefined,
     }]);
     setItemSearch('');
     setShowItemSearch(false);
@@ -167,9 +206,39 @@ const CreateQuotePage: React.FC = () => {
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
   const updateItem = (id: string, field: keyof LineItem, val: any) => setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
   const handleSave = () => {
-    if (!isEdit) commitDocNumber('est');
+    const num = isEdit ? docNumber : commitDocNumber('est');
+    setCommittedDocNumber(num);
+    const clientObj = mockClients.find(c => c.id === client);
+    const est: Estimate = {
+      id: isEdit && id ? id : Math.random().toString(36).slice(2, 10),
+      estimateNumber: num,
+      clientId: client,
+      clientName: clientObj?.name ?? client,
+      date,
+      currency,
+      exchangeRate,
+      items: items.map(i => ({
+        id: i.id,
+        productId: '',
+        description: i.description,
+        quantity: i.qty,
+        unitPrice: i.price,
+        total: itemTotal(i),
+      })),
+      subtotal,
+      taxRate: 21,
+      taxAmount: tax,
+      total,
+      status: 'Draft',
+    };
+    const existing = storage.estimates.get();
+    if (isEdit && id) {
+      storage.estimates.save(existing.map(e => e.id === id ? est : e));
+    } else {
+      storage.estimates.save([...existing, est]);
+    }
     setSaved(true);
-    setTimeout(() => navigate('/estimates'), 1200);
+    setShowPdfModal(true);
   };
 
   const handleConvertToInvoice = () => {
@@ -191,11 +260,14 @@ const CreateQuotePage: React.FC = () => {
     navigate('/invoices/new', { state: { fromEstimate: estimateData } });
   };
 
-  const subtotal = items.reduce((s, i) => s + i.qty * i.price, 0);
+  const itemArea = (i: LineItem) => (i.mmW && i.mmH) ? (i.mmW / 1000) * (i.mmH / 1000) : 1;
+  const itemTotal = (i: LineItem) => i.price * (1 + getMarkup(i.houtsoort) / 100) * i.qty * itemArea(i);
+  const subtotal = items.reduce((s, i) => s + itemTotal(i), 0);
   const tax = subtotal * 0.21;
   const total = subtotal + tax;
 
   return (
+    <>
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
       <div className="flex items-center justify-between">
         <button onClick={() => navigate('/estimates')} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold text-xs uppercase tracking-widest">
@@ -234,6 +306,39 @@ const CreateQuotePage: React.FC = () => {
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valid Until</label>
               <input aria-label="Valid until" type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none" />
+            </div>
+
+            {/* Sales Rep */}
+            <div>
+              <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">Sales Rep</label>
+              <select
+                value={selectedRep}
+                onChange={e => { setSelectedRep(e.target.value); localStorage.setItem('erp_active_user_name', e.target.value); }}
+                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-brand-primary/50"
+              >
+                <option value="">— Select rep —</option>
+                {mockUsers.filter(u => u.status === 'Active').map(u => (
+                  <option key={u.id} value={u.name}>{u.name} ({u.role})</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Partial Payment */}
+            <div>
+              <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">Advance / Paid</label>
+              <input
+                type="number"
+                min={0}
+                value={paidAmount || ''}
+                onChange={e => setPaidAmount(Number(e.target.value))}
+                placeholder="0.00"
+                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-brand-primary/50"
+              />
+              {paidAmount > 0 && (
+                <p className="text-xs text-emerald-600 mt-1 font-medium">
+                  Saldo: {currencySymbol}{(total - paidAmount).toFixed(2)}
+                </p>
+              )}
             </div>
 
             {/* Currency */}
@@ -360,7 +465,7 @@ const CreateQuotePage: React.FC = () => {
                       ) : (() => {
                         const services = filteredCatalog.filter(i => i.type === 'service');
                         const products = filteredCatalog.filter(i => i.type === 'product');
-                        const grouped  = products.reduce((acc, item) => { (acc[item.desc] = acc[item.desc] || []).push(item); return acc; }, {} as Record<string, typeof products>);
+                        const grouped: Record<string, CatalogItem[]> = products.reduce<Record<string, CatalogItem[]>>((acc, item) => { if (!acc[item.desc]) acc[item.desc] = []; acc[item.desc].push(item); return acc; }, {});
                         return (
                           <>
                             {services.length > 0 && (
@@ -450,48 +555,50 @@ const CreateQuotePage: React.FC = () => {
           {items.length > 0 && (
             <div className="border border-slate-200 rounded-2xl overflow-hidden">
               {/* Column header */}
-              <div className="hidden md:grid md:grid-cols-[36px_1fr_100px_120px_56px_52px_108px_80px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-200">
-                {['','Description','Wood','Spec / Notes','Qty','Unit','Price','Total',''].map((h,i) => (
+              <div className="hidden md:grid md:grid-cols-[56px_100px_1fr_52px_160px_108px_80px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-200">
+                {['Qty','Wood','Description','Unit','Spec / Notes','Price','Total',''].map((h,i) => (
                   <p key={i} className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{h}</p>
                 ))}
               </div>
-              {items.map((item) => (
-                <div key={item.id}
-                  className="flex flex-wrap md:grid md:grid-cols-[36px_1fr_100px_120px_56px_52px_108px_80px_32px] gap-2 items-center px-4 py-3 border-b last:border-0 border-slate-100 hover:bg-slate-50/50 transition-colors group">
-                  {/* Type icon */}
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-base ${item.type === 'service' ? 'bg-purple-100' : item.type === 'product' ? 'bg-blue-100' : 'bg-slate-100'}`}>
-                    {item.type === 'product' ? '📦' : item.type === 'service' ? '⚙️' : '📝'}
-                  </div>
+              {items.map((item, idx) => (
+                <React.Fragment key={item.id}>
+                <div
+                  className="flex flex-wrap md:grid md:grid-cols-[56px_100px_1fr_52px_160px_108px_80px_32px] gap-2 items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                  {/* Qty */}
+                  <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
+                    className="w-14 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-sm font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
+                  {/* Wood type */}
+                  {item.type === 'product' ? (
+                    <div className="flex flex-row items-center gap-1 w-full">
+                      <select value={item.houtsoort} onChange={e => updateItem(item.id,'houtsoort',e.target.value)} aria-label="Wood type"
+                        className="flex-1 min-w-0 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all">
+                        {RAMZON_HOUTSOORTEN.map(h => <option key={h}>{h}</option>)}
+                      </select>
+                      {item.houtsoort && getMarkup(item.houtsoort) > 0 && (
+                        <span className="shrink-0 px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-md text-[9px] font-black">+{getMarkup(item.houtsoort)}%</span>
+                      )}
+                    </div>
+                  ) : <div className="hidden md:block"/>}
                   {/* Description */}
                   <input value={item.description} onChange={e => updateItem(item.id,'description',e.target.value)}
                     placeholder="Description…"
                     className="flex-1 md:flex-none min-w-[120px] px-2.5 py-1.5 bg-transparent border border-transparent hover:border-slate-200 focus:border-blue-300 focus:bg-white rounded-xl text-sm font-medium outline-none transition-all placeholder:text-slate-300"/>
-                  {/* Wood type */}
-                  {item.type === 'product' ? (
-                    <select value={item.houtsoort} onChange={e => updateItem(item.id,'houtsoort',e.target.value)} aria-label="Wood type"
-                      className="px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all w-full">
-                      {RAMZON_HOUTSOORTEN.map(h => <option key={h}>{h}</option>)}
-                    </select>
-                  ) : <div className="hidden md:block"/>}
+                  {/* Unit */}
+                  <input value={item.unit} onChange={e => updateItem(item.id,'unit',e.target.value)} aria-label="Unit" placeholder="PCS"
+                    className="w-12 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-xs font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
                   {/* Spec / Notes */}
                   <input value={item.spec} onChange={e => updateItem(item.id,'spec',e.target.value)}
                     placeholder="e.g. RAL 9010…"
                     className="px-2.5 py-1.5 bg-transparent border border-transparent hover:border-slate-200 focus:border-blue-300 focus:bg-white rounded-xl text-xs font-medium outline-none transition-all placeholder:text-slate-300 w-full"/>
-                  {/* Qty */}
-                  <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
-                    className="w-14 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-sm font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
-                  {/* Unit */}
-                  <input value={item.unit} onChange={e => updateItem(item.id,'unit',e.target.value)} aria-label="Unit" placeholder="PCS"
-                    className="w-12 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-xs font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
                   {/* Price */}
                   <div className="flex items-center gap-1 border border-slate-200 rounded-xl px-2.5 py-1.5 hover:border-slate-300 focus-within:border-blue-300 focus-within:bg-white transition-all">
                     <span className="text-[11px] text-slate-400 font-bold shrink-0">{currencySymbol}</span>
                     <input type="number" value={item.price} min={0} onChange={e => updateItem(item.id,'price',+e.target.value)} aria-label="Price"
                       className="w-full bg-transparent text-sm font-bold outline-none min-w-0"/>
                   </div>
-                  {/* Total */}
+                  {/* Total (effective price incl. markup) */}
                   <div className="px-2.5 py-1.5 bg-slate-900 text-white rounded-xl text-sm font-black text-right shrink-0 w-full md:w-auto">
-                    {currencySymbol}{(item.qty * item.price).toFixed(2)}
+                    {currencySymbol}{itemTotal(item).toFixed(2)}
                   </div>
                   {/* Delete */}
                   <button onClick={() => removeItem(item.id)} title="Remove line"
@@ -499,6 +606,30 @@ const CreateQuotePage: React.FC = () => {
                     <Trash2 size={13}/>
                   </button>
                 </div>
+                {/* Measurement sub-row — only for m² product items */}
+                {item.unit === 'm²' && item.type === 'product' && (
+                  <div className="flex items-center gap-2 flex-wrap pl-[188px] pr-4 pb-2.5 -mt-1 border-b border-slate-100 bg-slate-50/40">
+                    <Ruler size={11} className="text-slate-400 shrink-0"/>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Afmeting:</span>
+                    <input type="number" value={item.mmW ?? ''} min={0}
+                      onChange={e => updateItem(item.id, 'mmW', +e.target.value)}
+                      placeholder="Breedte"
+                      className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-center bg-white outline-none focus:border-blue-300"/>
+                    <span className="text-slate-300 font-bold text-sm">×</span>
+                    <input type="number" value={item.mmH ?? ''} min={0}
+                      onChange={e => updateItem(item.id, 'mmH', +e.target.value)}
+                      placeholder="Hoogte"
+                      className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-center bg-white outline-none focus:border-blue-300"/>
+                    <span className="text-[10px] text-slate-400 font-bold">mm</span>
+                    {item.mmW && item.mmH ? (
+                      <span className="px-2 py-0.5 bg-blue-50 border border-blue-100 text-blue-700 rounded-lg text-[10px] font-black">
+                        = {((item.mmW / 1000) * (item.mmH / 1000)).toFixed(4)} m²
+                      </span>
+                    ) : null}
+                    <span className="ml-auto text-[9px] text-slate-400 font-bold italic">prijs is per m²</span>
+                  </div>
+                )}
+                </React.Fragment>
               ))}
             </div>
           )}
@@ -533,6 +664,41 @@ const CreateQuotePage: React.FC = () => {
         </div>
       </div>
     </div>
+
+    {showPdfModal && (
+      <DocPDFModal
+        docType="quote"
+        docNumber={committedDocNumber}
+        date={date}
+        validUntil={validUntil}
+        clientName={mockClients.find(c => c.id === client)?.name ?? client}
+        clientCompany={mockClients.find(c => c.id === client)?.company}
+        clientAddress={mockClients.find(c => c.id === client)?.address}
+        clientPhone={mockClients.find(c => c.id === client)?.phone}
+        clientEmail={mockClients.find(c => c.id === client)?.email}
+        clientVAT={mockClients.find(c => c.id === client)?.vatNumber}
+        rep={selectedRep || undefined}
+        paidAmount={paidAmount > 0 ? paidAmount : undefined}
+        currency={currency}
+        currencySymbol={currencySymbol}
+        items={items.map(i => ({
+          id: i.id,
+          description: i.description,
+          houtsoort: i.houtsoort,
+          spec: i.spec,
+          qty: i.qty,
+          unit: i.unit,
+          price: i.price,
+          mmW: i.mmW,
+          mmH: i.mmH,
+        }))}
+        subtotal={subtotal}
+        tax={tax}
+        total={total}
+        onClose={() => { setShowPdfModal(false); navigate('/estimates'); }}
+      />
+    )}
+    </>
   );
 };
 
