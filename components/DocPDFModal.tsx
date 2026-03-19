@@ -179,7 +179,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                     items={items.map(i => {
                       const effectivePrice = i.price * (docType === 'invoice' ? (1 - (i.discount ?? 0) / 100) : 1);
                       const itemSub = i.qty * effectivePrice * itemArea(i);
-                      const itemTax = i.taxRate ?? 21;
+                      const itemTax = i.taxRate ?? 10;
                       return {
                         description: i.description,
                         qty: i.qty,
@@ -330,8 +330,8 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
               houtsoort:    { label: 'Wood',         align: 'left',   width: '80px', cell: (item) => <span className="text-slate-600">{item.houtsoort || '—'}</span> },
               prijs:        { label: 'Rate',         align: 'right',  width: '72px', cell: (item) => `${currencySymbol}${item.price.toFixed(2)}` },
               subtotaal:    { label: 'Subtotaal',    align: 'right',  width: '80px', cell: (_item, _idx, _area, lineTotal) => `${currencySymbol}${lineTotal.toFixed(2)}` },
-              btw:          { label: 'BTW%',         align: 'center', width: '48px', cell: (item) => `${item.taxRate ?? 21}%` },
-              totaal:       { label: 'Amount',       align: 'right',  width: '80px', cell: (item, _idx, _area, lineTotal) => <span className="font-black">{currencySymbol}{(lineTotal * (1 + (item.taxRate ?? 21) / 100)).toFixed(2)}</span> },
+              btw:          { label: 'BTW%',         align: 'center', width: '48px', cell: (item) => `${item.taxRate ?? 10}%` },
+              totaal:       { label: 'Amount',       align: 'right',  width: '80px', cell: (item, _idx, _area, lineTotal) => <span className="font-black">{currencySymbol}{(lineTotal * (1 + (item.taxRate ?? 10) / 100)).toFixed(2)}</span> },
             };
             const visCols = tableColsOrder.filter(k => showTableCols[k] !== false && allCols[k]);
             const visColCount = visCols.length + 1;

@@ -162,7 +162,7 @@ export const DocPDF: React.FC<DocPDFProps> = ({
               </View>
               {items.map((item, i) => {
                 const itemSub = item.subtotal ?? item.total;
-                const itemTax = item.taxRate ?? 21;
+                const itemTax = item.taxRate ?? 10;
                 const itemFull = itemSub * (1 + itemTax / 100);
                 return (
                   <View key={i} style={S.tableRow}>

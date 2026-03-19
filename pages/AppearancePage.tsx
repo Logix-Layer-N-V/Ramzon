@@ -353,7 +353,7 @@ const LivePreview: React.FC<LivePreviewProps> = ({
             <span className="text-slate-500">Subtotaal</span><span className="font-bold">$2,010.00</span>
           </div>
           <div className="flex justify-between py-1.5 text-xs border-b border-slate-100">
-            <span className="text-slate-500">BTW (21%)</span><span className="font-bold">$422.10</span>
+            <span className="text-slate-500">BTW (10%)</span><span className="font-bold">$201.00</span>
           </div>
           <div className="flex justify-between py-2 border-t-2 border-slate-900">
             <span className="font-black text-slate-900">TOTAAL</span><span className="font-black text-slate-900">$2,432.10</span>

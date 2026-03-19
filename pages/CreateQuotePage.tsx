@@ -124,7 +124,7 @@ const CreateQuotePage: React.FC = () => {
             qty: (i as any).quantity || 1,
             unit: (i as any).unit || 'PCS',
             price: (i as any).unitPrice || 0,
-            taxRate: (i as any).taxRate ?? 21,
+            taxRate: (i as any).taxRate ?? 10,
           })));
         }
       }
@@ -147,7 +147,7 @@ const CreateQuotePage: React.FC = () => {
           qty: i.quantity || i.qty || 1,
           unit: i.unit || 'PCS',
           price: i.unitPrice || i.price || 0,
-          taxRate: i.taxRate ?? 21,
+          taxRate: i.taxRate ?? 10,
         })));
       }
     }
@@ -199,7 +199,7 @@ const CreateQuotePage: React.FC = () => {
       description: item.type === 'product' ? `${item.desc} — ${item.name}` : item.name,
       houtsoort: item.type === 'product' ? RAMZON_HOUTSOORTEN[0] : '',
       spec: '',
-      qty: 1, unit: item.unit, price: item.price, taxRate: 21,
+      qty: 1, unit: item.unit, price: item.price, taxRate: 10,
       mmW: item.unit === 'm²' ? 800 : undefined,
       mmH: item.unit === 'm²' ? 2100 : undefined,
     }]);
@@ -208,7 +208,7 @@ const CreateQuotePage: React.FC = () => {
   };
 
   const addItem = () => {
-    setItems(prev => [...prev, { id: Math.random().toString(36).slice(2), type: 'item', description: '', houtsoort: '', spec: '', qty: 1, unit: 'PCS', price: 0, taxRate: 21 }]);
+    setItems(prev => [...prev, { id: Math.random().toString(36).slice(2), type: 'item', description: '', houtsoort: '', spec: '', qty: 1, unit: 'PCS', price: 0, taxRate: 10 }]);
     setShowItemSearch(false);
     setItemSearch('');
   };
@@ -247,7 +247,7 @@ const CreateQuotePage: React.FC = () => {
         taxRate: i.taxRate,
       })),
       subtotal,
-      taxRate: 21,
+      taxRate: 10,
       taxAmount: tax,
       total,
       status: 'Draft',
@@ -632,7 +632,6 @@ const CreateQuotePage: React.FC = () => {
                     className="px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all text-center">
                     <option value={0}>0%</option>
                     <option value={10}>10%</option>
-                    <option value={21}>21%</option>
                   </select>
                   {/* Subtotaal (pre-tax) */}
                   <div className="px-2.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl text-xs font-black text-right shrink-0 w-full md:w-auto">

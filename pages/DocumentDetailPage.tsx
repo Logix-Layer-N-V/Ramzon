@@ -386,7 +386,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
                   <span className="font-bold">{fmt(invoiceTotal / 1.21)}</span>
                 </div>
                 <div className="flex justify-between py-2 text-sm border-b border-slate-100">
-                  <span className="text-slate-500 font-medium">BTW (21%)</span>
+                  <span className="text-slate-500 font-medium">BTW</span>
                   <span className="font-bold">{fmt(invoiceTotal - invoiceTotal / 1.21)}</span>
                 </div>
                 <div className="flex justify-between py-3 border-t-2" style={{ borderColor: accentColor }}>
