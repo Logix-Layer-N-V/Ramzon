@@ -10,7 +10,7 @@ import { Estimate, WoodSpecies } from '../types';
 import DocPDFModal from '../components/DocPDFModal';
 
 type ItemType = 'product' | 'service' | 'item';
-interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; spec: string; qty: number; unit: string; price: number; mmW?: number; mmH?: number; }
+interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; spec: string; qty: number; unit: string; price: number; taxRate: number; mmW?: number; mmH?: number; }
 interface CatalogItem { id: string; type: ItemType; name: string; desc: string; price: number; unit: string; }
 
 // Static services catalog (always available)
@@ -124,6 +124,7 @@ const CreateQuotePage: React.FC = () => {
             qty: (i as any).quantity || 1,
             unit: (i as any).unit || 'PCS',
             price: (i as any).unitPrice || 0,
+            taxRate: (i as any).taxRate ?? 21,
           })));
         }
       }
@@ -146,6 +147,7 @@ const CreateQuotePage: React.FC = () => {
           qty: i.quantity || i.qty || 1,
           unit: i.unit || 'PCS',
           price: i.unitPrice || i.price || 0,
+          taxRate: i.taxRate ?? 21,
         })));
       }
     }
@@ -197,7 +199,7 @@ const CreateQuotePage: React.FC = () => {
       description: item.type === 'product' ? `${item.desc} — ${item.name}` : item.name,
       houtsoort: item.type === 'product' ? RAMZON_HOUTSOORTEN[0] : '',
       spec: '',
-      qty: 1, unit: item.unit, price: item.price,
+      qty: 1, unit: item.unit, price: item.price, taxRate: 21,
       mmW: item.unit === 'm²' ? 800 : undefined,
       mmH: item.unit === 'm²' ? 2100 : undefined,
     }]);
@@ -206,7 +208,7 @@ const CreateQuotePage: React.FC = () => {
   };
 
   const addItem = () => {
-    setItems(prev => [...prev, { id: Math.random().toString(36).slice(2), type: 'item', description: '', houtsoort: '', spec: '', qty: 1, unit: 'PCS', price: 0 }]);
+    setItems(prev => [...prev, { id: Math.random().toString(36).slice(2), type: 'item', description: '', houtsoort: '', spec: '', qty: 1, unit: 'PCS', price: 0, taxRate: 21 }]);
     setShowItemSearch(false);
     setItemSearch('');
   };
@@ -242,6 +244,7 @@ const CreateQuotePage: React.FC = () => {
         quantity: i.qty,
         unitPrice: i.price,
         total: itemTotal(i),
+        taxRate: i.taxRate,
       })),
       subtotal,
       taxRate: 21,
@@ -288,9 +291,10 @@ const CreateQuotePage: React.FC = () => {
   };
 
   const itemArea = (i: LineItem) => (i.mmW && i.mmH) ? (i.mmW / 1000) * (i.mmH / 1000) : 1;
-  const itemTotal = (i: LineItem) => i.price * (1 + getMarkup(i.houtsoort) / 100) * i.qty * itemArea(i);
-  const subtotal = items.reduce((s, i) => s + itemTotal(i), 0);
-  const tax = subtotal * 0.21;
+  const itemSubtotal = (i: LineItem) => i.price * (1 + getMarkup(i.houtsoort) / 100) * i.qty * itemArea(i);
+  const itemTotal = (i: LineItem) => itemSubtotal(i) * (1 + i.taxRate / 100);
+  const subtotal = items.reduce((s, i) => s + itemSubtotal(i), 0);
+  const tax = items.reduce((s, i) => s + itemSubtotal(i) * i.taxRate / 100, 0);
   const total = subtotal + tax;
 
   return (
@@ -582,15 +586,15 @@ const CreateQuotePage: React.FC = () => {
           {items.length > 0 && (
             <div className="border border-slate-200 rounded-2xl overflow-hidden">
               {/* Column header */}
-              <div className="hidden md:grid md:grid-cols-[56px_100px_1fr_52px_160px_108px_80px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-200">
-                {['Qty','Wood','Description','Unit','Spec / Notes','Price','Total',''].map((h,i) => (
+              <div className="hidden md:grid md:grid-cols-[56px_100px_1fr_52px_120px_108px_56px_88px_80px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-200">
+                {['Qty','Wood','Description','Unit','Spec / Notes','Price','BTW%','Subtotaal','Total',''].map((h,i) => (
                   <p key={i} className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{h}</p>
                 ))}
               </div>
               {items.map((item, idx) => (
                 <React.Fragment key={item.id}>
                 <div
-                  className="flex flex-wrap md:grid md:grid-cols-[56px_100px_1fr_52px_160px_108px_80px_32px] gap-2 items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                  className="flex flex-wrap md:grid md:grid-cols-[56px_100px_1fr_52px_120px_108px_56px_88px_80px_32px] gap-2 items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                   {/* Qty */}
                   <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
                     className="w-14 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-sm font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
@@ -623,7 +627,18 @@ const CreateQuotePage: React.FC = () => {
                     <input type="number" value={item.price} min={0} onChange={e => updateItem(item.id,'price',+e.target.value)} aria-label="Price"
                       className="w-full bg-transparent text-sm font-bold outline-none min-w-0"/>
                   </div>
-                  {/* Total (effective price incl. markup) */}
+                  {/* BTW% */}
+                  <select value={item.taxRate} onChange={e => updateItem(item.id,'taxRate',+e.target.value)} aria-label="BTW rate"
+                    className="px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all text-center">
+                    <option value={0}>0%</option>
+                    <option value={10}>10%</option>
+                    <option value={21}>21%</option>
+                  </select>
+                  {/* Subtotaal (pre-tax) */}
+                  <div className="px-2.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl text-xs font-black text-right shrink-0 w-full md:w-auto">
+                    {currencySymbol}{itemSubtotal(item).toFixed(2)}
+                  </div>
+                  {/* Total (incl. markup + tax) */}
                   <div className="px-2.5 py-1.5 bg-slate-900 text-white rounded-xl text-sm font-black text-right shrink-0 w-full md:w-auto">
                     {currencySymbol}{itemTotal(item).toFixed(2)}
                   </div>
@@ -671,7 +686,7 @@ const CreateQuotePage: React.FC = () => {
                 <p className="text-xl font-black">{currencySymbol}{subtotal.toFixed(2)}</p>
               </div>
               <div>
-                <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">VAT (21%)</p>
+                <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">VAT</p>
                 <p className="text-xl font-black">{currencySymbol}{tax.toFixed(2)}</p>
               </div>
               <div>
@@ -716,6 +731,7 @@ const CreateQuotePage: React.FC = () => {
           qty: i.qty,
           unit: i.unit,
           price: i.price,
+          taxRate: i.taxRate,
           mmW: i.mmW,
           mmH: i.mmH,
         }))}

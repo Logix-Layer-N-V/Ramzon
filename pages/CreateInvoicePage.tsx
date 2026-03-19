@@ -10,7 +10,7 @@ import { getLatestExchangeRate, storage } from '../lib/storage';
 import DocPDFModal from '../components/DocPDFModal';
 
 type ItemType = 'product' | 'service' | 'item';
-interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; qty: number; unit: string; price: number; discount: number; mmW?: number; mmH?: number; }
+interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; qty: number; unit: string; price: number; discount: number; taxRate: number; mmW?: number; mmH?: number; }
 interface CatalogItem { id: string; type: ItemType; name: string; desc: string; price: number; unit: string; }
 
 const SERVICE_ITEMS_INV = RAMZON_SERVICES.map(s => ({
@@ -38,7 +38,7 @@ const CreateInvoicePage: React.FC = () => {
   const [selectedClient, setSelectedClient] = useState('');
   const [currency, setCurrency] = useState('SRD');
   const [exchangeRate, setExchangeRate] = useState<number>(1);
-  const [taxRate] = useState(21);
+  const [docTaxRate] = useState(21);
   const [items, setItems] = useState<LineItem[]>([]);
   const [saved, setSaved] = useState(false);
   const [isConverted, setIsConverted] = useState(false);
@@ -107,7 +107,7 @@ const CreateInvoicePage: React.FC = () => {
       if (existing) {
         setSelectedClient(existing.clientId);
         if (existing.items?.length > 0) {
-          setItems(existing.items.map(i => ({ id: (i as any).id || Math.random().toString(36).slice(2), type: 'item' as ItemType, description: (i as any).description || '', houtsoort: '', qty: (i as any).quantity || 1, unit: 'PCS', price: (i as any).unitPrice || 0, discount: 0 })));
+          setItems(existing.items.map(i => ({ id: (i as any).id || Math.random().toString(36).slice(2), type: 'item' as ItemType, description: (i as any).description || '', houtsoort: '', qty: (i as any).quantity || 1, unit: 'PCS', price: (i as any).unitPrice || 0, discount: 0, taxRate: (i as any).taxRate ?? 21 })));
         }
       }
     }
@@ -122,7 +122,7 @@ const CreateInvoicePage: React.FC = () => {
       if (est.currency) setCurrency(est.currency);
       if (est.exchangeRate) setExchangeRate(est.exchangeRate);
       if (est.items?.length > 0) {
-        setItems(est.items.map(i => ({ id: i.id, type: 'item' as ItemType, description: i.description, houtsoort: '', qty: i.quantity, unit: 'PCS', price: i.unitPrice, discount: 0 })));
+        setItems(est.items.map(i => ({ id: i.id, type: 'item' as ItemType, description: i.description, houtsoort: '', qty: i.quantity, unit: 'PCS', price: i.unitPrice, discount: 0, taxRate: (i as any).taxRate ?? 21 })));
       }
     } else if (state?.fromDuplicate) {
       const dup = state.fromDuplicate;
@@ -138,6 +138,7 @@ const CreateInvoicePage: React.FC = () => {
           unit: i.unit || 'PCS',
           price: i.unitPrice || i.price || 0,
           discount: 0,
+          taxRate: i.taxRate ?? 21,
         })));
       }
     }
@@ -187,7 +188,7 @@ const CreateInvoicePage: React.FC = () => {
       type: item.type,
       description: item.type === 'product' ? `${item.desc} — ${item.name}` : item.name,
       houtsoort: item.type === 'product' ? RAMZON_HOUTSOORTEN[0] : '',
-      qty: 1, unit: item.unit, price: item.price, discount: 0,
+      qty: 1, unit: item.unit, price: item.price, discount: 0, taxRate: 21,
       mmW: item.unit === 'm²' ? 800 : undefined,
       mmH: item.unit === 'm²' ? 2100 : undefined,
     }]);
@@ -196,7 +197,7 @@ const CreateInvoicePage: React.FC = () => {
   };
 
   const addItem = () => {
-    setItems(prev => [...prev, { id: Math.random().toString(36).slice(2), type: 'item', description: '', houtsoort: '', qty: 1, unit: 'PCS', price: 0, discount: 0 }]);
+    setItems(prev => [...prev, { id: Math.random().toString(36).slice(2), type: 'item', description: '', houtsoort: '', qty: 1, unit: 'PCS', price: 0, discount: 0, taxRate: 21 }]);
     setShowItemSearch(false);
     setItemSearch('');
   };
@@ -233,9 +234,10 @@ const CreateInvoicePage: React.FC = () => {
         quantity: i.qty,
         unitPrice: i.price,
         total: itemTotal(i),
+        taxRate: i.taxRate,
       })),
       subtotal,
-      taxRate,
+      taxRate: docTaxRate,
       taxAmount: tax,
       totalAmount: total,
       status: 'Pending',
@@ -251,9 +253,10 @@ const CreateInvoicePage: React.FC = () => {
   };
 
   const itemArea = (i: LineItem) => (i.mmW && i.mmH) ? (i.mmW / 1000) * (i.mmH / 1000) : 1;
-  const itemTotal = (i: LineItem) => i.price * (1 + getMarkup(i.houtsoort) / 100) * i.qty * (1 - i.discount / 100) * itemArea(i);
-  const subtotal = items.reduce((acc, item) => acc + itemTotal(item), 0);
-  const tax = subtotal * (taxRate / 100);
+  const itemSubtotal = (i: LineItem) => i.price * (1 + getMarkup(i.houtsoort) / 100) * i.qty * (1 - i.discount / 100) * itemArea(i);
+  const itemTotal = (i: LineItem) => itemSubtotal(i) * (1 + i.taxRate / 100);
+  const subtotal = items.reduce((acc, item) => acc + itemSubtotal(item), 0);
+  const tax = items.reduce((acc, item) => acc + itemSubtotal(item) * item.taxRate / 100, 0);
   const total = subtotal + tax;
 
   return (
@@ -558,15 +561,15 @@ const CreateInvoicePage: React.FC = () => {
           {items.length > 0 && (
             <div className="border border-slate-200 rounded-2xl overflow-hidden">
               {/* Column header */}
-              <div className="hidden md:grid md:grid-cols-[56px_100px_1fr_52px_108px_60px_80px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-200">
-                {['Qty','Wood','Description','Unit','Price','Disc %','Total',''].map((h,i) => (
+              <div className="hidden md:grid md:grid-cols-[56px_100px_1fr_52px_108px_56px_88px_60px_80px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-200">
+                {['Qty','Wood','Description','Unit','Price','BTW%','Subtotaal','Disc %','Total',''].map((h,i) => (
                   <p key={i} className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{h}</p>
                 ))}
               </div>
               {items.map((item, idx) => (
                 <React.Fragment key={item.id}>
                 <div
-                  className="flex flex-wrap md:grid md:grid-cols-[56px_100px_1fr_52px_108px_60px_80px_32px] gap-2 items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                  className="flex flex-wrap md:grid md:grid-cols-[56px_100px_1fr_52px_108px_56px_88px_60px_80px_32px] gap-2 items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                   {/* Qty */}
                   <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
                     className="w-14 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-sm font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
@@ -595,13 +598,24 @@ const CreateInvoicePage: React.FC = () => {
                     <input type="number" value={item.price} min={0} onChange={e => updateItem(item.id,'price',+e.target.value)} aria-label="Price"
                       className="w-full bg-transparent text-sm font-bold outline-none min-w-0"/>
                   </div>
+                  {/* BTW% */}
+                  <select value={item.taxRate} onChange={e => updateItem(item.id,'taxRate',+e.target.value)} aria-label="BTW rate"
+                    className="px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all text-center">
+                    <option value={0}>0%</option>
+                    <option value={10}>10%</option>
+                    <option value={21}>21%</option>
+                  </select>
+                  {/* Subtotaal (pre-tax) */}
+                  <div className="px-2.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl text-xs font-black text-right shrink-0 w-full md:w-auto">
+                    {currencySymbol}{itemSubtotal(item).toFixed(2)}
+                  </div>
                   {/* Discount */}
                   <div className="flex items-center gap-0.5 border border-slate-200 rounded-xl px-2.5 py-1.5 hover:border-slate-300 focus-within:border-blue-300 focus-within:bg-white transition-all">
                     <input type="number" value={item.discount} min={0} max={100} onChange={e => updateItem(item.id,'discount',+e.target.value)} aria-label="Discount"
                       className="w-full bg-transparent text-sm font-bold outline-none min-w-0"/>
                     <span className="text-xs text-slate-400 shrink-0">%</span>
                   </div>
-                  {/* Total (effective price incl. markup + discount) */}
+                  {/* Total (incl. markup + discount + tax) */}
                   <div className="px-2.5 py-1.5 bg-slate-900 text-white rounded-xl text-sm font-black text-right shrink-0 w-full md:w-auto">
                     {currencySymbol}{itemTotal(item).toFixed(2)}
                   </div>
@@ -649,7 +663,7 @@ const CreateInvoicePage: React.FC = () => {
                 <p className="text-xl font-black">{currencySymbol}{subtotal.toFixed(2)}</p>
               </div>
               <div>
-                <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">VAT ({taxRate}%)</p>
+                <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">VAT</p>
                 <p className="text-xl font-black">{currencySymbol}{tax.toFixed(2)}</p>
               </div>
               <div>
@@ -703,6 +717,7 @@ const CreateInvoicePage: React.FC = () => {
           unit: i.unit,
           price: i.price,
           discount: i.discount,
+          taxRate: i.taxRate,
           mmW: i.mmW,
           mmH: i.mmH,
         }))}

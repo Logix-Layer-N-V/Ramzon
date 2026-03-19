@@ -13,6 +13,7 @@ export interface ModalLineItem {
   unit: string;
   price: number;
   discount?: number;
+  taxRate?: number;
   mmW?: number;
   mmH?: number;
 }
@@ -110,8 +111,8 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
     try { return JSON.parse(localStorage.getItem('erp_doc_show_client_fields') ?? '{}'); } catch { return {}; }
   })();
   const tableColsOrder: string[] = (() => {
-    try { return JSON.parse(localStorage.getItem('erp_doc_table_cols_order') ?? '["omschrijving","afmeting","qty","eenheid","houtsoort","prijs","totaal"]'); }
-    catch { return ['omschrijving', 'afmeting', 'qty', 'eenheid', 'houtsoort', 'prijs', 'totaal']; }
+    try { return JSON.parse(localStorage.getItem('erp_doc_table_cols_order') ?? '["omschrijving","afmeting","qty","eenheid","houtsoort","prijs","subtotaal","btw","totaal"]'); }
+    catch { return ['omschrijving', 'afmeting', 'qty', 'eenheid', 'houtsoort', 'prijs', 'subtotaal', 'btw', 'totaal']; }
   })();
   const showTableCols: Record<string, boolean> = (() => {
     try { return JSON.parse(localStorage.getItem('erp_doc_show_table_cols') ?? '{}'); } catch { return {}; }
@@ -177,13 +178,17 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                     currencySymbol={currencySymbol}
                     items={items.map(i => {
                       const effectivePrice = i.price * (docType === 'invoice' ? (1 - (i.discount ?? 0) / 100) : 1);
+                      const itemSub = i.qty * effectivePrice * itemArea(i);
+                      const itemTax = i.taxRate ?? 21;
                       return {
                         description: i.description,
                         qty: i.qty,
                         unit: i.unit || 'pcs',
                         houtsoort: i.houtsoort || undefined,
                         price: effectivePrice,
-                        total: i.qty * effectivePrice * itemArea(i),
+                        subtotal: itemSub,
+                        total: itemSub * (1 + itemTax / 100),
+                        taxRate: itemTax,
                       };
                     })}
                     subtotal={subtotal}
@@ -324,7 +329,9 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
               eenheid:      { label: 'U/M',          align: 'center', width: '44px', cell: (item) => <span className="text-slate-500">{item.unit}</span> },
               houtsoort:    { label: 'Wood',         align: 'left',   width: '80px', cell: (item) => <span className="text-slate-600">{item.houtsoort || '—'}</span> },
               prijs:        { label: 'Rate',         align: 'right',  width: '72px', cell: (item) => `${currencySymbol}${item.price.toFixed(2)}` },
-              totaal:       { label: 'Amount',       align: 'right',  width: '80px', cell: (_item, _idx, _area, lineTotal) => <span className="font-black">{currencySymbol}{lineTotal.toFixed(2)}</span> },
+              subtotaal:    { label: 'Subtotaal',    align: 'right',  width: '80px', cell: (_item, _idx, _area, lineTotal) => `${currencySymbol}${lineTotal.toFixed(2)}` },
+              btw:          { label: 'BTW%',         align: 'center', width: '48px', cell: (item) => `${item.taxRate ?? 21}%` },
+              totaal:       { label: 'Amount',       align: 'right',  width: '80px', cell: (item, _idx, _area, lineTotal) => <span className="font-black">{currencySymbol}{(lineTotal * (1 + (item.taxRate ?? 21) / 100)).toFixed(2)}</span> },
             };
             const visCols = tableColsOrder.filter(k => showTableCols[k] !== false && allCols[k]);
             const visColCount = visCols.length + 1;
@@ -380,7 +387,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                 <span className="font-bold">{currencySymbol}{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between py-2 text-sm border-b border-slate-100">
-                <span className="text-slate-500 font-medium">BTW (21%)</span>
+                <span className="text-slate-500 font-medium">BTW</span>
                 <span className="font-bold">{currencySymbol}{tax.toFixed(2)}</span>
               </div>
               <div className="flex justify-between py-3 border-t-2" style={{ borderColor: accentColor }}>

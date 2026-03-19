@@ -38,7 +38,7 @@ export interface DocPDFProps {
   paidAmount?: number;
   currency: string;
   currencySymbol: string;
-  items: Array<{ description: string; qty: number; unit: string; price: number; total: number; houtsoort?: string }>;
+  items: Array<{ description: string; qty: number; unit: string; price: number; total: number; houtsoort?: string; taxRate?: number; subtotal?: number }>;
   subtotal: number;
   tax: number;
   total: number;
@@ -143,25 +143,44 @@ export const DocPDF: React.FC<DocPDFProps> = ({
         </View>
 
         {/* ── TABLE HEADER ── */}
-        <View style={{ flexDirection: 'row', backgroundColor: accentColor, paddingVertical: 7, paddingHorizontal: 4, marginTop: 12 }}>
-          <Text style={{ flex: 3, color: 'white', fontSize: 7, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.6 }}>Omschrijving</Text>
-          <Text style={{ flex: 1, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>QTY</Text>
-          <Text style={{ flex: 1, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Prijs</Text>
-          <Text style={{ flex: 1, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Totaal</Text>
-        </View>
-
-        {/* ── TABLE ROWS ── */}
-        {items.map((item, i) => (
-          <View key={i} style={S.tableRow}>
-            <View style={{ flex: 3 }}>
-              <Text style={S.value}>{item.description}</Text>
-              {item.houtsoort && <Text style={[S.label, { marginTop: 1 }]}>{item.houtsoort}</Text>}
-            </View>
-            <Text style={{ flex: 1, textAlign: 'right', color: '#1e293b', fontSize: 9 }}>{item.qty} {item.unit}</Text>
-            <Text style={{ flex: 1, textAlign: 'right', color: '#1e293b', fontSize: 9 }}>{fmt(item.price)}</Text>
-            <Text style={{ flex: 1, textAlign: 'right', color: '#1e293b', fontSize: 9, fontWeight: 'bold' }}>{fmt(item.total)}</Text>
-          </View>
-        ))}
+        {(() => {
+          const showCols: Record<string, boolean> = (() => {
+            try { return JSON.parse(localStorage.getItem('erp_doc_show_table_cols') || '{}'); } catch { return {}; }
+          })();
+          const showPrijs     = showCols['prijs']     !== false;
+          const showSubtotaal = showCols['subtotaal'] !== false;
+          const showBtw       = showCols['btw']       !== false;
+          return (
+            <>
+              <View style={{ flexDirection: 'row', backgroundColor: accentColor, paddingVertical: 7, paddingHorizontal: 4, marginTop: 12 }}>
+                <Text style={{ flex: 3, color: 'white', fontSize: 7, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.6 }}>Omschrijving</Text>
+                <Text style={{ flex: 1, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>QTY</Text>
+                {showPrijs     && <Text style={{ width: 56, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Prijs</Text>}
+                {showBtw       && <Text style={{ width: 36, color: 'white', fontSize: 7, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.6 }}>BTW</Text>}
+                {showSubtotaal && <Text style={{ width: 64, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Subtotaal</Text>}
+                <Text style={{ width: 64, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Totaal</Text>
+              </View>
+              {items.map((item, i) => {
+                const itemSub = item.subtotal ?? item.total;
+                const itemTax = item.taxRate ?? 21;
+                const itemFull = itemSub * (1 + itemTax / 100);
+                return (
+                  <View key={i} style={S.tableRow}>
+                    <View style={{ flex: 3 }}>
+                      <Text style={S.value}>{item.description}</Text>
+                      {item.houtsoort && <Text style={[S.label, { marginTop: 1 }]}>{item.houtsoort}</Text>}
+                    </View>
+                    <Text style={{ flex: 1, textAlign: 'right', color: '#1e293b', fontSize: 9 }}>{item.qty} {item.unit}</Text>
+                    {showPrijs     && <Text style={{ width: 56, textAlign: 'right', color: '#1e293b', fontSize: 9 }}>{fmt(item.price)}</Text>}
+                    {showBtw       && <Text style={{ width: 36, textAlign: 'center', color: '#64748b', fontSize: 9 }}>{itemTax}%</Text>}
+                    {showSubtotaal && <Text style={{ width: 64, textAlign: 'right', color: '#1e293b', fontSize: 9 }}>{fmt(itemSub)}</Text>}
+                    <Text style={{ width: 64, textAlign: 'right', color: '#1e293b', fontSize: 9, fontWeight: 'bold' }}>{fmt(itemFull)}</Text>
+                  </View>
+                );
+              })}
+            </>
+          );
+        })()}
 
         {/* ── TOTALS ── */}
         <View style={S.totals}>
@@ -170,7 +189,7 @@ export const DocPDF: React.FC<DocPDFProps> = ({
             <Text style={S.value}>{fmt(subtotal)}</Text>
           </View>
           <View style={S.totalRow}>
-            <Text style={S.label}>BTW 21%</Text>
+            <Text style={S.label}>BTW</Text>
             <Text style={S.value}>{fmt(tax)}</Text>
           </View>
           <View style={[S.totalRow, { borderTopWidth: 1.5, borderTopColor: accentColor, paddingTop: 5, marginTop: 4 }]}>

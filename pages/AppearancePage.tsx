@@ -94,7 +94,7 @@ const APPTXT: Record<string, Record<string, string>> = {
     metaCols: 'Meta Kolommen', tableCols: 'Tabel Kolommen',
     datum: 'Datum', nr: 'Nummer', termijn: 'Termijn', vervaldatum: 'Vervaldatum', rep: 'Rep', project: 'Project',
     omschrijving: 'Omschrijving', afmeting: 'Afmeting', qty: 'Aantal', eenheid: 'Eenheid',
-    houtsoort: 'Houtsoort', prijs: 'Prijs', totaal: 'Totaal',
+    houtsoort: 'Houtsoort', prijs: 'Prijs', subtotaal: 'Subtotaal', btw: 'BTW%', totaal: 'Totaal',
   },
   en: {
     pageTitle: 'Document Styles', pageSubtitle: 'Full control over your invoice & quote layout',
@@ -139,7 +139,7 @@ const APPTXT: Record<string, Record<string, string>> = {
     metaCols: 'Meta Columns', tableCols: 'Table Columns',
     datum: 'Date', nr: 'Number', termijn: 'Terms', vervaldatum: 'Due Date', rep: 'Rep', project: 'Project',
     omschrijving: 'Description', afmeting: 'Dimensions', qty: 'Qty', eenheid: 'Unit',
-    houtsoort: 'Wood Type', prijs: 'Price', totaal: 'Total',
+    houtsoort: 'Wood Type', prijs: 'Price', subtotaal: 'Subtotal', btw: 'VAT%', totaal: 'Total',
   },
 };
 (['es', 'fr', 'zh', 'pt', 'de'] as const).forEach(l => { APPTXT[l] = APPTXT.en; });
@@ -507,8 +507,8 @@ const AppearancePage: React.FC = () => {
 
   // Table columns order + visibility
   const [tableColsOrder, setTableColsOrder] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem('erp_doc_table_cols_order') ?? '["omschrijving","afmeting","qty","eenheid","houtsoort","prijs","totaal"]'); }
-    catch { return ['omschrijving', 'afmeting', 'qty', 'eenheid', 'houtsoort', 'prijs', 'totaal']; }
+    try { return JSON.parse(localStorage.getItem('erp_doc_table_cols_order') ?? '["omschrijving","afmeting","qty","eenheid","houtsoort","prijs","subtotaal","btw","totaal"]'); }
+    catch { return ['omschrijving', 'afmeting', 'qty', 'eenheid', 'houtsoort', 'prijs', 'subtotaal', 'btw', 'totaal']; }
   });
   const [showTableCols, setShowTableCols] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem('erp_doc_show_table_cols') ?? '{}'); } catch { return {}; }
@@ -704,7 +704,7 @@ const AppearancePage: React.FC = () => {
   };
   const tableColLabels: Record<string, string> = {
     omschrijving: L.omschrijving, afmeting: L.afmeting, qty: L.qty, eenheid: L.eenheid,
-    houtsoort: L.houtsoort, prijs: L.prijs, totaal: L.totaal,
+    houtsoort: L.houtsoort, prijs: L.prijs, subtotaal: L.subtotaal, btw: L.btw, totaal: L.totaal,
   };
 
   // Default document titles
@@ -1036,6 +1036,7 @@ const AppearancePage: React.FC = () => {
               </SettingsSec>
 
               <SettingsSec label={L.tableCols}>
+                <p className="text-[10px] text-slate-400 mb-2 leading-relaxed">Geldt voor PDF/print (klant-versie). In bewerkmodus zijn altijd alle kolommen zichtbaar.</p>
                 <div className="space-y-1.5">
                   {tableColsOrder.map((key, idx) => (
                     <div
