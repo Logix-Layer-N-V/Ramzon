@@ -7,18 +7,23 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "dev:server": "cd server && npx tsx watch src/index.ts",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\""
   },
   "dependencies": {
     "@google/genai": "1.40.0",
+    "@react-pdf/renderer": "^4.3.2",
     "lucide-react": "0.463.0",
     "pocketbase": "^0.26.8",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "react-router-dom": "^6.30.3"
+    "react-router-dom": "^6.30.3",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "concurrently": "^8",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^5.0.0",
