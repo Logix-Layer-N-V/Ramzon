@@ -269,7 +269,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
         const customTitles: Record<string, string> = (() => { try { return JSON.parse(localStorage.getItem('erp_doc_custom_titles') || '{}'); } catch { return {}; } })();
         const bankDetails     = localStorage.getItem('erp_bank_details') || '';
         const legalDisclaimer = localStorage.getItem('erp_legal_disclaimer') || '';
-        const defaultTitles: Record<string, string> = { invoices: 'Factuur', estimates: 'Offerte', payments: 'Betaling', credits: 'Creditnota', expenses: 'Expense', recurring: 'Recurring', reports: 'Report' };
+        const defaultTitles: Record<string, string> = { invoices: 'Invoice', estimates: 'Estimate', payments: 'Payment', credits: 'Credit Note', expenses: 'Expense', recurring: 'Recurring', reports: 'Report' };
         const typeToKey: Record<string, string> = { invoices: 'invoice', estimates: 'quote', payments: 'payment', credits: 'credit' };
         const docLabel = customTitles[typeToKey[type] ?? type] ?? defaultTitles[type] ?? 'Document';
         const d = docData as any;

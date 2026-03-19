@@ -16,7 +16,7 @@ const S = StyleSheet.create({
   totalRow:  { flexDirection: 'row', gap: 40, marginBottom: 4 },
 });
 
-const defaults: Record<string, string> = { invoice: 'Factuur', quote: 'Offerte', payment: 'Betaling', credit: 'Creditnota' };
+const defaults: Record<string, string> = { invoice: 'Invoice', quote: 'Estimate', payment: 'Payment', credit: 'Credit Note' };
 
 export interface DocPDFProps {
   docType: 'invoice' | 'quote';

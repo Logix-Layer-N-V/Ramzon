@@ -125,7 +125,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
   const tblRowCls = tableRowsStyle === 'grid' ? 'border border-slate-100' : tableRowsStyle === 'horizontal' ? 'border-b border-slate-100' : '';
   const fontClass = fontFamily === 'serif' ? 'font-serif' : fontFamily === 'mono' ? 'font-mono' : 'font-sans';
 
-  const defaultTitleMap: Record<string, string> = { invoice: 'Factuur', quote: 'Offerte', payment: 'Betaling', credit: 'Creditnota' };
+  const defaultTitleMap: Record<string, string> = { invoice: 'Invoice', quote: 'Estimate', payment: 'Payment', credit: 'Credit Note' };
   const docLabel     = customTitlesMap[docType] ?? defaultTitleMap[docType] ?? (docType === 'quote' ? 'Offerte' : 'Factuur');
   const displayLabel = docTitleMode === 'uppercase' ? docLabel.toUpperCase() : docLabel;
 
