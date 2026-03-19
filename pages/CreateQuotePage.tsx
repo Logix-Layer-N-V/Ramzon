@@ -586,7 +586,7 @@ const CreateQuotePage: React.FC = () => {
           {items.length > 0 && (
             <div className="border border-slate-200 rounded-2xl overflow-hidden">
               {/* Column header */}
-              <div className="hidden md:grid md:grid-cols-[48px_76px_150px_76px_38px_52px_84px_72px_68px_22px] gap-1.5 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
+              <div className="hidden md:grid md:grid-cols-[48px_76px_1fr_72px_38px_52px_84px_72px_68px_22px] gap-1.5 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
                 {[
                   { label: 'Qty',          align: '' },
                   { label: 'Wood',         align: '' },
@@ -605,7 +605,7 @@ const CreateQuotePage: React.FC = () => {
               {items.map((item, idx) => (
                 <React.Fragment key={item.id}>
                 <div
-                  className="flex flex-wrap md:grid md:grid-cols-[48px_76px_150px_76px_38px_52px_84px_72px_68px_22px] gap-1.5 items-center px-3 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                  className="flex flex-wrap md:grid md:grid-cols-[48px_76px_1fr_72px_38px_52px_84px_72px_68px_22px] gap-1.5 items-center px-3 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                   {/* Qty */}
                   <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
                     className="w-full px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-xs font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
@@ -639,10 +639,10 @@ const CreateQuotePage: React.FC = () => {
                     <option value={10}>10%</option>
                   </select>
                   {/* Price */}
-                  <div className="flex items-center justify-end gap-0.5 border border-slate-200 rounded-lg px-2 py-1 hover:border-slate-300 focus-within:border-blue-300 focus-within:bg-white transition-all">
+                  <div className="flex items-center gap-0.5 border border-slate-200 rounded-lg px-2 py-1 hover:border-slate-300 focus-within:border-blue-300 focus-within:bg-white transition-all">
                     <span className="text-[10px] text-slate-400 font-bold shrink-0">{currencySymbol}</span>
                     <input type="number" value={item.price} min={0} onChange={e => updateItem(item.id,'price',+e.target.value)} aria-label="Price"
-                      className="w-full bg-transparent text-xs font-bold outline-none min-w-0 text-right"/>
+                      className="flex-1 bg-transparent text-xs font-bold outline-none min-w-0 text-right"/>
                   </div>
                   {/* Subtotaal (pre-tax) */}
                   <div className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-[10px] font-black text-right shrink-0 w-full md:w-auto">
