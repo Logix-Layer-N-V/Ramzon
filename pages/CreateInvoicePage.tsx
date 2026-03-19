@@ -565,7 +565,7 @@ const CreateInvoicePage: React.FC = () => {
               {/* Column header */}
               <div className="hidden md:grid md:grid-cols-[64px_76px_1fr_38px_64px_84px_110px_48px_110px] gap-1.5 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
                 {[
-                  { label: 'Qty',       align: '' },
+                  { label: 'Qty',       align: 'text-center' },
                   { label: 'Wood',      align: '' },
                   { label: 'Description', align: '' },
                   { label: 'Unit',      align: 'text-center' },
