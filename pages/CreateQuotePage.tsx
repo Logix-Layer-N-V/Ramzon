@@ -586,65 +586,65 @@ const CreateQuotePage: React.FC = () => {
           {items.length > 0 && (
             <div className="border border-slate-200 rounded-2xl overflow-hidden">
               {/* Column header */}
-              <div className="hidden md:grid md:grid-cols-[56px_100px_1fr_52px_120px_108px_56px_88px_80px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-200">
+              <div className="hidden md:grid md:grid-cols-[44px_76px_1fr_38px_86px_84px_46px_72px_68px_22px] gap-1.5 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
                 {['Qty','Wood','Description','Unit','Spec / Notes','Price','BTW%','Subtotaal','Total',''].map((h,i) => (
-                  <p key={i} className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{h}</p>
+                  <p key={i} className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{h}</p>
                 ))}
               </div>
               {items.map((item, idx) => (
                 <React.Fragment key={item.id}>
                 <div
-                  className="flex flex-wrap md:grid md:grid-cols-[56px_100px_1fr_52px_120px_108px_56px_88px_80px_32px] gap-2 items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                  className="flex flex-wrap md:grid md:grid-cols-[44px_76px_1fr_38px_86px_84px_46px_72px_68px_22px] gap-1.5 items-center px-3 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                   {/* Qty */}
                   <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
-                    className="w-14 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-sm font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
+                    className="w-full px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-xs font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
                   {/* Wood type */}
                   {item.type === 'product' ? (
-                    <div className="flex flex-row items-center gap-1 w-full">
+                    <div className="flex flex-row items-center gap-0.5 w-full">
                       <select value={item.houtsoort} onChange={e => updateItem(item.id,'houtsoort',e.target.value)} aria-label="Wood type"
-                        className="flex-1 min-w-0 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all">
+                        className="flex-1 min-w-0 px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-[10px] font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all">
                         {RAMZON_HOUTSOORTEN.map(h => <option key={h}>{h}</option>)}
                       </select>
                       {item.houtsoort && getMarkup(item.houtsoort) > 0 && (
-                        <span className="shrink-0 px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-md text-[9px] font-black">+{getMarkup(item.houtsoort)}%</span>
+                        <span className="shrink-0 px-1 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded text-[8px] font-black">+{getMarkup(item.houtsoort)}%</span>
                       )}
                     </div>
                   ) : <div className="hidden md:block"/>}
                   {/* Description */}
                   <input value={item.description} onChange={e => updateItem(item.id,'description',e.target.value)}
                     placeholder="Description…"
-                    className="flex-1 md:flex-none min-w-[120px] px-2.5 py-1.5 bg-transparent border border-transparent hover:border-slate-200 focus:border-blue-300 focus:bg-white rounded-xl text-sm font-medium outline-none transition-all placeholder:text-slate-300"/>
+                    className="flex-1 md:flex-none min-w-0 px-2 py-1 bg-transparent border border-transparent hover:border-slate-200 focus:border-blue-300 focus:bg-white rounded-lg text-xs font-medium outline-none transition-all placeholder:text-slate-300"/>
                   {/* Unit */}
                   <input value={item.unit} onChange={e => updateItem(item.id,'unit',e.target.value)} aria-label="Unit" placeholder="PCS"
-                    className="w-12 px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-xs font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
+                    className="w-full px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-[10px] font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
                   {/* Spec / Notes */}
                   <input value={item.spec} onChange={e => updateItem(item.id,'spec',e.target.value)}
-                    placeholder="e.g. RAL 9010…"
-                    className="px-2.5 py-1.5 bg-transparent border border-transparent hover:border-slate-200 focus:border-blue-300 focus:bg-white rounded-xl text-xs font-medium outline-none transition-all placeholder:text-slate-300 w-full"/>
+                    placeholder="RAL 9010…"
+                    className="px-2 py-1 bg-transparent border border-transparent hover:border-slate-200 focus:border-blue-300 focus:bg-white rounded-lg text-[10px] font-medium outline-none transition-all placeholder:text-slate-300 w-full"/>
                   {/* Price */}
-                  <div className="flex items-center gap-1 border border-slate-200 rounded-xl px-2.5 py-1.5 hover:border-slate-300 focus-within:border-blue-300 focus-within:bg-white transition-all">
-                    <span className="text-[11px] text-slate-400 font-bold shrink-0">{currencySymbol}</span>
+                  <div className="flex items-center gap-0.5 border border-slate-200 rounded-lg px-2 py-1 hover:border-slate-300 focus-within:border-blue-300 focus-within:bg-white transition-all">
+                    <span className="text-[10px] text-slate-400 font-bold shrink-0">{currencySymbol}</span>
                     <input type="number" value={item.price} min={0} onChange={e => updateItem(item.id,'price',+e.target.value)} aria-label="Price"
-                      className="w-full bg-transparent text-sm font-bold outline-none min-w-0"/>
+                      className="w-full bg-transparent text-xs font-bold outline-none min-w-0"/>
                   </div>
                   {/* BTW% */}
                   <select value={item.taxRate} onChange={e => updateItem(item.id,'taxRate',+e.target.value)} aria-label="BTW rate"
-                    className="px-2 py-1.5 border border-slate-200 bg-transparent rounded-xl text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all text-center">
+                    className="px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-[10px] font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all text-center">
                     <option value={0}>0%</option>
                     <option value={10}>10%</option>
                   </select>
                   {/* Subtotaal (pre-tax) */}
-                  <div className="px-2.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl text-xs font-black text-right shrink-0 w-full md:w-auto">
+                  <div className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-[10px] font-black text-right shrink-0 w-full md:w-auto">
                     {currencySymbol}{itemSubtotal(item).toFixed(2)}
                   </div>
                   {/* Total (incl. markup + tax) */}
-                  <div className="px-2.5 py-1.5 bg-slate-900 text-white rounded-xl text-sm font-black text-right shrink-0 w-full md:w-auto">
+                  <div className="px-2 py-1 bg-slate-900 text-white rounded-lg text-xs font-black text-right shrink-0 w-full md:w-auto">
                     {currencySymbol}{itemTotal(item).toFixed(2)}
                   </div>
                   {/* Delete */}
                   <button onClick={() => removeItem(item.id)} title="Remove line"
-                    className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all shrink-0">
-                    <Trash2 size={13}/>
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all shrink-0">
+                    <Trash2 size={11}/>
                   </button>
                 </div>
                 {/* Measurement sub-row — only for m² product items */}
