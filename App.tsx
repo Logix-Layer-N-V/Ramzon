@@ -41,6 +41,7 @@ import { Language, translations } from './lib/translations';
 import { LanguageContext, Currency, TaxRate } from './lib/context';
 import { storage } from './lib/storage';
 import { DEMO_PRODUCTS } from './lib/mock-data';
+import { AuthProvider } from './lib/auth';
 
 const Layout: React.FC<{ 
   children: React.ReactNode; 
@@ -215,7 +216,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <LanguageContext.Provider value={{ 
+    <AuthProvider>
+    <LanguageContext.Provider value={{
       lang, setLang: handleSetLang, t, theme, setTheme, 
       multiCurrency, setMultiCurrency, availableCurrencies, setAvailableCurrencies,
       companyName, setCompanyName, companyLogo, setCompanyLogo,
@@ -296,6 +298,7 @@ const App: React.FC = () => {
         </Routes>
       </Router>
     </LanguageContext.Provider>
+    </AuthProvider>
   );
 };
 
