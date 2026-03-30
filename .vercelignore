@@ -1,5 +1,4 @@
 server/
-api/
 .env
 .env.local
 *.log
