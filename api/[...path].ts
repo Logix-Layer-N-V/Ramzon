@@ -50,7 +50,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Vercel catch-all: path segments are in req.query.path (array)
   const pathParam = req.query.path;
-  const segments = Array.isArray(pathParam) ? pathParam : typeof pathParam === 'string' ? pathParam.split('/') : (req.url || '').replace(/^\/api\/?/, '').split('/').filter(Boolean);
+  const segments = Array.isArray(pathParam) ? pathParam : typeof pathParam === 'string' ? [pathParam] : [];
+  console.log('DEBUG route:', { url: req.url, query: req.query, segments });
   const [resource, id] = segments;
   const m = req.method || 'GET';
 
