@@ -48,7 +48,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  const segments = (req.url || '').replace(/^\/api\/?/, '').split('/').filter(Boolean);
+  // Vercel catch-all: path segments are in req.query.path (array)
+  const pathParam = req.query.path;
+  const segments = Array.isArray(pathParam) ? pathParam : typeof pathParam === 'string' ? pathParam.split('/') : (req.url || '').replace(/^\/api\/?/, '').split('/').filter(Boolean);
   const [resource, id] = segments;
   const m = req.method || 'GET';
 
