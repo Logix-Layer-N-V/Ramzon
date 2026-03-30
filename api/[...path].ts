@@ -48,10 +48,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
 
+  // Debug: expose routing info temporarily
+  if (req.url?.includes('debug')) {
+    return res.json({ url: req.url, query: req.query, method: req.method });
+  }
+
   // Vercel catch-all: path segments are in req.query.path (array)
   const pathParam = req.query.path;
-  const segments = Array.isArray(pathParam) ? pathParam : typeof pathParam === 'string' ? [pathParam] : [];
-  console.log('DEBUG route:', { url: req.url, query: req.query, segments });
+  const segments = Array.isArray(pathParam) ? pathParam
+    : typeof pathParam === 'string' ? [pathParam]
+    : (req.url || '').replace(/^\/api\/?/, '').split('?')[0].split('/').filter(Boolean);
   const [resource, id] = segments;
   const m = req.method || 'GET';
 
