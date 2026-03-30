@@ -19,8 +19,10 @@ api.interceptors.request.use(cfg => {
 api.interceptors.response.use(
   r => r,
   async (err: unknown) => {
-    const anyErr = err as { response?: { status: number }; config?: { _retry?: boolean } };
-    if (anyErr.response?.status === 401 && anyErr.config && !anyErr.config._retry) {
+    const anyErr = err as { response?: { status: number }; config?: { _retry?: boolean; url?: string } };
+    const url = (anyErr.config as Record<string, unknown> | undefined)?.url as string | undefined ?? '';
+    // Never retry auth endpoints — login/refresh failures must propagate directly
+    if (anyErr.response?.status === 401 && anyErr.config && !anyErr.config._retry && !url.includes('/auth/')) {
       anyErr.config._retry = true;
       try {
         const { data } = await api.post('/auth/refresh');
@@ -33,6 +35,7 @@ api.interceptors.response.use(
         return api(anyErr.config as Parameters<typeof api>[0]);
       } catch {
         window.location.href = '/#/login';
+        return Promise.reject(err);
       }
     }
     return Promise.reject(err);
