@@ -1,18 +1,48 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { getSql } from './_lib/db';
-import { getAuthUser, signAccess, signRefresh } from './_lib/auth';
-import type { AuthUser } from './_lib/auth';
-import { hasRole } from './_lib/roles';
+
+/* ── Inline helpers (no external _lib imports) ──────────────────────────── */
+
+let _sql: ReturnType<typeof neon> | null = null;
+function getSql() {
+  if (!_sql) {
+    const url = process.env.DATABASE_URL || process.env.STORAGE_URL || process.env.POSTGRES_URL;
+    if (!url) throw new Error('No database URL found');
+    _sql = neon(url);
+  }
+  return _sql;
+}
+
+interface AuthUser { id: string; role: string; name: string }
+
+function getAuthUser(req: VercelRequest): AuthUser | null {
+  const auth = req.headers.authorization || '';
+  const token = auth.split(' ')[1];
+  if (!token) return null;
+  try { return jwt.verify(token, process.env.JWT_SECRET!) as AuthUser; }
+  catch { return null; }
+}
+
+function signAccess(p: AuthUser): string {
+  return jwt.sign(p, process.env.JWT_SECRET!, { expiresIn: '15m' });
+}
+function signRefresh(p: AuthUser): string {
+  return jwt.sign(p, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d' });
+}
+function hasRole(u: AuthUser, roles: string[]): boolean {
+  return roles.includes(u.role);
+}
 
 function cors(res: VercelResponse) {
-  const origin = process.env.CLIENT_URL || 'http://localhost:3000';
-  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Origin', process.env.CLIENT_URL || 'http://localhost:3000');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
 }
+
+/* ── Main handler ───────────────────────────────────────────────────────── */
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -42,17 +72,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-// ─── AUTH ────────────────────────────────────────────────────────────────────
+/* ── AUTH ────────────────────────────────────────────────────────────────── */
 
 async function handleAuth(req: VercelRequest, res: VercelResponse, sub: string, m: string) {
   if (sub === 'login' && m === 'POST') {
     const { email, password } = req.body;
     const sql = getSql();
     const rows = await sql`SELECT * FROM users WHERE email=${email} AND status='Active'`;
-    const user = rows[0] as { id: string; role: string; name: string; password: string } | undefined;
+    const user = rows[0] as any;
     if (!user || !(await bcrypt.compare(password, user.password)))
       return res.status(401).json({ error: 'Invalid credentials' });
-    const payload = { id: user.id, role: user.role, name: user.name };
+    const payload: AuthUser = { id: user.id, role: user.role, name: user.name };
     const accessToken = signAccess(payload);
     const refreshToken = signRefresh(payload);
     const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
@@ -63,11 +93,9 @@ async function handleAuth(req: VercelRequest, res: VercelResponse, sub: string, 
     const token = req.cookies?.refreshToken;
     if (!token) return res.status(401).json({ error: 'No refresh token' });
     try {
-      const payload = jwt.verify(token, process.env.JWT_REFRESH_SECRET!) as AuthUser;
-      return res.json({ accessToken: signAccess({ id: payload.id, role: payload.role, name: payload.name }) });
-    } catch {
-      return res.status(401).json({ error: 'Invalid refresh token' });
-    }
+      const p = jwt.verify(token, process.env.JWT_REFRESH_SECRET!) as AuthUser;
+      return res.json({ accessToken: signAccess({ id: p.id, role: p.role, name: p.name }) });
+    } catch { return res.status(401).json({ error: 'Invalid refresh token' }); }
   }
   if (sub === 'logout' && m === 'POST') {
     res.setHeader('Set-Cookie', 'refreshToken=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/');
@@ -81,7 +109,7 @@ async function handleAuth(req: VercelRequest, res: VercelResponse, sub: string, 
   return res.status(404).json({ error: 'Not found' });
 }
 
-// ─── CLIENTS ─────────────────────────────────────────────────────────────────
+/* ── CLIENTS ────────────────────────────────────────────────────────────── */
 
 async function handleClients(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string) {
   const user = getAuthUser(req);
@@ -115,7 +143,7 @@ async function handleClients(req: VercelRequest, res: VercelResponse, id: string
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
-// ─── INVOICES ────────────────────────────────────────────────────────────────
+/* ── INVOICES ───────────────────────────────────────────────────────────── */
 
 async function handleInvoices(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string) {
   const user = getAuthUser(req);
@@ -127,8 +155,8 @@ async function handleInvoices(req: VercelRequest, res: VercelResponse, id: strin
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const { invoice_number, client_id, client_name, date, due_date, currency = 'USD', subtotal = 0, tax_amount = 0, total_amount = 0, status = 'Draft', notes = '', rep = '', paid_amount = 0, items = [] } = req.body;
       const rows = await sql`INSERT INTO invoices (invoice_number,client_id,client_name,date,due_date,currency,subtotal,tax_amount,total_amount,status,notes,rep,paid_amount) VALUES (${invoice_number},${client_id},${client_name},${date},${due_date},${currency},${subtotal},${tax_amount},${total_amount},${status},${notes},${rep},${paid_amount}) RETURNING *`;
-      const inv = rows[0] as { id: string };
-      for (const item of items as Array<{ description: string; quantity: number; unit_price: number; total: number }>)
+      const inv = rows[0] as any;
+      for (const item of items)
         await sql`INSERT INTO invoice_items (invoice_id,description,quantity,unit_price,total) VALUES (${inv.id},${item.description},${item.quantity},${item.unit_price},${item.total})`;
       return res.status(201).json(inv);
     }
@@ -154,7 +182,7 @@ async function handleInvoices(req: VercelRequest, res: VercelResponse, id: strin
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
-// ─── ESTIMATES ───────────────────────────────────────────────────────────────
+/* ── ESTIMATES ──────────────────────────────────────────────────────────── */
 
 async function handleEstimates(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string) {
   const user = getAuthUser(req);
@@ -166,8 +194,8 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const { estimate_number, client_id, client_name, date, valid_until, currency = 'USD', subtotal = 0, tax_amount = 0, total = 0, status = 'Draft', notes = '', rep = '', items = [] } = req.body;
       const rows = await sql`INSERT INTO estimates (estimate_number,client_id,client_name,date,valid_until,currency,subtotal,tax_amount,total,status,notes,rep) VALUES (${estimate_number},${client_id},${client_name},${date},${valid_until},${currency},${subtotal},${tax_amount},${total},${status},${notes},${rep}) RETURNING *`;
-      const est = rows[0] as { id: string };
-      for (const item of items as Array<{ description: string; quantity: number; unit_price: number; total: number }>)
+      const est = rows[0] as any;
+      for (const item of items)
         await sql`INSERT INTO estimate_items (estimate_id,description,quantity,unit_price,total) VALUES (${est.id},${item.description},${item.quantity},${item.unit_price},${item.total})`;
       return res.status(201).json(est);
     }
@@ -193,7 +221,7 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
-// ─── PAYMENTS ────────────────────────────────────────────────────────────────
+/* ── PAYMENTS ───────────────────────────────────────────────────────────── */
 
 async function handlePayments(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string) {
   const user = getAuthUser(req);
@@ -216,7 +244,7 @@ async function handlePayments(req: VercelRequest, res: VercelResponse, id: strin
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
-// ─── CREDITS ─────────────────────────────────────────────────────────────────
+/* ── CREDITS ────────────────────────────────────────────────────────────── */
 
 async function handleCredits(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string) {
   const user = getAuthUser(req);
@@ -239,7 +267,7 @@ async function handleCredits(req: VercelRequest, res: VercelResponse, id: string
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
-// ─── EXPENSES ────────────────────────────────────────────────────────────────
+/* ── EXPENSES ───────────────────────────────────────────────────────────── */
 
 async function handleExpenses(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string) {
   const user = getAuthUser(req);
@@ -268,7 +296,7 @@ async function handleExpenses(req: VercelRequest, res: VercelResponse, id: strin
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
-// ─── PRODUCTS ────────────────────────────────────────────────────────────────
+/* ── PRODUCTS ───────────────────────────────────────────────────────────── */
 
 async function handleProducts(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string) {
   const user = getAuthUser(req);
@@ -302,7 +330,7 @@ async function handleProducts(req: VercelRequest, res: VercelResponse, id: strin
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
-// ─── USERS ───────────────────────────────────────────────────────────────────
+/* ── USERS ──────────────────────────────────────────────────────────────── */
 
 async function handleUsers(req: VercelRequest, res: VercelResponse, _id: string | undefined, m: string) {
   const user = getAuthUser(req);

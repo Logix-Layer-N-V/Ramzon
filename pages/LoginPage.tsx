@@ -1,6 +1,6 @@
 
 import React, { useState, useContext } from 'react';
-import { TrendingUp, BarChart3, ArrowUpRight, DollarSign, PieChart } from 'lucide-react';
+import { TrendingUp, BarChart3, ArrowUpRight, DollarSign, PieChart, Eye, EyeOff } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
 import { useAuth } from '../lib/auth';
 
@@ -13,6 +13,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const { login } = useAuth();
   const [email, setEmail] = useState(import.meta.env.VITE_DEFAULT_EMAIL ?? '');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -72,14 +73,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 <div className="flex justify-between items-center">
                   <label className="text-sm font-bold text-slate-700 uppercase tracking-widest text-[10px]">Password</label>
                 </div>
-                <input
-                  aria-label="Wachtwoord"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-accent focus:bg-white outline-none transition-all shadow-sm font-medium"
-                />
+                <div className="relative">
+                  <input
+                    aria-label="Wachtwoord"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-5 py-4 pr-12 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-accent focus:bg-white outline-none transition-all shadow-sm font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               {error && (
