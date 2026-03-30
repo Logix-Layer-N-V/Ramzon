@@ -25,11 +25,13 @@ const getStatusStyle = (status: EstimateStatus) => {
 const QuotesPage: React.FC = () => {
   const navigate = useNavigate();
   const { t, currencySymbol } = useContext(LanguageContext);
-  const [estimates, setEstimates] = useState<Estimate[]>(() => {
+  const [refresh, setRefresh] = useState(0);
+  const estimates = useMemo(() => {
     const stored = storage.estimates.get();
-    const storedIds = new Set(stored.map(e => e.id));
-    return [...stored, ...mockEstimates.filter(e => !storedIds.has(e.id))];
-  });
+    if (stored.length === 0) return mockEstimates;
+    const ids = new Set(stored.map(e => e.id));
+    return [...mockEstimates.filter(e => !ids.has(e.id)), ...stored];
+  }, [refresh]);
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState<EstimateStatus | 'All'>('All');
@@ -49,12 +51,44 @@ const QuotesPage: React.FC = () => {
 
   const handleApprove = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    setEstimates(prev => prev.map(est => est.id === id ? { ...est, status: 'Accepted' } : est));
+    const updated = estimates.map(est => est.id === id ? { ...est, status: 'Accepted' as const } : est);
+    storage.estimates.save(updated);
+    setRefresh(r => r + 1);
   };
 
   const handleConvert = (e: React.MouseEvent, estimate: Estimate) => {
     e.stopPropagation();
-    navigate('/invoices/new', { state: { fromEstimate: estimate } });
+    // Build invoice data from estimate
+    const newInvoice = {
+      id: `inv-${Date.now()}`,
+      invoiceNumber: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`,
+      clientId: estimate.clientId,
+      clientName: estimate.clientName,
+      date: new Date().toISOString().split('T')[0],
+      dueDate: (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0]; })(),
+      currency: estimate.currency ?? 'SRD',
+      exchangeRate: estimate.exchangeRate ?? 1,
+      items: estimate.items ?? [],
+      subtotal: estimate.subtotal ?? 0,
+      taxRate: estimate.taxRate ?? 21,
+      taxAmount: estimate.taxAmount ?? 0,
+      totalAmount: estimate.total ?? 0,
+      status: 'Pending' as const,
+      rep: estimate.rep ?? '',
+      paidAmount: 0,
+      estimateId: estimate.id,
+    };
+    // Save to storage
+    const existing = storage.invoices.get();
+    storage.invoices.save([...existing, newInvoice]);
+    // Mark estimate as accepted
+    const allEstimates = estimates;
+    const updatedEstimates = allEstimates.map(est =>
+      est.id === estimate.id ? { ...est, status: 'Accepted' as const } : est
+    );
+    storage.estimates.save(updatedEstimates.filter(est => !mockEstimates.find(m => m.id === est.id) || est.status !== mockEstimates.find(m => m.id === est.id)?.status));
+    // Navigate to the new invoice
+    navigate(`/invoices/${newInvoice.id}`);
   };
 
   const handleEdit = (e: React.MouseEvent, id: string) => {
@@ -111,7 +145,7 @@ const QuotesPage: React.FC = () => {
         </div>
         <button
           onClick={() => navigate('/estimates/new')}
-          className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-black hover:bg-slate-800 transition-all flex items-center gap-2 shadow-xl shadow-slate-200 active:scale-95"
+          className="bg-brand-primary text-white px-5 py-2.5 rounded-xl text-sm font-black hover:opacity-90 transition-all flex items-center gap-2 shadow-xl active:scale-95"
         >
           <Plus size={18} /> {t('newEstimateBtn')}
         </button>

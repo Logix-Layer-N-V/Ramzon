@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tag, Plus, Pencil, Trash2, Check, X, ChevronDown } from 'lucide-react';
+
+const LS_KEY = 'erp_expense_categories';
 
 const ICON_LIBRARY = [
   { group: '🚛 Transport & Logistiek', icons: ['🚛', '🚗', '🚢', '✈️', '🚆', '🚚', '🛻', '🚁', '🛺', '⛵'] },
@@ -69,7 +71,18 @@ const IconPickerModal: React.FC<IconPickerProps> = ({ value, onChange, onClose }
 };
 
 const ExpenseCategoriesPage: React.FC = () => {
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [categories, setCategories] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+      return stored ?? DEFAULT_CATEGORIES;
+    } catch {
+      return DEFAULT_CATEGORIES;
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(LS_KEY, JSON.stringify(categories));
+  }, [categories]);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');

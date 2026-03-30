@@ -232,8 +232,8 @@ const UsersPage: React.FC = () => {
                             onClick={() => togglePerm(r, mod)}
                             className={`w-6 h-6 rounded-md border-2 flex items-center justify-center mx-auto transition-all ${
                               permissions[r]?.[mod]
-                                ? 'bg-blue-600 border-blue-600 text-white'
-                                : 'border-slate-300 bg-white hover:border-blue-400'
+                                ? 'bg-brand-primary border-brand-primary text-white'
+                                : 'border-slate-300 bg-white hover:border-brand-primary'
                             }`}
                           >
                             {permissions[r]?.[mod] && <Check size={12}/>}

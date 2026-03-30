@@ -31,6 +31,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // On mount: try to restore session via refresh token (httpOnly cookie)
   useEffect(() => {
+    if (import.meta.env.VITE_MOCK_AUTH === 'true') {
+      setIsLoading(false);
+      return;
+    }
     api.post('/auth/refresh')
       .then(({ data }) => {
         setAccessToken(data.accessToken);
@@ -44,6 +48,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
+    if (import.meta.env.VITE_MOCK_AUTH === 'true') {
+      setAccessToken('mock-token');
+      setUser({ id: '1', role: 'Admin', name: email.split('@')[0] });
+      return;
+    }
     const { data } = await api.post('/auth/login', { email, password });
     setAccessToken(data.accessToken);
     setUser(data.user);

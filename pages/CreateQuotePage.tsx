@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
-import { ArrowLeft, Plus, ClipboardList, Send, Save, Trash2, Check, X, Search, FileText, TrendingUp, Ruler } from 'lucide-react';
+import { ArrowLeft, Plus, ClipboardList, Send, Save, Trash2, Check, X, Search, FileText, TrendingUp, Ruler, UserPlus } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
 import { QuoteSchema } from '../lib/schemas';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
@@ -8,6 +8,8 @@ import { previewDocNumber, commitDocNumber } from '../lib/docNumbering';
 import { getLatestExchangeRate, storage } from '../lib/storage';
 import { Estimate, WoodSpecies } from '../types';
 import DocPDFModal from '../components/DocPDFModal';
+import { useAuth } from '../lib/auth';
+import QuickAddClientModal from '../components/QuickAddClientModal';
 
 type ItemType = 'product' | 'service' | 'item';
 interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; spec: string; qty: number; unit: string; price: number; taxRate: number; mmW?: number; mmH?: number; }
@@ -38,13 +40,21 @@ const CreateQuotePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currencySymbol, enableCrypto } = useContext(LanguageContext);
+  const { user } = useAuth();
   const { id } = useParams();
   const isEdit = !!id;
   const [client, setClient] = useState('');
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [clientRefresh, setClientRefresh] = useState(0);
   const [currency, setCurrency] = useState('SRD');
   const [exchangeRate, setExchangeRate] = useState<number>(1);
-  const [validUntil, setValidUntil] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [validUntil, setValidUntil] = useState(() => {
+    const days = parseInt(localStorage.getItem('erp_quote_validity_days') ?? '14', 10);
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  });
   const [items, setItems] = useState<LineItem[]>([]);
   const [saved, setSaved] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
@@ -57,14 +67,20 @@ const CreateQuotePage: React.FC = () => {
     }
     return previewDocNumber('est');
   });
-  const [selectedRep, setSelectedRep] = useState<string>(() =>
-    localStorage.getItem('erp_active_user_name') ?? mockUsers.find(u => u.role === 'Admin' && u.status === 'Active')?.name ?? ''
-  );
+  const selectedRep = user?.name ?? '';
   const [paidAmount, setPaidAmount] = useState<number>(0);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [itemSearch, setItemSearch] = useState('');
   const [showItemSearch, setShowItemSearch] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const searchRef = useRef<HTMLDivElement>(null);
+
+  const allClients = useMemo(() => {
+    const stored = storage.clients.get();
+    if (stored.length === 0) return mockClients;
+    const ids = new Set(stored.map(c => c.id));
+    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
+  }, [clientRefresh]);
 
   // Dynamic catalog: merge services + storage products (fallback to static if empty)
   const [storedProducts] = useState(() => storage.products.get());
@@ -109,7 +125,7 @@ const CreateQuotePage: React.FC = () => {
 
   useEffect(() => {
     if (id) {
-      const existing = mockEstimates.find(e => e.id === id);
+      const existing = storage.estimates.get().find(e => e.id === id) ?? mockEstimates.find(e => e.id === id);
       if (existing) {
         setClient(existing.clientId || '');
         setDate(existing.date || new Date().toISOString().split('T')[0]);
@@ -124,7 +140,7 @@ const CreateQuotePage: React.FC = () => {
             qty: (i as any).quantity || 1,
             unit: (i as any).unit || 'PCS',
             price: (i as any).unitPrice || 0,
-            taxRate: (i as any).taxRate ?? 10,
+            taxRate: (i as any).taxRate ?? 21,
           })));
         }
       }
@@ -147,7 +163,7 @@ const CreateQuotePage: React.FC = () => {
           qty: i.quantity || i.qty || 1,
           unit: i.unit || 'PCS',
           price: i.unitPrice || i.price || 0,
-          taxRate: i.taxRate ?? 10,
+          taxRate: i.taxRate ?? 21,
         })));
       }
     }
@@ -157,10 +173,15 @@ const CreateQuotePage: React.FC = () => {
   // Auto-fill preferred currency when client changes
   useEffect(() => {
     if (client) {
-      const c = mockClients.find(cl => cl.id === client);
+      const c = allClients.find(cl => cl.id === client);
       if (c?.preferredCurrency) setCurrency(c.preferredCurrency);
     }
   }, [client]);
+
+  // Reset USDT currency if crypto is disabled
+  useEffect(() => {
+    if (!enableCrypto && currency === 'USDT') setCurrency('SRD');
+  }, [enableCrypto]);
 
   // Auto-fill exchange rate whenever currency changes
   useEffect(() => {
@@ -199,7 +220,7 @@ const CreateQuotePage: React.FC = () => {
       description: item.type === 'product' ? `${item.desc} — ${item.name}` : item.name,
       houtsoort: item.type === 'product' ? RAMZON_HOUTSOORTEN[0] : '',
       spec: '',
-      qty: 1, unit: item.unit, price: item.price, taxRate: 10,
+      qty: 1, unit: item.unit, price: item.price, taxRate: 21,
       mmW: item.unit === 'm²' ? 800 : undefined,
       mmH: item.unit === 'm²' ? 2100 : undefined,
     }]);
@@ -208,7 +229,7 @@ const CreateQuotePage: React.FC = () => {
   };
 
   const addItem = () => {
-    setItems(prev => [...prev, { id: Math.random().toString(36).slice(2), type: 'item', description: '', houtsoort: '', spec: '', qty: 1, unit: 'PCS', price: 0, taxRate: 10 }]);
+    setItems(prev => [...prev, { id: Math.random().toString(36).slice(2), type: 'item', description: '', houtsoort: '', spec: '', qty: 1, unit: 'PCS', price: 0, taxRate: 21 }]);
     setShowItemSearch(false);
     setItemSearch('');
   };
@@ -216,19 +237,19 @@ const CreateQuotePage: React.FC = () => {
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
   const updateItem = (id: string, field: keyof LineItem, val: any) => setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
   const handleSave = () => {
-    const result = QuoteSchema.safeParse({
-      clientId:   client,
-      date,
-      validUntil,
-      items: items.map(i => ({ description: i.description, qty: i.qty, price: i.price })),
-    });
-    if (!result.success) {
-      alert(result.error.issues[0].message);
-      return;
+    const newErrors: Record<string, string> = {};
+    if (!client) newErrors.client = 'Selecteer een klant';
+    if (items.length === 0) newErrors.items = 'Voeg minimaal één artikel toe';
+    if (!validUntil) {
+      newErrors.validUntil = 'Vul een geldigheidsdatum in';
+    } else if (validUntil < new Date().toISOString().split('T')[0]) {
+      newErrors.validUntil = 'Geldigheidsdatum moet vandaag of later zijn';
     }
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
     const num = isEdit ? docNumber : commitDocNumber('est');
     setCommittedDocNumber(num);
-    const clientObj = mockClients.find(c => c.id === client);
+    const clientObj = allClients.find(c => c.id === client);
     const est: Estimate = {
       id: isEdit && id ? id : Math.random().toString(36).slice(2, 10),
       estimateNumber: num,
@@ -308,7 +329,7 @@ const CreateQuotePage: React.FC = () => {
         </button>
         <button
           onClick={handleConvertToInvoice}
-          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow hover:bg-emerald-500 transition-all active:scale-95"
+          className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow hover:opacity-90 transition-all active:scale-95"
         >
           <FileText size={14} /> Convert to Invoice
         </button>
@@ -327,10 +348,21 @@ const CreateQuotePage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-1.5 md:col-span-1">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client</label>
-              <select aria-label="Select client" value={client} onChange={e => setClient(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none">
-                <option value="">-- Client --</option>
-                {mockClients.map(c => <option key={c.id} value={c.id}>{c.name}{c.company ? ` — ${c.company}` : ''}</option>)}
-              </select>
+              <div className="flex gap-2">
+                <select aria-label="Select client" value={client} onChange={e => { setClient(e.target.value); if (errors.client) setErrors(prev => ({ ...prev, client: '' })); }} className={`flex-1 px-3 py-2.5 bg-slate-50 border rounded-xl text-sm font-bold outline-none ${errors.client ? 'border-red-400' : 'border-slate-200'}`}>
+                  <option value="">-- Client --</option>
+                  {allClients.map(c => <option key={c.id} value={c.id}>{c.name}{c.company ? ` — ${c.company}` : ''}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowAddClient(true)}
+                  className="px-3 py-2.5 bg-brand-primary text-white rounded-xl hover:opacity-90 transition-all active:scale-95 shrink-0"
+                  title="Nieuwe klant toevoegen"
+                >
+                  <UserPlus size={16} />
+                </button>
+              </div>
+              {errors.client && <p className="text-red-500 text-xs mt-1">{errors.client}</p>}
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</label>
@@ -338,22 +370,34 @@ const CreateQuotePage: React.FC = () => {
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valid Until</label>
-              <input aria-label="Valid until" type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none" />
+              <div className="flex gap-1 flex-wrap mb-1.5">
+                {[
+                  { label: '1 dag',   days: 1  },
+                  { label: '3 dagen', days: 3  },
+                  { label: '1 week',  days: 7  },
+                  { label: '2 weken', days: 14 },
+                ].map(opt => (
+                  <button key={opt.days} type="button"
+                    onClick={() => {
+                      const base = new Date(date || new Date());
+                      base.setDate(base.getDate() + opt.days);
+                      setValidUntil(base.toISOString().split('T')[0]);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-black border bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-800 hover:text-slate-900 transition-all">
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <input aria-label="Valid until" type="date" value={validUntil} onChange={e => { setValidUntil(e.target.value); if (errors.validUntil) setErrors(prev => ({ ...prev, validUntil: '' })); }} className={`w-full px-3 py-2.5 bg-slate-50 border rounded-xl text-sm font-bold outline-none ${errors.validUntil ? 'border-red-400' : 'border-slate-200'}`} />
+              {errors.validUntil && <p className="text-red-500 text-xs mt-1">{errors.validUntil}</p>}
             </div>
 
-            {/* Sales Rep */}
+            {/* Sales Rep — auto from logged-in user */}
             <div>
               <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">Sales Rep</label>
-              <select
-                value={selectedRep}
-                onChange={e => { setSelectedRep(e.target.value); localStorage.setItem('erp_active_user_name', e.target.value); }}
-                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-brand-primary/50"
-              >
-                <option value="">— Select rep —</option>
-                {mockUsers.filter(u => u.status === 'Active').map(u => (
-                  <option key={u.id} value={u.name}>{u.name} ({u.role})</option>
-                ))}
-              </select>
+              <div className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 select-none">
+                {selectedRep || '—'}
+              </div>
             </div>
 
             {/* Partial Payment */}
@@ -573,7 +617,7 @@ const CreateQuotePage: React.FC = () => {
 
           {/* Empty state */}
           {items.length === 0 && (
-            <div className="py-10 text-center border-2 border-dashed border-slate-100 rounded-2xl">
+            <div className={`py-10 text-center border-2 border-dashed rounded-2xl ${errors.items ? 'border-red-300 bg-red-50/30' : 'border-slate-100'}`}>
               <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
                 <ClipboardList size={20} className="text-slate-300"/>
               </div>
@@ -581,6 +625,7 @@ const CreateQuotePage: React.FC = () => {
               <p className="text-xs text-slate-300 mt-1">
                 Search above or type <kbd className="px-1.5 py-0.5 bg-slate-100 rounded-md text-[10px] font-black text-slate-500 border border-slate-200">/</kbd> to filter by category
               </p>
+              {errors.items && <p className="text-red-500 text-xs mt-2 font-bold">{errors.items}</p>}
             </div>
           )}
 
@@ -638,6 +683,7 @@ const CreateQuotePage: React.FC = () => {
                     className="w-full px-1.5 py-1 border border-slate-200 bg-white rounded-lg text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 transition-all text-center">
                     <option value={0}>0%</option>
                     <option value={10}>10%</option>
+                    <option value={21}>Std 21%</option>
                   </select>
                   {/* Price */}
                   <div className="flex items-center gap-0.5 border border-slate-200 rounded-lg px-2 py-1 hover:border-slate-300 focus-within:border-blue-300 focus-within:bg-white transition-all">
@@ -709,7 +755,7 @@ const CreateQuotePage: React.FC = () => {
               <button className="flex items-center gap-2 px-5 py-2.5 bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/20 transition-all">
                 <Send size={14} /> Send via Email
               </button>
-              <button onClick={handleSave} className="flex items-center gap-2 px-6 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:bg-red-700 transition-all active:scale-95">
+              <button onClick={handleSave} className="flex items-center gap-2 px-6 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:opacity-90 transition-all active:scale-95">
                 {saved ? <Check size={14} /> : <Save size={14} />} {saved ? 'Saved...' : isEdit ? 'Save Changes' : 'Save Quote'}
               </button>
             </div>
@@ -724,12 +770,12 @@ const CreateQuotePage: React.FC = () => {
         docNumber={committedDocNumber}
         date={date}
         validUntil={validUntil}
-        clientName={mockClients.find(c => c.id === client)?.name ?? client}
-        clientCompany={mockClients.find(c => c.id === client)?.company}
-        clientAddress={mockClients.find(c => c.id === client)?.address}
-        clientPhone={mockClients.find(c => c.id === client)?.phone}
-        clientEmail={mockClients.find(c => c.id === client)?.email}
-        clientVAT={mockClients.find(c => c.id === client)?.vatNumber}
+        clientName={allClients.find(c => c.id === client)?.name ?? client}
+        clientCompany={allClients.find(c => c.id === client)?.company}
+        clientAddress={allClients.find(c => c.id === client)?.address}
+        clientPhone={allClients.find(c => c.id === client)?.phone}
+        clientEmail={allClients.find(c => c.id === client)?.email}
+        clientVAT={allClients.find(c => c.id === client)?.vatNumber}
         rep={selectedRep || undefined}
         paidAmount={paidAmount > 0 ? paidAmount : undefined}
         currency={currency}
@@ -750,6 +796,16 @@ const CreateQuotePage: React.FC = () => {
         tax={tax}
         total={total}
         onClose={() => { setShowPdfModal(false); navigate('/estimates'); }}
+      />
+    )}
+    {showAddClient && (
+      <QuickAddClientModal
+        onClose={() => setShowAddClient(false)}
+        onCreated={(client) => {
+          setClientRefresh(r => r + 1);
+          setClient(client.id);
+          setShowAddClient(false);
+        }}
       />
     )}
     </>

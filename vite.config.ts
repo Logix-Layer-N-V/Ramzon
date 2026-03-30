@@ -6,8 +6,11 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       server: {
-        port: 3000,
+        port: Number(env.PORT) || 3000,
         host: '0.0.0.0',
+        proxy: {
+          '/api': { target: env.VITE_API_TARGET || 'http://localhost:4000', changeOrigin: true },
+        },
       },
       plugins: [react()],
       define: {

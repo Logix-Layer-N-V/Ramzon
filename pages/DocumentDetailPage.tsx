@@ -34,7 +34,7 @@ const BANK_ACCOUNTS_DEFAULT: BankAccount[] = [
   { id: 'dsb_srd', bank: 'DSB Bank', currency: 'SRD', iban: 'SR29DSB0000001234', balance: 45230 },
   { id: 'dsb_usd', bank: 'DSB Bank', currency: 'USD', iban: 'SR29DSB0000001235', balance: 12800 },
   { id: 'hkb_srd', bank: 'HKB Hakrinbank', currency: 'SRD', iban: 'SR29HKB0000005678', balance: 31200 },
-  { id: 'cash_srd', bank: 'Petty Cash', currency: 'SRD', iban: '—', balance: 1500 },
+  { id: 'cash_srd', bank: 'Cash', currency: 'SRD', iban: '—', balance: 1500 },
 ];
 
 interface DocumentDetailPageProps {
@@ -105,14 +105,14 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
     linkedPayments.reduce((s, p) => s + toSRD(p.amount, p.currency), 0),
   [linkedPayments]);
 
-  // Fetch standard data based on type
+  // Fetch standard data based on type — check localStorage first, fallback to mock
   const docData = useMemo(() => {
     switch (type) {
-      case 'invoices': return mockInvoices.find(i => i.id === id);
-      case 'estimates': return mockEstimates.find(e => e.id === id);
-      case 'payments': return mockPayments.find(p => p.id === id);
-      case 'credits': return mockCredits.find(c => c.id === id);
-      case 'expenses': return mockExpenses.find(e => e.id === id);
+      case 'invoices':  return storage.invoices.get().find(i => i.id === id)   ?? mockInvoices.find(i => i.id === id);
+      case 'estimates': return storage.estimates.get().find(e => e.id === id)  ?? mockEstimates.find(e => e.id === id);
+      case 'payments':  return storage.payments.get().find(p => p.id === id)   ?? mockPayments.find(p => p.id === id);
+      case 'credits':   return storage.credits.get().find(c => c.id === id)    ?? mockCredits.find(c => c.id === id);
+      case 'expenses':  return storage.expenses.get().find(e => e.id === id)   ?? mockExpenses.find(e => e.id === id);
       case 'recurring': return { 
         id: 'rec1', 
         clientName: 'Build-It Ltd', 
@@ -154,14 +154,20 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
     }
   }, [type, docData, navigate]);
 
+  const allClients = useMemo(() => {
+    const stored = storage.clients.get();
+    const ids = new Set(stored.map(c => c.id));
+    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
+  }, []);
+
   const client = useMemo(() => {
     if (!docData) return null;
     const clientId = (docData as any).clientId;
-    if (clientId) return mockClients.find(c => c.id === clientId);
+    if (clientId) return allClients.find(c => c.id === clientId);
     // Fallback for types without explicit clientId in mock
-    if (type === 'recurring') return mockClients.find(c => c.company === 'Build-It Ltd');
+    if (type === 'recurring') return allClients.find(c => c.company === 'Build-It Ltd');
     return null;
-  }, [docData, type]);
+  }, [docData, type, allClients]);
 
   if (!docData) {
     return (
@@ -244,7 +250,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
                 setPaymentAmount((invoiceTotal - totalPaid).toFixed(2));
                 setShowPaymentModal(true);
               }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:bg-emerald-500 transition-all active:scale-95 ml-1"
+              className="flex items-center gap-2 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:opacity-90 transition-all active:scale-95 ml-1"
             >
               <Banknote size={14} /> Add Payment
             </button>
@@ -255,7 +261,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
                 const est = docData as any;
                 navigate('/invoices/new', { state: { fromEstimate: { id: est.id, estimateNumber: est.estimateNumber, clientId: est.clientId, date: est.date, status: 'Accepted', items: (est.items || []).map((i: any) => ({ ...i })), totalAmount: est.total || est.totalAmount } } });
               }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:bg-blue-500 transition-all active:scale-95 ml-1"
+              className="flex items-center gap-2 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:opacity-90 transition-all active:scale-95 ml-1"
             >
               <FileText size={14} /> Convert to Invoice
             </button>
@@ -687,7 +693,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
               </div>
 
               <button onClick={handleAddPayment} disabled={amtSRD <= 0}
-                className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-black uppercase tracking-widest hover:bg-emerald-500 transition-all active:scale-95 disabled:opacity-40">
+                className="w-full py-3 bg-brand-primary text-white rounded-xl text-sm font-black uppercase tracking-widest hover:opacity-90 transition-all active:scale-95 disabled:opacity-40">
                 Confirm Payment
               </button>
             </div>
@@ -700,10 +706,24 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
         const d = docData as any;
         const docType = type === 'invoices' ? 'invoice' : 'quote';
         const docNumber = d.invoiceNumber || d.estimateNumber || d.id || '—';
-        const subtotal = (d.totalAmount || d.total || 0) / 1.21;
-        const total    = d.totalAmount || d.total || 0;
-        const tax      = total - subtotal;
-        const cur      = d.currency || 'SRD';
+        // credits use d.amount; invoices/estimates use d.totalAmount or d.total
+        const rawTotal  = type === 'credits' ? (d.amount || 0) : (d.totalAmount || d.total || 0);
+        const subtotal  = rawTotal / 1.21;
+        const total     = rawTotal;
+        const tax       = total - subtotal;
+        const cur       = d.currency || 'SRD';
+        // credits have no items array — synthesize one row from reason + amount
+        const pdfItems  = type === 'credits'
+          ? [{ id: '1', description: d.reason || 'Credit', houtsoort: '', spec: '', qty: 1, unit: 'PCS', price: d.amount || 0 }]
+          : (d.items || []).map((i: any) => ({
+              id: i.id || String(Math.random()),
+              description: i.description || '',
+              houtsoort: i.houtsoort || i.wood || '',
+              spec: i.spec || '',
+              qty: i.quantity || i.qty || 1,
+              unit: i.um || i.unit || 'PCS',
+              price: i.rate || i.unitPrice || i.price || 0,
+            }));
         return (
           <DocPDFModal
             docType={docType}
@@ -720,15 +740,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
             paidAmount={totalPaid > 0 ? totalPaid : undefined}
             currency={cur}
             currencySymbol={currencySymbol}
-            items={(d.items || []).map((i: any) => ({
-              id: i.id || String(Math.random()),
-              description: i.description || '',
-              houtsoort: i.houtsoort || i.wood || '',
-              spec: i.spec || '',
-              qty: i.quantity || i.qty || 1,
-              unit: i.um || i.unit || 'PCS',
-              price: i.rate || i.unitPrice || i.price || 0,
-            }))}
+            items={pdfItems}
             subtotal={subtotal}
             tax={tax}
             total={total}

@@ -2,6 +2,7 @@
 import React, { useState, useContext } from 'react';
 import { TrendingUp, BarChart3, ArrowUpRight, DollarSign, PieChart } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
+import { useAuth } from '../lib/auth';
 
 interface LoginPageProps {
   onLogin: () => void;
@@ -9,7 +10,11 @@ interface LoginPageProps {
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const { companyName, companyLogo } = useContext(LanguageContext);
-  const [email, setEmail] = useState('admin@ramzon.sr');
+  const { login } = useAuth();
+  const [email, setEmail] = useState(import.meta.env.VITE_DEFAULT_EMAIL ?? '');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 md:p-8">
@@ -38,7 +43,19 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-3">Internal ERP System</p>
             </div>
             
-            <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); onLogin(); }}>
+            <form className="space-y-6" onSubmit={async (e) => {
+              e.preventDefault();
+              setError(null);
+              setIsLoading(true);
+              try {
+                await login(email, password);
+                onLogin();
+              } catch {
+                setError('Invalid email or password');
+              } finally {
+                setIsLoading(false);
+              }
+            }}>
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700 uppercase tracking-widest text-[10px]">Email Address</label>
                 <input 
@@ -55,19 +72,26 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 <div className="flex justify-between items-center">
                   <label className="text-sm font-bold text-slate-700 uppercase tracking-widest text-[10px]">Password</label>
                 </div>
-                <input 
+                <input
                   aria-label="Wachtwoord"
-                  type="password" 
-                  defaultValue="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
                   className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-accent focus:bg-white outline-none transition-all shadow-sm font-medium"
                 />
               </div>
 
-              <button 
+              {error && (
+                <p className="text-red-500 text-xs font-bold text-center">{error}</p>
+              )}
+
+              <button
                 type="submit"
-                className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl hover:bg-slate-800 transition-all shadow-[0_20px_40px_-10px_rgba(15,23,42,0.3)] active:scale-95 mt-6 uppercase tracking-[0.2em] text-xs"
+                disabled={isLoading}
+                className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl hover:bg-slate-800 transition-all shadow-[0_20px_40px_-10px_rgba(15,23,42,0.3)] active:scale-95 mt-6 uppercase tracking-[0.2em] text-xs disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Authenticate Access
+                {isLoading ? 'Authenticating...' : 'Authenticate Access'}
               </button>
             </form>
 

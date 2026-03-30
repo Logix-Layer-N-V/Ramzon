@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
-import { ArrowLeft, Save, Plus, Trash2, Receipt, Users, Search, Send, Check, Sparkles, X, TrendingUp, Banknote, Ruler } from 'lucide-react';
+import { useAuth } from '../lib/auth';
+import { ArrowLeft, Save, Plus, Trash2, Receipt, Users, Search, Send, Check, Sparkles, X, TrendingUp, Banknote, Ruler, UserPlus } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
 import { InvoiceSchema } from '../lib/schemas';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
@@ -8,6 +9,7 @@ import { Estimate, Invoice, WoodSpecies } from '../types';
 import { previewDocNumber, commitDocNumber } from '../lib/docNumbering';
 import { getLatestExchangeRate, storage } from '../lib/storage';
 import DocPDFModal from '../components/DocPDFModal';
+import QuickAddClientModal from '../components/QuickAddClientModal';
 
 type ItemType = 'product' | 'service' | 'item';
 interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; qty: number; unit: string; price: number; discount: number; taxRate: number; mmW?: number; mmH?: number; }
@@ -32,10 +34,13 @@ const catToDescInv = (cat: string) => {
 const CreateInvoicePage: React.FC = () => {
   const navigate = useNavigate();
   const { currencySymbol, enableCrypto } = useContext(LanguageContext);
+  const { user } = useAuth();
   const location = useLocation();
   const { id: editId } = useParams();
   const isEdit = !!editId;
   const [selectedClient, setSelectedClient] = useState('');
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [clientRefresh, setClientRefresh] = useState(0);
   const [currency, setCurrency] = useState('SRD');
   const [exchangeRate, setExchangeRate] = useState<number>(1);
   const [docTaxRate] = useState(21);
@@ -51,14 +56,20 @@ const CreateInvoicePage: React.FC = () => {
     return d.toISOString().split('T')[0];
   });
   const [docNumber] = useState(() => isEdit ? '' : previewDocNumber('inv'));
-  const [selectedRep, setSelectedRep] = useState<string>(() =>
-    localStorage.getItem('erp_active_user_name') ?? mockUsers.find(u => u.role === 'Admin' && u.status === 'Active')?.name ?? ''
-  );
+  const selectedRep = user?.name ?? '';
   const [paidAmount, setPaidAmount] = useState<number>(0);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [itemSearch, setItemSearch] = useState('');
   const [showItemSearch, setShowItemSearch] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const searchRef = useRef<HTMLDivElement>(null);
+
+  const allClients = useMemo(() => {
+    const stored = storage.clients.get();
+    if (stored.length === 0) return mockClients;
+    const ids = new Set(stored.map(c => c.id));
+    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
+  }, [clientRefresh]);
 
   // Dynamic catalog: merge services + storage products (fallback to static if empty)
   const [storedProducts] = useState(() => storage.products.get());
@@ -103,11 +114,11 @@ const CreateInvoicePage: React.FC = () => {
 
   useEffect(() => {
     if (editId) {
-      const existing = mockInvoices.find(i => i.id === editId);
+      const existing = storage.invoices.get().find(i => i.id === editId) ?? mockInvoices.find(i => i.id === editId);
       if (existing) {
         setSelectedClient(existing.clientId);
         if (existing.items?.length > 0) {
-          setItems(existing.items.map(i => ({ id: (i as any).id || Math.random().toString(36).slice(2), type: 'item' as ItemType, description: (i as any).description || '', houtsoort: '', qty: (i as any).quantity || 1, unit: 'PCS', price: (i as any).unitPrice || 0, discount: 0, taxRate: (i as any).taxRate ?? 10 })));
+          setItems(existing.items.map(i => ({ id: (i as any).id || Math.random().toString(36).slice(2), type: 'item' as ItemType, description: (i as any).description || '', houtsoort: '', qty: (i as any).quantity || 1, unit: 'PCS', price: (i as any).unitPrice || 0, discount: 0, taxRate: (i as any).taxRate ?? 21 })));
         }
       }
     }
@@ -122,7 +133,7 @@ const CreateInvoicePage: React.FC = () => {
       if (est.currency) setCurrency(est.currency);
       if (est.exchangeRate) setExchangeRate(est.exchangeRate);
       if (est.items?.length > 0) {
-        setItems(est.items.map(i => ({ id: i.id, type: 'item' as ItemType, description: i.description, houtsoort: '', qty: i.quantity, unit: 'PCS', price: i.unitPrice, discount: 0, taxRate: (i as any).taxRate ?? 10 })));
+        setItems(est.items.map(i => ({ id: i.id, type: 'item' as ItemType, description: i.description, houtsoort: '', qty: i.quantity, unit: 'PCS', price: i.unitPrice, discount: 0, taxRate: (i as any).taxRate ?? 21 })));
       }
     } else if (state?.fromDuplicate) {
       const dup = state.fromDuplicate;
@@ -138,7 +149,7 @@ const CreateInvoicePage: React.FC = () => {
           unit: i.unit || 'PCS',
           price: i.unitPrice || i.price || 0,
           discount: 0,
-          taxRate: i.taxRate ?? 10,
+          taxRate: i.taxRate ?? 21,
         })));
       }
     }
@@ -147,10 +158,15 @@ const CreateInvoicePage: React.FC = () => {
   // Auto-fill preferred currency when client changes
   useEffect(() => {
     if (selectedClient) {
-      const c = mockClients.find(cl => cl.id === selectedClient);
+      const c = allClients.find(cl => cl.id === selectedClient);
       if (c?.preferredCurrency) setCurrency(c.preferredCurrency);
     }
   }, [selectedClient]);
+
+  // Reset USDT currency if crypto is disabled
+  useEffect(() => {
+    if (!enableCrypto && currency === 'USDT') setCurrency('SRD');
+  }, [enableCrypto]);
 
   // Auto-fill exchange rate whenever currency changes (including on mount from conversion state)
   useEffect(() => {
@@ -188,7 +204,7 @@ const CreateInvoicePage: React.FC = () => {
       type: item.type,
       description: item.type === 'product' ? `${item.desc} — ${item.name}` : item.name,
       houtsoort: item.type === 'product' ? RAMZON_HOUTSOORTEN[0] : '',
-      qty: 1, unit: item.unit, price: item.price, discount: 0, taxRate: 10,
+      qty: 1, unit: item.unit, price: item.price, discount: 0, taxRate: 21,
       mmW: item.unit === 'm²' ? 800 : undefined,
       mmH: item.unit === 'm²' ? 2100 : undefined,
     }]);
@@ -197,7 +213,7 @@ const CreateInvoicePage: React.FC = () => {
   };
 
   const addItem = () => {
-    setItems(prev => [...prev, { id: Math.random().toString(36).slice(2), type: 'item', description: '', houtsoort: '', qty: 1, unit: 'PCS', price: 0, discount: 0, taxRate: 10 }]);
+    setItems(prev => [...prev, { id: Math.random().toString(36).slice(2), type: 'item', description: '', houtsoort: '', qty: 1, unit: 'PCS', price: 0, discount: 0, taxRate: 21 }]);
     setShowItemSearch(false);
     setItemSearch('');
   };
@@ -205,19 +221,16 @@ const CreateInvoicePage: React.FC = () => {
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
   const updateItem = (id: string, field: keyof LineItem, val: any) => setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
   const handleSave = () => {
-    const result = InvoiceSchema.safeParse({
-      clientId: selectedClient,
-      date: invoiceDate,
-      dueDate: dueDate,
-      items: items.map(i => ({ description: i.description, qty: i.qty, price: i.price })),
-    });
-    if (!result.success) {
-      alert(result.error.issues[0].message);
-      return;
-    }
+    const newErrors: Record<string, string> = {};
+    if (!selectedClient) newErrors.clientId = 'Selecteer een klant';
+    if (items.length === 0) newErrors.items = 'Voeg minimaal één artikel toe';
+    const invalidItems = items.filter(i => i.qty <= 0 || i.price < 0);
+    if (invalidItems.length > 0) newErrors.itemValues = 'Alle artikelen moeten een geldige hoeveelheid en prijs hebben';
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
     const num = isEdit ? docNumber : commitDocNumber('inv');
     setCommittedDocNumber(num);
-    const clientObj = mockClients.find(c => c.id === selectedClient);
+    const clientObj = allClients.find(c => c.id === selectedClient);
     const inv: Invoice = {
       id: isEdit && editId ? editId : Math.random().toString(36).slice(2, 10),
       invoiceNumber: num,
@@ -296,11 +309,22 @@ const CreateInvoicePage: React.FC = () => {
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                 <Users size={12} /> Select Client
               </label>
-              <select aria-label="Select client" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none appearance-none">
-                <option value="">-- Select a Client --</option>
-                {mockClients.map(c => <option key={c.id} value={c.id}>{c.name}{c.company ? ` — ${c.company}` : ''}</option>)}
-              </select>
+              <div className="flex gap-2">
+                <select aria-label="Select client" value={selectedClient} onChange={(e) => { setSelectedClient(e.target.value); if (errors.clientId) setErrors(prev => ({ ...prev, clientId: '' })); }}
+                  className={`flex-1 px-4 py-3 bg-slate-50 border rounded-xl text-sm font-bold outline-none appearance-none ${errors.clientId ? 'border-red-400' : 'border-slate-200'}`}>
+                  <option value="">-- Select a Client --</option>
+                  {allClients.map(c => <option key={c.id} value={c.id}>{c.name}{c.company ? ` — ${c.company}` : ''}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowAddClient(true)}
+                  className="px-3 py-3 bg-brand-primary text-white rounded-xl hover:opacity-90 transition-all active:scale-95 shrink-0"
+                  title="Nieuwe klant toevoegen"
+                >
+                  <UserPlus size={16} />
+                </button>
+              </div>
+              {errors.clientId && <p className="text-red-500 text-xs mt-1">{errors.clientId}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice Date</label>
@@ -342,13 +366,9 @@ const CreateInvoicePage: React.FC = () => {
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                 <Users size={12} /> Sales Rep
               </label>
-              <select aria-label="Sales rep" value={selectedRep} onChange={e => { setSelectedRep(e.target.value); localStorage.setItem('erp_active_user_name', e.target.value); }}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none appearance-none">
-                <option value="">— No Rep —</option>
-                {mockUsers.filter(u => u.status === 'Active').map(u => (
-                  <option key={u.id} value={u.name}>{u.name} ({u.role})</option>
-                ))}
-              </select>
+              <div className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 select-none">
+                {selectedRep || '—'}
+              </div>
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -548,7 +568,7 @@ const CreateInvoicePage: React.FC = () => {
 
           {/* Empty state */}
           {items.length === 0 && (
-            <div className="py-10 text-center border-2 border-dashed border-slate-100 rounded-2xl">
+            <div className={`py-10 text-center border-2 border-dashed rounded-2xl ${errors.items ? 'border-red-300 bg-red-50/30' : 'border-slate-100'}`}>
               <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
                 <Receipt size={20} className="text-slate-300"/>
               </div>
@@ -556,8 +576,10 @@ const CreateInvoicePage: React.FC = () => {
               <p className="text-xs text-slate-300 mt-1">
                 Search above or type <kbd className="px-1.5 py-0.5 bg-slate-100 rounded-md text-[10px] font-black text-slate-500 border border-slate-200">/</kbd> to filter by category
               </p>
+              {errors.items && <p className="text-red-500 text-xs mt-2 font-bold">{errors.items}</p>}
             </div>
           )}
+          {errors.itemValues && items.length > 0 && <p className="text-red-500 text-xs mt-1">{errors.itemValues}</p>}
 
           {/* Line items table */}
           {items.length > 0 && (
@@ -609,6 +631,7 @@ const CreateInvoicePage: React.FC = () => {
                     className="w-full px-1.5 py-1 border border-slate-200 bg-white rounded-lg text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 transition-all text-center">
                     <option value={0}>0%</option>
                     <option value={10}>10%</option>
+                    <option value={21}>Std 21%</option>
                   </select>
                   {/* Price */}
                   <div className="flex items-center gap-0.5 border border-slate-200 rounded-lg px-2 py-1 hover:border-slate-300 focus-within:border-blue-300 focus-within:bg-white transition-all">
@@ -689,12 +712,12 @@ const CreateInvoicePage: React.FC = () => {
               {isEdit && (
                 <button
                   onClick={() => navigate('/payments/new', { state: { fromInvoice: { invoiceId: editId, clientId: selectedClient, total } } })}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-500 transition-all active:scale-95 shadow-lg"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:opacity-90 transition-all active:scale-95 shadow-lg"
                 >
                   <Banknote size={14} /> Record Payment
                 </button>
               )}
-              <button onClick={handleSave} className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:bg-emerald-500 transition-all active:scale-95">
+              <button onClick={handleSave} className="flex items-center gap-2 px-6 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:opacity-90 transition-all active:scale-95">
                 {saved ? <Check size={14} /> : <Save size={14} />}
                 {saved ? 'Processing...' : 'Finalize Invoice'}
               </button>
@@ -709,12 +732,12 @@ const CreateInvoicePage: React.FC = () => {
         docType="invoice"
         docNumber={committedDocNumber}
         date={invoiceDate}
-        clientName={mockClients.find(c => c.id === selectedClient)?.name ?? selectedClient}
-        clientCompany={mockClients.find(c => c.id === selectedClient)?.company}
-        clientAddress={mockClients.find(c => c.id === selectedClient)?.address}
-        clientPhone={mockClients.find(c => c.id === selectedClient)?.phone}
-        clientEmail={mockClients.find(c => c.id === selectedClient)?.email}
-        clientVAT={mockClients.find(c => c.id === selectedClient)?.vatNumber}
+        clientName={allClients.find(c => c.id === selectedClient)?.name ?? selectedClient}
+        clientCompany={allClients.find(c => c.id === selectedClient)?.company}
+        clientAddress={allClients.find(c => c.id === selectedClient)?.address}
+        clientPhone={allClients.find(c => c.id === selectedClient)?.phone}
+        clientEmail={allClients.find(c => c.id === selectedClient)?.email}
+        clientVAT={allClients.find(c => c.id === selectedClient)?.vatNumber}
         rep={selectedRep || undefined}
         paidAmount={paidAmount > 0 ? paidAmount : undefined}
         currency={currency}
@@ -736,6 +759,16 @@ const CreateInvoicePage: React.FC = () => {
         tax={tax}
         total={total}
         onClose={() => { setShowPdfModal(false); navigate('/invoices'); }}
+      />
+    )}
+    {showAddClient && (
+      <QuickAddClientModal
+        onClose={() => setShowAddClient(false)}
+        onCreated={(client) => {
+          setClientRefresh(r => r + 1);
+          setSelectedClient(client.id);
+          setShowAddClient(false);
+        }}
       />
     )}
     </>

@@ -1,19 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Layers, Trees, DoorOpen, Ruler, Grid2x2,
+  Layers, Trees, LayoutGrid, Ruler, Grid2x2,
   Plus, Pencil, Trash2, Save, X, Check, ChevronLeft
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { storage } from '../lib/storage';
 import type { WoodSpecies, DoorModel, ProfileSize, DoorPriceEntry } from '../types';
 
-// ─── Defaults ────────────────────────────────────────────────────────────────
+// ─── Types & Defaults ─────────────────────────────────────────────────────────
+type PricingType = 'm2' | 'lm' | 'pcs';
+
+const PRICING_OPTIONS: { value: PricingType; badge: string; label: string; color: string }[] = [
+  { value: 'm2',  badge: 'm²',  label: 'Per m² (oppervlakte)', color: 'bg-blue-50 text-blue-700 border-blue-200'          },
+  { value: 'lm',  badge: 'lm',  label: 'Per lm (lengte)',       color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  { value: 'pcs', badge: 'PCS', label: 'Vast item (PCS)',       color: 'bg-amber-50 text-amber-700 border-amber-200'       },
+];
+
 const DEFAULT_CATEGORIES = [
-  { id: 'cat1', name: 'Doors',         description: 'Houtsoort → Model deur → Afmeting (m²)' },
-  { id: 'cat2', name: 'Mouldings',     description: 'Houtsoort → Product type → Lengte (lm)' },
-  { id: 'cat3', name: 'Frames',        description: 'Houtsoort → Afmeting profiel → Lengte (lm)' },
-  { id: 'cat4', name: 'Window Frames', description: 'Houtsoort → Doorsnee maat → Lengte (lm)' },
-  { id: 'cat5', name: 'Crating',       description: 'Crate type → Prijs per stuk' },
+  { id: 'cat1', name: 'Doors',         description: 'Area-based pricing',   pricingType: 'm2'  as PricingType },
+  { id: 'cat2', name: 'Mouldings',     description: 'Length-based pricing', pricingType: 'lm'  as PricingType },
+  { id: 'cat3', name: 'Frames',        description: 'Length-based pricing', pricingType: 'lm'  as PricingType },
+  { id: 'cat4', name: 'Window Frames', description: 'Length-based pricing', pricingType: 'lm'  as PricingType },
+  { id: 'cat5', name: 'Crating',       description: 'Fixed item pricing',   pricingType: 'pcs' as PricingType },
 ];
 const DEFAULT_SPECIES: WoodSpecies[] = [
   { id: 'ws1', name: 'Teak',        color: '#c8a87a' },
@@ -26,9 +34,9 @@ const DEFAULT_SPECIES: WoodSpecies[] = [
   { id: 'ws8', name: 'Ipe',         color: '#5c3a1a' },
 ];
 const DEFAULT_MODELS: DoorModel[] = [
-  { id: 'dm1', name: 'Panel door' }, { id: 'dm2', name: 'Classic door' },
-  { id: 'dm3', name: 'Stile & rail door' }, { id: 'dm4', name: 'Sliding door' },
-  { id: 'dm5', name: 'Overlay door' }, { id: 'dm6', name: 'Louvre door' },
+  { id: 'dm1', name: 'Panel door' },       { id: 'dm2', name: 'Classic door' },
+  { id: 'dm3', name: 'Stile & rail door' },{ id: 'dm4', name: 'Sliding door' },
+  { id: 'dm5', name: 'Overlay door' },     { id: 'dm6', name: 'Louvre door' },
 ];
 const DEFAULT_PROFILES: ProfileSize[] = [
   { id: 'ps1', label: '800×2100mm',  mmW: 800,  mmH: 2100 },
@@ -39,11 +47,9 @@ const DEFAULT_PROFILES: ProfileSize[] = [
 
 type Tab = 'categories' | 'species' | 'models' | 'profiles' | 'matrix';
 const TABS: { id: Tab; label: string; icon: React.ComponentType<any> }[] = [
-  { id: 'categories', label: 'Categories',    icon: Layers   },
-  { id: 'species',    label: 'Wood Species',  icon: Trees    },
-  { id: 'models',     label: 'Door Models',   icon: DoorOpen },
-  { id: 'profiles',   label: 'Profile Sizes', icon: Ruler    },
-  { id: 'matrix',     label: 'Price Matrix',  icon: Grid2x2  },
+  { id: 'categories', label: 'Categories',   icon: Layers     },
+  { id: 'models',     label: 'Models',       icon: LayoutGrid },
+  { id: 'species',    label: 'Wood Species', icon: Trees      },
 ];
 
 function EditableRow({ value, onSave, onCancel }: {
@@ -71,14 +77,20 @@ const ProductCategoriesPage: React.FC = () => {
 
   // ── Categories ──────────────────────────────────────────────────────────────
   const [categories, setCategories] = useState<any[]>(() => {
-    try { return JSON.parse(localStorage.getItem('erp_product_categories') ?? 'null') ?? DEFAULT_CATEGORIES; }
-    catch { return DEFAULT_CATEGORIES; }
+    try {
+      const saved = JSON.parse(localStorage.getItem('erp_product_categories') ?? 'null');
+      // migrate: if any category lacks pricingType, the data is old → reset to defaults
+      if (!saved || saved.some((c: any) => !c.pricingType)) return DEFAULT_CATEGORIES;
+      return saved;
+    } catch { return DEFAULT_CATEGORIES; }
   });
   useEffect(() => { localStorage.setItem('erp_product_categories', JSON.stringify(categories)); }, [categories]);
   const [addingCat, setAddingCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatDesc, setNewCatDesc] = useState('');
+  const [newCatPricingType, setNewCatPricingType] = useState<PricingType>('pcs');
   const [editCatId, setEditCatId] = useState<string | null>(null);
+  const [editCatData, setEditCatData] = useState<{ name: string; description: string; pricingType: PricingType } | null>(null);
 
   // ── Wood Species ─────────────────────────────────────────────────────────────
   const [species, setSpecies] = useState<WoodSpecies[]>(() => {
@@ -91,11 +103,15 @@ const ProductCategoriesPage: React.FC = () => {
   const [newSpMarkup, setNewSpMarkup] = useState(0);
   const [editSpId, setEditSpId] = useState<string | null>(null);
 
-  // ── Door Models ──────────────────────────────────────────────────────────────
-  const [models, setModels] = useState<DoorModel[]>(() => {
-    const m = storage.doorModels.get(); return m.length ? m : DEFAULT_MODELS;
+  // ── Models (per category) ────────────────────────────────────────────────────
+  const [models, setModels] = useState<any[]>(() => {
+    const m = storage.doorModels.get();
+    const base = m.length ? m : DEFAULT_MODELS;
+    // migrate: assign orphaned models (no categoryId) to 'cat1'
+    return base.map((x: any) => x.categoryId ? x : { ...x, categoryId: 'cat1' });
   });
-  const saveModels = (updated: DoorModel[]) => { setModels(updated); storage.doorModels.save(updated); };
+  const saveModels = (updated: any[]) => { setModels(updated); storage.doorModels.save(updated); };
+  const [selectedCatForModels, setSelectedCatForModels] = useState<string>(() => categories[0]?.id ?? 'cat1');
   const [addingModel, setAddingModel] = useState(false);
   const [editModelId, setEditModelId] = useState<string | null>(null);
 
@@ -115,6 +131,7 @@ const ProductCategoriesPage: React.FC = () => {
   // ── Price Matrix ─────────────────────────────────────────────────────────────
   const [matrix, setMatrix] = useState<DoorPriceEntry[]>(() => storage.doorPriceMatrix.get());
   const [matrixSaved, setMatrixSaved] = useState(false);
+  const doorModelsForMatrix = models.filter((m: any) => m.categoryId === 'cat1');
   const getPrice = (modelId: string, speciesId: string) =>
     matrix.find(e => e.modelId === modelId && e.woodSpeciesId === speciesId)?.pricePerM2 ?? 0;
   const setPrice = (modelId: string, speciesId: string, price: number) => {
@@ -130,6 +147,10 @@ const ProductCategoriesPage: React.FC = () => {
     setTimeout(() => setMatrixSaved(false), 2000);
   };
 
+  // Models filtered for currently selected category in Models tab
+  const filteredModels = models.filter((m: any) => m.categoryId === selectedCatForModels);
+  const activeCatForModels = categories.find((c: any) => c.id === selectedCatForModels);
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-12">
       {/* Header */}
@@ -139,7 +160,7 @@ const ProductCategoriesPage: React.FC = () => {
         </button>
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Product Configuration</h1>
-          <p className="text-sm font-medium text-slate-500">Manage categories, wood species, door models, profiles & pricing</p>
+          <p className="text-sm font-medium text-slate-500">Manage categories, wood species, models, profiles & pricing</p>
         </div>
       </div>
 
@@ -163,41 +184,106 @@ const ProductCategoriesPage: React.FC = () => {
             <div className="px-8 py-5 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
               <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest italic flex items-center gap-2"><Layers size={15} /> Product Categories</h3>
               <button onClick={() => setAddingCat(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all">
-                <Plus size={13} /> Add
+                <Plus size={13} /> Add Category
               </button>
             </div>
             <div className="p-6 space-y-2">
+              {/* Add form */}
               {addingCat && (
-                <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl space-y-3">
-                  <input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="Category name (e.g. Kozijnen)" autoFocus
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none" />
-                  <input value={newCatDesc} onChange={e => setNewCatDesc(e.target.value)} placeholder="Flow description (e.g. Houtsoort → Doorsnee maat)"
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none" />
+                <div className="p-5 bg-blue-50 border border-blue-100 rounded-2xl space-y-4 mb-4">
+                  <p className="text-xs font-black text-blue-700 uppercase tracking-widest">New Category</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="Category name (e.g. Kozijnen)" autoFocus
+                      className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-blue-300" />
+                    <input value={newCatDesc} onChange={e => setNewCatDesc(e.target.value)} placeholder="Description (optional)"
+                      className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-blue-300" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Pricing Type</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {PRICING_OPTIONS.map(opt => (
+                        <button key={opt.value} onClick={() => setNewCatPricingType(opt.value)}
+                          className={`px-4 py-2 rounded-xl text-xs font-black border transition-all ${newCatPricingType === opt.value ? 'bg-slate-900 text-white border-slate-900 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'}`}>
+                          {opt.badge} {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="flex gap-2">
                     <button onClick={() => {
                       if (!newCatName.trim()) return;
-                      setCategories([...categories, { id: `cat${Date.now()}`, name: newCatName.trim(), description: newCatDesc.trim() }]);
-                      setNewCatName(''); setNewCatDesc(''); setAddingCat(false);
-                    }} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">Save</button>
-                    <button onClick={() => setAddingCat(false)} className="px-4 py-2 text-slate-400 text-xs font-bold">Cancel</button>
+                      setCategories([...categories, { id: `cat${Date.now()}`, name: newCatName.trim(), description: newCatDesc.trim(), pricingType: newCatPricingType }]);
+                      setNewCatName(''); setNewCatDesc(''); setNewCatPricingType('pcs'); setAddingCat(false);
+                    }} className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">Save Category</button>
+                    <button onClick={() => { setAddingCat(false); setNewCatName(''); setNewCatDesc(''); }} className="px-4 py-2 text-slate-400 text-xs font-bold hover:text-slate-700">Cancel</button>
                   </div>
                 </div>
               )}
-              {categories.map((cat: any) => (
-                <div key={cat.id} className={ROW}>
-                  <div>
-                    <p className="font-black text-slate-900">{cat.name}</p>
-                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">{cat.description}</p>
+
+              {/* Category rows */}
+              {categories.map((cat: any) => {
+                const pt: PricingType = cat.pricingType ?? 'pcs';
+                const ptOpt = PRICING_OPTIONS.find(o => o.value === pt) ?? PRICING_OPTIONS[2];
+                const modelCount = models.filter((m: any) => m.categoryId === cat.id).length;
+
+                if (editCatId === cat.id && editCatData) {
+                  return (
+                    <div key={cat.id} className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <input value={editCatData.name} onChange={e => setEditCatData({ ...editCatData, name: e.target.value })} autoFocus
+                          className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none" />
+                        <input value={editCatData.description} onChange={e => setEditCatData({ ...editCatData, description: e.target.value })}
+                          className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none" />
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        {PRICING_OPTIONS.map(opt => (
+                          <button key={opt.value} onClick={() => setEditCatData({ ...editCatData, pricingType: opt.value })}
+                            className={`px-4 py-2 rounded-xl text-xs font-black border transition-all ${editCatData.pricingType === opt.value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'}`}>
+                            {opt.badge} {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => {
+                          if (!editCatData.name.trim()) return;
+                          setCategories(categories.map((c: any) => c.id === cat.id ? { ...c, name: editCatData.name.trim(), description: editCatData.description, pricingType: editCatData.pricingType } : c));
+                          setEditCatId(null); setEditCatData(null);
+                        }} className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">Save</button>
+                        <button onClick={() => { setEditCatId(null); setEditCatData(null); }} className="px-4 py-2 text-slate-400 text-xs font-bold">Cancel</button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={cat.id} className={ROW}>
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-black text-slate-900">{cat.name}</p>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black border ${ptOpt.color}`}>{ptOpt.badge}</span>
+                          {modelCount > 0 && (
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full text-[9px] font-black">
+                              {modelCount} model{modelCount !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                        {cat.description && <p className="text-[11px] text-slate-400 font-medium mt-0.5">{cat.description}</p>}
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button className={`${BTN_ICON} text-slate-400 hover:text-slate-700 hover:bg-slate-100`}
+                        onClick={() => { setEditCatId(cat.id); setEditCatData({ name: cat.name, description: cat.description ?? '', pricingType: cat.pricingType ?? 'pcs' }); }}>
+                        <Pencil size={13} />
+                      </button>
+                      <button className={`${BTN_ICON} text-slate-300 hover:text-red-500 hover:bg-red-50`}
+                        onClick={() => window.confirm(`Delete "${cat.name}"?`) && setCategories(categories.filter((c: any) => c.id !== cat.id))}>
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    <button className={`${BTN_ICON} text-slate-400 hover:text-slate-700 hover:bg-slate-100`} onClick={() => setEditCatId(cat.id)}><Pencil size={13} /></button>
-                    <button className={`${BTN_ICON} text-slate-300 hover:text-red-500 hover:bg-red-50`}
-                      onClick={() => window.confirm(`Delete "${cat.name}"?`) && setCategories(categories.filter((c: any) => c.id !== cat.id))}>
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
@@ -272,36 +358,87 @@ const ProductCategoriesPage: React.FC = () => {
           </>
         )}
 
-        {/* ── DOOR MODELS ───────────────────────────────────────────────────── */}
+        {/* ── MODELS (per category) ─────────────────────────────────────────── */}
         {activeTab === 'models' && (
           <>
             <div className="px-8 py-5 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
-              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest italic flex items-center gap-2"><DoorOpen size={15} /> Door Models</h3>
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest italic flex items-center gap-2"><LayoutGrid size={15} /> Models</h3>
               <button onClick={() => setAddingModel(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all">
                 <Plus size={13} /> Add Model
               </button>
             </div>
-            <div className="p-6 space-y-2 max-w-xl">
+
+            {/* Category selector */}
+            <div className="px-6 pt-5 pb-3 border-b border-slate-100">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Select Category</p>
+              <div className="flex flex-wrap gap-2">
+                {categories.map((cat: any) => {
+                  const pt: PricingType = cat.pricingType ?? 'pcs';
+                  const ptOpt = PRICING_OPTIONS.find(o => o.value === pt) ?? PRICING_OPTIONS[2];
+                  return (
+                    <button key={cat.id} onClick={() => setSelectedCatForModels(cat.id)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black border transition-all ${
+                        selectedCatForModels === cat.id
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400'
+                      }`}>
+                      {ptOpt.badge} {cat.name}
+                      <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[9px] font-black ${selectedCatForModels === cat.id ? 'bg-white/20' : 'bg-slate-200 text-slate-500'}`}>
+                        {models.filter((m: any) => m.categoryId === cat.id).length}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="p-6 space-y-2 max-w-2xl">
+              {/* Add form */}
               {addingModel && (
-                <div className="p-3 bg-blue-50 border border-blue-100 rounded-2xl">
-                  <EditableRow value="" onSave={v => { saveModels([...models, { id: `dm${Date.now()}`, name: v }]); setAddingModel(false); }} onCancel={() => setAddingModel(false)} />
+                <div className="p-3 bg-blue-50 border border-blue-100 rounded-2xl mb-2">
+                  <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-2">
+                    Adding model for: {activeCatForModels?.name ?? '—'}
+                  </p>
+                  <EditableRow
+                    value=""
+                    onSave={v => {
+                      saveModels([...models, { id: `dm${Date.now()}`, name: v, categoryId: selectedCatForModels }]);
+                      setAddingModel(false);
+                    }}
+                    onCancel={() => setAddingModel(false)}
+                  />
                 </div>
               )}
-              {models.map((m) => (
+
+              {filteredModels.length === 0 && !addingModel && (
+                <div className="py-10 text-center">
+                  <LayoutGrid size={32} className="mx-auto mb-2 text-slate-200" />
+                  <p className="text-sm font-bold text-slate-400">No models for {activeCatForModels?.name ?? 'this category'} yet</p>
+                  <button onClick={() => setAddingModel(true)}
+                    className="mt-3 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black hover:bg-slate-800">
+                    + Add first model
+                  </button>
+                </div>
+              )}
+
+              {filteredModels.map((m: any) => (
                 <div key={m.id} className={ROW}>
                   {editModelId === m.id ? (
                     <EditableRow value={m.name}
-                      onSave={v => { saveModels(models.map(x => x.id === m.id ? { ...x, name: v } : x)); setEditModelId(null); }}
+                      onSave={v => { saveModels(models.map((x: any) => x.id === m.id ? { ...x, name: v } : x)); setEditModelId(null); }}
                       onCancel={() => setEditModelId(null)} />
                   ) : (
                     <>
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400"><DoorOpen size={14} /></div>
+                        <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
+                          <LayoutGrid size={14} />
+                        </div>
                         <span className="font-black text-slate-900">{m.name}</span>
                       </div>
                       <div className="flex gap-1">
                         <button className={`${BTN_ICON} text-slate-400 hover:text-slate-700 hover:bg-slate-100`} onClick={() => setEditModelId(m.id)}><Pencil size={13} /></button>
-                        <button className={`${BTN_ICON} text-slate-300 hover:text-red-500 hover:bg-red-50`} onClick={() => saveModels(models.filter(x => x.id !== m.id))}><Trash2 size={13} /></button>
+                        <button className={`${BTN_ICON} text-slate-300 hover:text-red-500 hover:bg-red-50`}
+                          onClick={() => saveModels(models.filter((x: any) => x.id !== m.id))}><Trash2 size={13} /></button>
                       </div>
                     </>
                   )}
@@ -342,7 +479,7 @@ const ProductCategoriesPage: React.FC = () => {
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Type</label>
                     <div className="flex gap-1">
                       <button onClick={() => setNewProfType('surface')}
-                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all ${newProfType === 'surface' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-blue-300'}`}>
+                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all ${newProfType === 'surface' ? 'bg-brand-primary text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-brand-primary'}`}>
                         ⊞ Surface
                       </button>
                       <button onClick={() => setNewProfType('length')}
@@ -382,7 +519,7 @@ const ProductCategoriesPage: React.FC = () => {
                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Type</label>
                         <div className="flex gap-1">
                           <button onClick={() => setEditProfData({ ...editProfData, measureType: 'surface' })}
-                            className={`px-3 py-2 rounded-xl text-xs font-black transition-all ${editProfData.measureType === 'surface' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                            className={`px-3 py-2 rounded-xl text-xs font-black transition-all ${editProfData.measureType === 'surface' ? 'bg-brand-primary text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                             ⊞ Surface
                           </button>
                           <button onClick={() => setEditProfData({ ...editProfData, measureType: 'length' })}
@@ -442,8 +579,8 @@ const ProductCategoriesPage: React.FC = () => {
               </button>
             </div>
             <div className="p-6 overflow-x-auto">
-              {models.length === 0 ? (
-                <p className="text-slate-400 text-sm font-medium py-8 text-center">Add door models in the Door Models tab first.</p>
+              {doorModelsForMatrix.length === 0 ? (
+                <p className="text-slate-400 text-sm font-medium py-8 text-center">Add door models in the Models tab first (select the Doors category).</p>
               ) : (
                 <table className="border-collapse text-sm">
                   <thead>
@@ -460,7 +597,7 @@ const ProductCategoriesPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {models.map((m, ri) => (
+                    {doorModelsForMatrix.map((m: any, ri: number) => (
                       <tr key={m.id} className={ri % 2 === 0 ? 'bg-slate-50/50' : ''}>
                         <td className="px-4 py-3 font-black text-slate-800 text-xs whitespace-nowrap border-r border-slate-100">{m.name}</td>
                         {species.map(sp => (

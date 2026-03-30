@@ -1,21 +1,48 @@
 
-import React, { useContext } from 'react';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Receipt, 
-  Clock, 
-  AlertCircle, 
+import React, { useContext, useMemo } from 'react';
+import {
+  TrendingUp,
+  TrendingDown,
+  Receipt,
+  Clock,
+  AlertCircle,
   DollarSign,
   ArrowUpRight,
   ChevronRight
 } from 'lucide-react';
-import { mockInvoices } from '../lib/mock-data';
+import { mockInvoices, mockPayments, mockEstimates, mockExpenses, mockCredits, mockClients } from '../lib/mock-data';
+import { storage } from '../lib/storage';
 import { LanguageContext } from '../lib/context';
+import type { Invoice, Payment, Estimate, Expense, Credit, Client } from '../types';
+
+const merge = <T extends { id: string }>(stored: T[], mock: T[]): T[] => {
+  if (stored.length === 0) return mock;
+  const ids = new Set(stored.map(x => x.id));
+  return [...mock.filter(x => !ids.has(x.id)), ...stored];
+};
 
 const DashboardPage: React.FC = () => {
   const { currencySymbol } = useContext(LanguageContext);
-  const pendingInvoices = mockInvoices.filter(i => i.status === 'Pending');
+
+  const invoices  = useMemo(() => merge(storage.invoices.get(),  mockInvoices),  []);
+  const payments  = useMemo(() => merge(storage.payments.get(),  mockPayments),  []);
+  const estimates = useMemo(() => merge(storage.estimates.get(), mockEstimates), []);
+  const expenses  = useMemo(() => merge(storage.expenses.get(),  mockExpenses),  []);
+  const credits   = useMemo(() => merge(storage.credits.get(),   mockCredits),   []);
+  const clients   = useMemo(() => merge(storage.clients.get(),   mockClients),   []);
+
+  // KPI computations
+  const totalRevenue   = payments.filter(p => p.status !== 'Refunded').reduce((sum, p) => sum + p.amount, 0);
+  const totalExpenses  = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const creditNotes    = credits.reduce((sum, c) => sum + c.amount, 0);
+  const netProfit      = totalRevenue - totalExpenses - creditNotes;
+
+  const openInvoices   = invoices.filter(i => i.status !== 'Paid' && i.status !== 'Cancelled');
+  const openInvoiceTotal = openInvoices.reduce((sum, i) => sum + i.totalAmount, 0);
+
+  const openEstimates  = estimates.filter(e => e.status === 'Sent' || e.status === 'Draft');
+
+  const pendingInvoices = invoices.filter(i => i.status === 'Pending');
 
   const KpiCard = ({ title, value, trend, isPositive, subtitle, icon: Icon }: any) => (
     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
@@ -51,9 +78,30 @@ const DashboardPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <KpiCard title="Net Revenue" value={`${currencySymbol}142,850`} trend="+8.2%" isPositive={true} subtitle="Monthly Target: 92%" icon={DollarSign} />
-        <KpiCard title="Outstanding" value={`${currencySymbol}12,450`} trend="-2.4%" isPositive={false} subtitle="14 invoices pending" icon={Clock} />
-        <KpiCard title="Expenses" value={`${currencySymbol}8,400`} trend="+12%" isPositive={false} subtitle="Mainly Logistics" icon={TrendingUp} />
+        <KpiCard
+          title="Net Revenue"
+          value={`${currencySymbol}${totalRevenue.toLocaleString()}`}
+          trend={`${payments.length} payments`}
+          isPositive={true}
+          subtitle={`Net profit: ${currencySymbol}${netProfit.toLocaleString()}`}
+          icon={DollarSign}
+        />
+        <KpiCard
+          title="Outstanding"
+          value={`${currencySymbol}${openInvoiceTotal.toLocaleString()}`}
+          trend={`${openInvoices.length} invoices`}
+          isPositive={false}
+          subtitle={`${pendingInvoices.length} invoices pending`}
+          icon={Clock}
+        />
+        <KpiCard
+          title="Expenses"
+          value={`${currencySymbol}${totalExpenses.toLocaleString()}`}
+          trend={`${expenses.length} records`}
+          isPositive={false}
+          subtitle={`${clients.length} active clients · ${openEstimates.length} open estimates`}
+          icon={TrendingUp}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -95,19 +143,19 @@ const DashboardPage: React.FC = () => {
             <div className="absolute top-0 right-0 w-32 h-32 bg-brand-accent/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
             <div className="relative z-10">
               <h4 className="text-brand-accent text-[10px] font-black uppercase tracking-[0.2em] mb-4">Ramzon Intelligence</h4>
-              <p className="text-lg font-bold leading-tight mb-6">You have {currencySymbol}2,500 in overdue payments reaching the 30-day mark.</p>
+              <p className="text-lg font-bold leading-tight mb-6">You have {currencySymbol}{openInvoiceTotal.toLocaleString()} outstanding across {openInvoices.length} open invoice{openInvoices.length !== 1 ? 's' : ''}.</p>
               <button className="w-full py-3 bg-white text-slate-900 rounded-xl text-xs font-black shadow-lg hover:bg-brand-accent-light transition-all">
                 Send Reminders
               </button>
             </div>
           </div>
-          
+
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Cashflow Forecast</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500 font-bold italic">Expected Apr 2024</span>
-                <span className="text-slate-900 font-black">{currencySymbol}18,200</span>
+                <span className="text-slate-500 font-bold italic">Open Estimates Pipeline</span>
+                <span className="text-slate-900 font-black">{currencySymbol}{openEstimates.reduce((s, e) => s + e.total, 0).toLocaleString()}</span>
               </div>
               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                 <div className="h-full bg-brand-accent w-3/4" />

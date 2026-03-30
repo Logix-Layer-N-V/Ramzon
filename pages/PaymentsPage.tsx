@@ -1,10 +1,11 @@
 
 import React, { useState, useContext, useMemo } from 'react';
-import { Search, Filter, ArrowDownCircle, Download, ExternalLink, Plus, Pencil, X, CheckCircle2, Banknote, ChevronUp, ChevronDown } from 'lucide-react';
+import { Search, Filter, ArrowDownCircle, Download, ExternalLink, Plus, Pencil, X, CheckCircle2, Banknote, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { mockPayments, mockClients } from '../lib/mock-data';
 import { LanguageContext } from '../lib/context';
 import { exportCSV } from '../lib/csvExport';
+import { storage } from '../lib/storage';
 
 const METHOD_OPTIONS = ['Bank Transfer', 'Cash', 'Credit Card'] as const;
 
@@ -16,6 +17,7 @@ const PaymentsPage: React.FC = () => {
   const [filterMethod, setFilterMethod] = useState<string>('All');
   const [sortKey, setSortKey] = useState<string>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [refresh, setRefresh] = useState(0);
 
   const handleSort = (key: string) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -27,8 +29,28 @@ const PaymentsPage: React.FC = () => {
   const [customTo, setCustomTo] = useState('');
   const [customToTime, setCustomToTime] = useState('23:59');
 
-  const filteredPayments = mockPayments.filter(p => {
-    const client = mockClients.find(c => c.id === p.clientId);
+  const allPayments = useMemo(() => {
+    const stored = storage.payments.get();
+    if (stored.length === 0) return mockPayments;
+    const storedIds = new Set(stored.map(p => p.id));
+    return [...mockPayments.filter(p => !storedIds.has(p.id)), ...stored];
+  }, [refresh]);
+
+  const handleDeletePayment = (id: string) => {
+    if (!window.confirm('Betaling verwijderen?')) return;
+    const updated = allPayments.filter(p => p.id !== id);
+    storage.payments.save(updated.filter(p => !mockPayments.find(m => m.id === p.id)));
+    setRefresh(r => r + 1);
+  };
+
+  const allClients = useMemo(() => {
+    const stored = storage.clients.get();
+    const ids = new Set(stored.map(c => c.id));
+    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
+  }, []);
+
+  const filteredPayments = allPayments.filter(p => {
+    const client = allClients.find(c => c.id === p.clientId);
     const matchSearch = client?.company.toLowerCase().includes(search.toLowerCase()) ||
            p.reference.toLowerCase().includes(search.toLowerCase());
     const matchMethod = filterMethod === 'All' || p.method === filterMethod;
@@ -73,11 +95,11 @@ const PaymentsPage: React.FC = () => {
           <p className="text-sm font-medium text-slate-500 italic">History of all incoming transactions and settlements</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => exportCSV(`payments-${new Date().toISOString().slice(0,10)}.csv`, filteredPayments.map(p => { const c = mockClients.find(cl => cl.id === p.clientId); return { Date: p.date, Reference: p.reference, Client: c?.company || '', Amount: p.amount, Method: p.method, Status: p.status }; }))}
+          <button onClick={() => exportCSV(`payments-${new Date().toISOString().slice(0,10)}.csv`, filteredPayments.map(p => { const c = allClients.find(cl => cl.id === p.clientId); return { Date: p.date, Reference: p.reference, Client: c?.company || '', Amount: p.amount, Method: p.method, Status: p.status }; }))}
             className="border border-slate-200 bg-white text-slate-600 px-5 py-2.5 rounded-xl text-sm font-black hover:bg-slate-50 transition-all flex items-center gap-2">
             <Download size={16}/> Export CSV
           </button>
-          <button onClick={() => navigate('/payments/new')} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-black hover:bg-emerald-500 transition-all flex items-center gap-2 shadow-xl active:scale-95">
+          <button onClick={() => navigate('/payments/new')} className="bg-brand-primary text-white px-5 py-2.5 rounded-xl text-sm font-black hover:opacity-90 transition-all flex items-center gap-2 shadow-xl active:scale-95">
             <Plus size={16}/> {t('newPaymentBtn')}
           </button>
         </div>
@@ -194,7 +216,7 @@ const PaymentsPage: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {sorted.map((p) => {
-                const client = mockClients.find(c => c.id === p.clientId);
+                const client = allClients.find(c => c.id === p.clientId);
                 return (
                   <tr 
                     key={p.id} 
@@ -231,6 +253,10 @@ const PaymentsPage: React.FC = () => {
                           onClick={(e) => { e.stopPropagation(); navigate(`/payments/${p.id}`); }}
                           className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
                         ><ExternalLink size={15}/></button>
+                        <button title="Verwijderen"
+                          onClick={(e) => { e.stopPropagation(); handleDeletePayment(p.id); }}
+                          className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        ><Trash2 size={15}/></button>
                       </div>
                     </td>
                   </tr>

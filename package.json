@@ -8,27 +8,30 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "dev:server": "cd server && npx tsx watch src/index.ts",
-    "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\""
+    "dev:server": "echo 'Backend is now Vercel API routes — run: vercel dev'"
   },
   "dependencies": {
     "@google/genai": "1.40.0",
+    "@neondatabase/serverless": "^1.0.2",
     "@react-pdf/renderer": "^4.3.2",
     "@tanstack/react-query": "^5.91.2",
+    "@vercel/node": "^5.0.0",
     "axios": "^1.13.6",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
     "lucide-react": "0.463.0",
-    "pocketbase": "^0.26.8",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-router-dom": "^6.30.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.14.0",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^5.0.0",
-    "concurrently": "^8",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

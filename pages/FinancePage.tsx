@@ -11,9 +11,9 @@ const BANK_ACCOUNTS_DEFAULT: BankAccount[] = [
   { id: 'hkb_srd', bank: 'HKB Hakrinbank', currency: 'SRD', iban: 'SR29HKB0000005678', balance: 31200 },
   { id: 'hkb_usd', bank: 'HKB Hakrinbank', currency: 'USD', iban: 'SR29HKB0000005679', balance: 7400 },
   { id: 'hkb_eur', bank: 'HKB Hakrinbank', currency: 'EUR', iban: 'SR29HKB0000005680', balance: 4100 },
-  { id: 'cash_srd', bank: 'Petty Cash', currency: 'SRD', iban: '—', balance: 1500 },
-  { id: 'cash_usd', bank: 'Petty Cash', currency: 'USD', iban: '—', balance: 300 },
-  { id: 'cash_eur', bank: 'Petty Cash', currency: 'EUR', iban: '—', balance: 150 },
+  { id: 'cash_srd', bank: 'Cash', currency: 'SRD', iban: '—', balance: 1500 },
+  { id: 'cash_usd', bank: 'Cash', currency: 'USD', iban: '—', balance: 300 },
+  { id: 'cash_eur', bank: 'Cash', currency: 'EUR', iban: '—', balance: 150 },
 ];
 
 const EXCHANGE_RATES_DEFAULT: ExchangeRate[] = [
@@ -30,9 +30,9 @@ const CURRENCY_COLORS: Record<string, string> = {
 };
 
 const BANK_COLORS: Record<string, string> = {
-  'DSB Bank': 'bg-blue-600',
+  'DSB Bank': 'bg-brand-primary',
   'HKB Hakrinbank': 'bg-emerald-600',
-  'Petty Cash': 'bg-amber-500',
+  'Cash': 'bg-brand-primary',
 };
 
 type FinanceTab = 'accounts' | 'transactions' | 'rates';
@@ -40,7 +40,10 @@ type FinanceTab = 'accounts' | 'transactions' | 'rates';
 function getAccounts(): BankAccount[] {
   const saved = storage.bankAccounts.get();
   if (!saved.length) { storage.bankAccounts.save(BANK_ACCOUNTS_DEFAULT); return BANK_ACCOUNTS_DEFAULT; }
-  return saved;
+  // Migrate: rename old "Petty Cash" → "Cash"
+  const migrated = saved.map(a => a.bank === 'Petty Cash' ? { ...a, bank: 'Cash' } : a);
+  if (migrated.some((a, i) => a.bank !== saved[i].bank)) storage.bankAccounts.save(migrated);
+  return migrated;
 }
 function getRates(): ExchangeRate[] {
   const saved = storage.exchangeRates.get();
@@ -74,7 +77,7 @@ const FinancePage: React.FC = () => {
   const filteredAccounts = useMemo(() => accounts.filter(acc => {
     const bankOk = filterBank === 'Alle' || acc.bank === filterBank;
     const currOk = filterCurrency === 'Alle' || acc.currency === filterCurrency;
-    const isCash = acc.bank === 'Petty Cash';
+    const isCash = acc.bank === 'Cash';
     const typeOk = filterType === 'Alle' || (filterType === 'Cash' ? isCash : !isCash);
     return bankOk && currOk && typeOk;
   }), [accounts, filterBank, filterCurrency, filterType]);
@@ -126,7 +129,7 @@ const FinancePage: React.FC = () => {
 
   const handleExportAccounts = () => {
     exportCSV(`accounts-${new Date().toISOString().slice(0,10)}.csv`,
-      filteredAccounts.map(a => ({ Bank: a.bank, IBAN: a.iban, Currency: a.currency, Type: a.bank === 'Petty Cash' ? 'Cash' : 'Bank', Balance: a.balance }))
+      filteredAccounts.map(a => ({ Bank: a.bank, IBAN: a.iban, Currency: a.currency, Type: a.bank === 'Cash' ? 'Cash' : 'Bank', Balance: a.balance }))
     );
     setShowExport(false);
   };
@@ -154,7 +157,7 @@ const FinancePage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
           { label: 'Totaal SRD', value: `SRD ${totalBySRD.toLocaleString()}`, icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Totaal USD', value: `USD ${totalByUSD.toLocaleString()}`, icon: DollarSign, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Totaal USD', value: `USD ${totalByUSD.toLocaleString()}`, icon: DollarSign, color: 'text-brand-primary', bg: 'bg-brand-accent-light' },
           { label: 'Totaal EUR', value: `EUR ${totalByEUR.toLocaleString()}`, icon: Globe2, color: 'text-purple-600', bg: 'bg-purple-50' },
         ].map(card => (
           <div key={card.label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
@@ -171,10 +174,10 @@ const FinancePage: React.FC = () => {
 
       {/* Live rate bar */}
       {latestRate && (
-        <div className="bg-slate-900 rounded-2xl px-6 py-4 flex flex-wrap gap-6 items-center">
+        <div className="bg-brand-accent rounded-2xl px-6 py-4 flex flex-wrap gap-6 items-center">
           <div className="flex items-center gap-2">
-            <Globe2 size={14} className="text-slate-400"/>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Rates as of {latestRate.date}</span>
+            <Globe2 size={14} className="text-white/50"/>
+            <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Rates as of {latestRate.date}</span>
           </div>
           {[
             { label: 'USD → SRD', value: latestRate.usdSrd.toFixed(2) },
@@ -182,7 +185,7 @@ const FinancePage: React.FC = () => {
             { label: 'EUR → USD', value: latestRate.eurUsd.toFixed(2) },
           ].map(r => (
             <div key={r.label} className="flex items-center gap-3">
-              <span className="text-[10px] font-bold text-slate-500">{r.label}</span>
+              <span className="text-[10px] font-bold text-white/40">{r.label}</span>
               <span className="text-sm font-black text-white">{r.value}</span>
             </div>
           ))}
@@ -197,8 +200,8 @@ const FinancePage: React.FC = () => {
           { id: 'rates', label: 'Exchange Rates', icon: Globe2 },
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id as FinanceTab)}
-            className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === tab.id ? 'bg-white text-slate-900 shadow-md border border-slate-200' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}>
-            <tab.icon size={14} className={activeTab === tab.id ? 'text-brand-primary' : 'opacity-40'}/>
+            className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === tab.id ? 'bg-brand-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}>
+            <tab.icon size={14} className={activeTab === tab.id ? 'text-white' : 'opacity-40'}/>
             {tab.label}
           </button>
         ))}
@@ -230,7 +233,7 @@ const FinancePage: React.FC = () => {
                 </button>
               )}
               <div className="relative">
-                <button onClick={() => setShowExport(!showExport)} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-black hover:bg-emerald-700 transition-all">
+                <button onClick={() => setShowExport(!showExport)} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary text-white rounded-lg text-[10px] font-black hover:opacity-90 transition-all">
                   <Download size={12}/> Export <ChevronDown size={10}/>
                 </button>
                 {showExport && (
@@ -259,7 +262,7 @@ const FinancePage: React.FC = () => {
                 <div>
                   <label className="text-[9px] font-black text-slate-400 uppercase">Bank</label>
                   <select value={newBank} onChange={e => setNewBank(e.target.value)} className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none bg-white">
-                    <option>DSB Bank</option><option>HKB Hakrinbank</option><option>Petty Cash</option><option>Overig</option>
+                    <option>DSB Bank</option><option>HKB Hakrinbank</option><option>Cash</option><option>Overig</option>
                   </select>
                 </div>
                 <div>
@@ -330,7 +333,7 @@ const FinancePage: React.FC = () => {
               </select>
               <input type="date" value={txDateFrom} onChange={e => setTxDateFrom(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none bg-white text-slate-700" placeholder="From"/>
               <input type="date" value={txDateTo} onChange={e => setTxDateTo(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none bg-white text-slate-700" placeholder="To"/>
-              <button onClick={handleExportTransactions} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-black hover:bg-emerald-700">
+              <button onClick={handleExportTransactions} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary text-white rounded-lg text-[10px] font-black hover:opacity-90">
                 <Download size={12}/> CSV
               </button>
             </div>
@@ -428,7 +431,7 @@ const FinancePage: React.FC = () => {
                   <input type="number" step="0.01" value={rateEurUsd} onChange={e => setRateEurUsd(e.target.value)} placeholder="1.09" className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none"/>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={handleAddRate} className="flex-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-black">Save</button>
+                  <button onClick={handleAddRate} className="flex-1 px-3 py-1.5 bg-brand-primary text-white rounded-lg text-[10px] font-black hover:opacity-90">Save</button>
                   <button onClick={() => setAddingRate(false)} className="px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black"><X size={14}/></button>
                 </div>
               </div>

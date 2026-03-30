@@ -60,12 +60,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ viewMode, setViewMode }) =>
     companyBTW, setCompanyBTW,
     taxRates, setTaxRates,
     enableCrypto, setEnableCrypto,
+    brandColor, setBrandColor,
+    accentColor, setAccentColor,
     timezone, setTimezone,
     dateFormat, setDateFormat,
     timeFormat, setTimeFormat,
   } = useContext(LanguageContext);
   
   const [saved, setSaved] = useState(false);
+  const [validityDays, setValidityDays] = useState<number>(() => parseInt(localStorage.getItem('erp_quote_validity_days') ?? '14', 10));
   const [showTaxForm, setShowTaxForm] = useState(false);
   const [newTax, setNewTax] = useState({ name: '', percentage: 0 });
   const [editingTaxId, setEditingTaxId] = useState<string | null>(null);
@@ -138,7 +141,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ viewMode, setViewMode }) =>
   ];
 
   const themeOptions = [
-    { id: 'default', label: 'Logix Lab Standard', colors: ['bg-blue-900', 'bg-lime-400'], tagline: 'Navy & Lime' },
+    { id: 'default', label: 'Ramzon Standard', colors: ['bg-[#BE1E2D]', 'bg-[#1A1A1A]'], tagline: 'Red & Dark' },
     { id: 'emerald', label: t('emeraldTheme'), colors: ['bg-emerald-800', 'bg-emerald-200'], tagline: 'Trust & Nature' },
     { id: 'indigo', label: t('indigoTheme'), colors: ['bg-indigo-900', 'bg-indigo-400'], tagline: 'Modern Clean' }
   ];
@@ -152,7 +155,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ viewMode, setViewMode }) =>
         </div>
         <button
           onClick={handleSave}
-          className="bg-slate-900 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2 shadow-2xl shadow-slate-200 active:scale-95"
+          className="bg-brand-primary text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center gap-2 shadow-2xl shadow-slate-200 active:scale-95"
         >
           {saved ? <Check size={18} /> : <Save size={18} />}
           {saved ? 'Settings Updated' : 'Save Changes'}
@@ -432,7 +435,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ viewMode, setViewMode }) =>
                 <div className="flex items-end">
                   <button 
                     onClick={addTaxRate}
-                    className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 shadow-lg active:scale-95"
+                    className="w-full py-2.5 bg-brand-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 shadow-lg active:scale-95"
                   >
                     Add Tax Rate
                   </button>
@@ -471,7 +474,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ viewMode, setViewMode }) =>
                       </div>
                       <div className="flex gap-2 justify-end">
                         <button onClick={() => setEditingTaxId(null)} className="px-3 py-1 text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase">Cancel</button>
-                        <button onClick={() => saveEdit(rate.id)} className="px-4 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-black uppercase shadow-md hover:bg-emerald-700 transition-all">Save</button>
+                        <button onClick={() => saveEdit(rate.id)} className="px-4 py-1.5 bg-brand-primary text-white rounded-lg text-[10px] font-black uppercase shadow-md hover:opacity-90 transition-all">Save</button>
                       </div>
                     </div>
                   ) : (
@@ -612,6 +615,38 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ viewMode, setViewMode }) =>
             </div>
           </div>
 
+          {/* Default Quote Validity */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex justify-between items-start">
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
+                <CalendarDays size={16} className="text-brand-primary" /> Default Geldigheid
+              </h3>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">Estimates</span>
+            </div>
+            <p className="text-xs text-slate-400 font-medium -mt-2">Hoeveel dagen een offerte standaard geldig is na aanmaak.</p>
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { days: 1,  label: '1 dag'    },
+                { days: 3,  label: '3 dagen'  },
+                { days: 7,  label: '1 week'   },
+                { days: 14, label: '2 weken'  },
+                { days: 21, label: '3 weken'  },
+                { days: 30, label: '1 maand'  },
+              ].map(opt => (
+                <button key={opt.days} onClick={() => {
+                  localStorage.setItem('erp_quote_validity_days', String(opt.days));
+                  setValidityDays(opt.days);
+                }} className={`px-4 py-2 rounded-xl text-xs font-black border transition-all ${
+                  validityDays === opt.days
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-400'
+                }`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Color Scheme Selector */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
             <div className="flex justify-between items-start">
@@ -643,6 +678,53 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ viewMode, setViewMode }) =>
                   {currentTheme === theme.id && <div className="w-3 h-3 rounded-full bg-brand-primary shrink-0"></div>}
                 </button>
               ))}
+            </div>
+
+            {/* Custom Color Pickers */}
+            <div className="border-t border-slate-100 pt-5 space-y-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Aangepaste Kleuren</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-widest">Primaire Kleur</label>
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <input
+                      type="color"
+                      value={brandColor}
+                      onChange={e => setBrandColor(e.target.value)}
+                      className="w-10 h-10 rounded-lg border-0 cursor-pointer bg-transparent"
+                      title="Primaire kleur (knoppen, accenten)"
+                    />
+                    <div className="flex-1">
+                      <p className="text-xs font-black text-slate-900">{brandColor.toUpperCase()}</p>
+                      <p className="text-[9px] text-slate-400 font-bold">Knoppen & accenten</p>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg shadow-sm border border-slate-200" style={{ backgroundColor: brandColor }} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-widest">Accent Kleur</label>
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <input
+                      type="color"
+                      value={accentColor}
+                      onChange={e => setAccentColor(e.target.value)}
+                      className="w-10 h-10 rounded-lg border-0 cursor-pointer bg-transparent"
+                      title="Accent kleur (tekst, icons)"
+                    />
+                    <div className="flex-1">
+                      <p className="text-xs font-black text-slate-900">{accentColor.toUpperCase()}</p>
+                      <p className="text-[9px] text-slate-400 font-bold">Tekst & icons</p>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg shadow-sm border border-slate-200" style={{ backgroundColor: accentColor }} />
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => { setBrandColor('#BE1E2D'); setAccentColor('#1A1A1A'); }}
+                className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-brand-primary transition-colors"
+              >
+                ↺ Reset naar Ramzon standaard
+              </button>
             </div>
           </div>
 
@@ -688,7 +770,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ viewMode, setViewMode }) =>
                 </div>
                 <button
                   onClick={() => setEnableCrypto(!enableCrypto)}
-                  className={`relative w-11 h-6 rounded-full transition-all duration-300 focus:outline-none shrink-0 ${enableCrypto ? 'bg-orange-500' : 'bg-slate-200'}`}
+                  className={`relative w-11 h-6 rounded-full transition-all duration-300 focus:outline-none shrink-0 ${enableCrypto ? 'bg-brand-primary' : 'bg-slate-200'}`}
                 >
                   <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-300 ${enableCrypto ? 'translate-x-5' : 'translate-x-0'}`} />
                 </button>

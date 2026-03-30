@@ -49,6 +49,11 @@ export const LanguageContext = createContext<{
   currencySymbol: string;
   enableCrypto: boolean;
   setEnableCrypto: (v: boolean) => void;
+  // Brand Colors
+  brandColor: string;
+  setBrandColor: (v: string) => void;
+  accentColor: string;
+  setAccentColor: (v: string) => void;
   // Date / Time
   timezone: string;
   setTimezone: (v: string) => void;
@@ -90,6 +95,10 @@ export const LanguageContext = createContext<{
   currencySymbol: '$',
   enableCrypto: false,
   setEnableCrypto: () => {},
+  brandColor: '#BE1E2D',
+  setBrandColor: () => {},
+  accentColor: '#1A1A1A',
+  setAccentColor: () => {},
   timezone: 'America/Paramaribo',
   setTimezone: () => {},
   dateFormat: 'DD-MM-YYYY',

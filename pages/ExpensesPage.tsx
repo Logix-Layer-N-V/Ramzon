@@ -5,6 +5,7 @@ import {
   ChevronUp, ChevronDown
 } from 'lucide-react';
 import { mockExpenses } from '../lib/mock-data';
+import { storage } from '../lib/storage';
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
 
@@ -47,7 +48,14 @@ const ExpensesPage: React.FC = () => {
   const [customTo, setCustomTo] = useState('');
   const [customToTime, setCustomToTime] = useState('23:59');
 
-  const filtered = mockExpenses.filter(ex => {
+  const allExpenses = useMemo(() => {
+    const stored = storage.expenses.get();
+    if (stored.length === 0) return mockExpenses;
+    const ids = new Set(stored.map(e => e.id));
+    return [...mockExpenses.filter(e => !ids.has(e.id)), ...stored];
+  }, []);
+
+  const filtered = allExpenses.filter(ex => {
     const matchSearch = ex.description.toLowerCase().includes(search.toLowerCase()) ||
       ex.category.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'All' || ex.status === filterStatus;

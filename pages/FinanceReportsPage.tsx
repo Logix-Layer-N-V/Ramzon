@@ -9,9 +9,10 @@ import {
 } from 'lucide-react';
 import { storage } from '../lib/storage';
 import { LanguageContext } from '../lib/context';
+import { mockInvoices, mockEstimates, mockPayments, mockCredits, mockClients, mockExpenses } from '../lib/mock-data';
 
 type Period = 'month' | 'year' | 'all';
-type ReportType = 'sales' | 'estimates' | 'invoices' | 'payments' | 'profit_loss';
+type ReportType = 'sales' | 'estimates' | 'invoices' | 'payments' | 'credits' | 'profit_loss';
 type DateMode = 'presets' | 'custom';
 type Tab = 'insights' | 'reports';
 
@@ -46,11 +47,18 @@ const FinanceReportsPage: React.FC = () => {
   const [isRunning, setIsRunning]             = useState(false);
   const [, setAppliedReportType]              = useState<ReportType>('sales');
 
-  // ── Raw data ──────────────────────────────────────────────────────────────
-  const invoices = useMemo(() => storage.invoices.get(), []);
-  const payments = useMemo(() => storage.payments.get(), []);
-  const clients  = useMemo(() => storage.clients.get(),  []);
-  const expenses = useMemo(() => storage.expenses.get(), []);
+  // ── Raw data — merge localStorage + mock fallback ────────────────────────
+  const merge = <T extends { id: string }>(stored: T[], mock: T[]) => {
+    if (stored.length === 0) return mock;
+    const ids = new Set(stored.map(x => x.id));
+    return [...mock.filter(x => !ids.has(x.id)), ...stored];
+  };
+  const invoices  = useMemo(() => merge(storage.invoices.get(),  mockInvoices),  []);
+  const estimates = useMemo(() => merge(storage.estimates.get(), mockEstimates), []);
+  const payments  = useMemo(() => merge(storage.payments.get(),  mockPayments),  []);
+  const credits   = useMemo(() => merge(storage.credits.get(),   mockCredits),   []);
+  const clients   = useMemo(() => merge(storage.clients.get(),   mockClients),   []);
+  const expenses  = useMemo(() => merge(storage.expenses.get(),  mockExpenses),  []);
 
   // ── Period filter ─────────────────────────────────────────────────────────
   const inPeriod = (dateStr: string) => {
@@ -64,11 +72,14 @@ const FinanceReportsPage: React.FC = () => {
   const kpis = useMemo(() => {
     const fp = payments.filter(p => inPeriod(p.date || ''));
     const fi = invoices.filter(inv => inPeriod(inv.date || ''));
-    const revenue    = fp.reduce((s, p) => s + (p.amount || 0), 0);
-    const openAR     = invoices
+    const fc = credits.filter(c => inPeriod(c.date || ''));
+    const grossRevenue  = fp.reduce((s, p) => s + (p.amount || 0), 0);
+    const creditTotal   = fc.reduce((s, c) => s + (c.amount || 0), 0);
+    const revenue       = Math.max(0, grossRevenue - creditTotal);
+    const openAR        = invoices
       .filter(inv => inv.status !== ('paid' as never) && inv.status !== ('cancelled' as never))
       .reduce((s, inv) => s + Math.max(0, inv.totalAmount || 0), 0);
-    const avgInvoice = fi.length > 0
+    const avgInvoice    = fi.length > 0
       ? fi.reduce((s, inv) => s + (inv.totalAmount || 0), 0) / fi.length : 0;
     const linked  = payments.filter(p => p.invoiceId && p.date);
     const avgDays = linked.length > 0 ? (() => {
@@ -79,9 +90,9 @@ const FinanceReportsPage: React.FC = () => {
       });
       return Math.round(diffs.reduce((a, b) => a + b, 0) / diffs.length);
     })() : 0;
-    return { revenue, openAR, avgInvoice, avgDays };
+    return { revenue, grossRevenue, creditTotal, openAR, avgInvoice, avgDays };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoices, payments, period]);
+  }, [invoices, payments, credits, period]);
 
   // ── Monthly revenue (12 months) ───────────────────────────────────────────
   const monthlyRevenue = useMemo(() =>
@@ -169,8 +180,65 @@ const FinanceReportsPage: React.FC = () => {
     { id: 'estimates',   label: 'Estimates & Quotes',   icon: ClipboardList,color: 'text-purple-500',  bg: 'bg-purple-50',  desc: 'Pipeline and proposal tracking' },
     { id: 'invoices',    label: 'Invoice Ledger',        icon: Receipt,      color: 'text-emerald-500', bg: 'bg-emerald-50', desc: 'Accounts receivable status' },
     { id: 'payments',    label: 'Payment History',       icon: Wallet,       color: 'text-amber-500',   bg: 'bg-amber-50',   desc: 'Settlement and cash flow logs' },
+    { id: 'credits',     label: 'Credit Notes',          icon: Coins,        color: 'text-orange-500',  bg: 'bg-orange-50',  desc: 'Client credit adjustments' },
     { id: 'profit_loss', label: 'Profit & Loss (P&L)',   icon: Scale,        color: 'text-brand-primary',bg: 'bg-slate-50',  desc: 'Full financial health summary' },
   ];
+
+  // ── Ledger rows based on selected report type ─────────────────────────────
+  const ledgerRows = useMemo(() => {
+    const clientName = (clientId: string) => {
+      const c = clients.find(x => x.id === clientId);
+      return c ? (c.company || c.name || '—') : '—';
+    };
+    switch (reportType) {
+      case 'invoices':
+      case 'sales':
+        return invoices.map(inv => ({
+          ref: (inv as any).invoiceNumber || inv.id,
+          client: clientName(inv.clientId || ''),
+          date: inv.date,
+          amount: inv.totalAmount || 0,
+          badge: inv.status,
+          badgeColor: (inv.status as string) === 'paid' ? 'bg-emerald-100 text-emerald-700'
+            : (inv.status as string) === 'overdue' ? 'bg-red-100 text-red-700'
+            : 'bg-slate-100 text-slate-600',
+        }));
+      case 'estimates':
+        return estimates.map(est => ({
+          ref: (est as any).estimateNumber || est.id,
+          client: clientName(est.clientId || ''),
+          date: est.date,
+          amount: (est as any).total || (est as any).totalAmount || 0,
+          badge: est.status,
+          badgeColor: (est.status as string) === 'accepted' ? 'bg-emerald-100 text-emerald-700'
+            : (est.status as string) === 'rejected' ? 'bg-red-100 text-red-700'
+            : 'bg-slate-100 text-slate-600',
+        }));
+      case 'payments':
+        return payments.map(p => ({
+          ref: (p as any).reference || p.id,
+          client: clientName((p as any).clientId || ''),
+          date: p.date,
+          amount: p.amount || 0,
+          badge: p.method || 'Payment',
+          badgeColor: 'bg-blue-100 text-blue-700',
+        }));
+      case 'credits':
+        return credits.map(c => ({
+          ref: c.id,
+          client: clientName(c.clientId || ''),
+          date: c.date,
+          amount: c.amount || 0,
+          badge: c.status,
+          badgeColor: c.status === 'Available' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-500',
+          note: c.reason,
+        }));
+      case 'profit_loss':
+        return []; // P&L uses summary view, not ledger rows
+      default:
+        return [];
+    }
+  }, [reportType, invoices, estimates, payments, credits, clients]);
 
   const currentModel = reportOptions.find(o => o.id === reportType) || reportOptions[0];
 
@@ -667,27 +735,59 @@ const FinanceReportsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {[0, 1, 2].map(idx => (
-                    <tr key={idx} className="hover:bg-slate-50/80 transition-colors cursor-pointer">
-                      <td className="px-6 py-5 font-bold text-slate-900 text-sm">#TXN-9982-Z{idx}</td>
-                      <td className="px-4 py-5">
-                        <p className="text-sm font-bold text-slate-700">Royal Timber Logistics</p>
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase">Partner</p>
-                      </td>
-                      <td className="px-4 py-5 text-center font-semibold text-slate-400 text-sm">2026-03-05</td>
-                      <td className="px-4 py-5 text-right font-bold text-slate-900">€ 14.280,00</td>
-                      <td className="px-6 py-5 text-right">
-                        <button className="p-2 bg-white border border-slate-100 rounded-lg text-slate-300 hover:text-slate-900 hover:shadow-sm transition-all">
-                          <MoreHorizontal size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {reportType === 'profit_loss' ? (
+                    (() => {
+                      const totalRevenue  = payments.reduce((s, p) => s + (p.amount || 0), 0);
+                      const totalCredits  = credits.reduce((s, c) => s + (c.amount || 0), 0);
+                      const totalExpenses = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+                      const netRevenue    = totalRevenue - totalCredits;
+                      const netProfit     = netRevenue - totalExpenses;
+                      const rows = [
+                        { label: 'Gross Revenue (Payments)', amount: totalRevenue,  color: 'text-emerald-600' },
+                        { label: 'Credit Notes Issued',      amount: -totalCredits, color: 'text-orange-600' },
+                        { label: 'Net Revenue',              amount: netRevenue,    color: 'text-blue-700', bold: true },
+                        { label: 'Total Expenses',           amount: -totalExpenses,color: 'text-red-600' },
+                        { label: 'Net Profit',               amount: netProfit,     color: netProfit >= 0 ? 'text-emerald-700' : 'text-red-700', bold: true },
+                      ];
+                      return rows.map((row, i) => (
+                        <tr key={i} className={row.bold ? 'bg-slate-50' : ''}>
+                          <td className={`px-6 py-4 text-sm ${row.bold ? 'font-black' : 'font-semibold'} text-slate-800`} colSpan={3}>{row.label}</td>
+                          <td className={`px-4 py-4 text-right text-sm font-black ${row.color}`}>
+                            {currencySymbol} {Math.abs(row.amount).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-6 py-4" />
+                        </tr>
+                      ));
+                    })()
+                  ) : ledgerRows.length === 0 ? (
+                    <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400 text-sm font-semibold">No records found</td></tr>
+                  ) : (
+                    ledgerRows.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-6 py-4 font-bold text-slate-900 text-sm">
+                          <div>{row.ref}</div>
+                          {(row as any).note && <div className="text-[10px] text-slate-400 font-medium mt-0.5">{(row as any).note}</div>}
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="text-sm font-bold text-slate-700">{row.client}</p>
+                        </td>
+                        <td className="px-4 py-4 text-center font-semibold text-slate-400 text-sm">{row.date}</td>
+                        <td className="px-4 py-4 text-right font-bold text-slate-900">
+                          {currencySymbol} {(row.amount).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide ${row.badgeColor}`}>{row.badge}</span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
             <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex justify-between items-center">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-tight">Total records: 482</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-tight">
+                {reportType === 'profit_loss' ? '5 summary lines' : `Total records: ${ledgerRows.length}`}
+              </p>
               <div className="flex gap-2">
                 <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold uppercase text-slate-400">Previous</button>
                 <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold uppercase text-slate-900 shadow-sm">Next</button>

@@ -58,7 +58,7 @@ const ServiceCategoriesPage: React.FC = () => {
         </div>
         <button
           onClick={() => setIsAdding(true)}
-          className="bg-purple-700 text-white px-5 py-2.5 rounded-xl text-sm font-black hover:bg-purple-800 transition-all flex items-center gap-2 shadow-xl active:scale-95"
+          className="bg-brand-primary text-white px-5 py-2.5 rounded-xl text-sm font-black hover:opacity-90 transition-all flex items-center gap-2 shadow-xl active:scale-95"
         >
           <Plus size={18} /> Nieuwe Service
         </button>
@@ -79,7 +79,7 @@ const ServiceCategoriesPage: React.FC = () => {
                 autoFocus
                 onKeyDown={e => e.key === 'Enter' && handleAdd()}
               />
-              <button title="Save" onClick={handleAdd} className="p-2 bg-purple-700 text-white rounded-lg hover:bg-purple-800 transition-colors">
+              <button title="Save" onClick={handleAdd} className="p-2 bg-brand-primary text-white rounded-lg hover:opacity-90 transition-colors">
                 <Check size={18} />
               </button>
               <button title="Annuleren" onClick={() => setIsAdding(false)} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors">

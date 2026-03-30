@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
-import { ArrowLeft, Save, Check, Wallet, Users, Calendar, FileText, CreditCard, Landmark, TrendingUp, Building2, Banknote } from 'lucide-react';
+import { ArrowLeft, Save, Check, Wallet, Users, Calendar, FileText, CreditCard, Landmark, TrendingUp, Building2, Banknote, UserPlus } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { mockClients, mockInvoices } from '../lib/mock-data';
 import { LanguageContext } from '../lib/context';
 import { storage, getLatestExchangeRate, toSRD, getInvoicePaidTotal } from '../lib/storage';
 import { commitDocNumber } from '../lib/docNumbering';
 import type { Payment, BankAccount, ExchangeRate } from '../types';
+import QuickAddClientModal from '../components/QuickAddClientModal';
 
 const BANK_ACCOUNTS_DEFAULT: BankAccount[] = [
   { id: 'dsb_srd', bank: 'DSB Bank', currency: 'SRD', iban: 'SR29DSB0000001234', balance: 45230 },
@@ -14,9 +15,9 @@ const BANK_ACCOUNTS_DEFAULT: BankAccount[] = [
   { id: 'hkb_srd', bank: 'HKB Hakrinbank', currency: 'SRD', iban: 'SR29HKB0000005678', balance: 31200 },
   { id: 'hkb_usd', bank: 'HKB Hakrinbank', currency: 'USD', iban: 'SR29HKB0000005679', balance: 7400 },
   { id: 'hkb_eur', bank: 'HKB Hakrinbank', currency: 'EUR', iban: 'SR29HKB0000005680', balance: 4100 },
-  { id: 'cash_srd', bank: 'Petty Cash', currency: 'SRD', iban: '—', balance: 1500 },
-  { id: 'cash_usd', bank: 'Petty Cash', currency: 'USD', iban: '—', balance: 300 },
-  { id: 'cash_eur', bank: 'Petty Cash', currency: 'EUR', iban: '—', balance: 150 },
+  { id: 'cash_srd', bank: 'Cash', currency: 'SRD', iban: '—', balance: 1500 },
+  { id: 'cash_usd', bank: 'Cash', currency: 'USD', iban: '—', balance: 300 },
+  { id: 'cash_eur', bank: 'Cash', currency: 'EUR', iban: '—', balance: 150 },
 ];
 
 const EXCHANGE_RATES_DEFAULT: ExchangeRate[] = [
@@ -36,11 +37,21 @@ const CreatePaymentPage: React.FC = () => {
   // State passed from "Record Payment" button on Edit Invoice page
   const fromInvoiceState = (location.state as { fromInvoice?: { invoiceId: string; clientId: string; total: number } } | null)?.fromInvoice;
 
+  const [clientRefresh, setClientRefresh] = useState(0);
+
+  const allClients = useMemo(() => {
+    const stored = storage.clients.get();
+    if (stored.length === 0) return mockClients;
+    const ids = new Set(stored.map(c => c.id));
+    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
+  }, [clientRefresh]);
+
   // Load bank accounts and exchange rates from storage (or defaults)
   const bankAccounts = useMemo(() => {
     const saved = storage.bankAccounts.get();
     if (saved.length === 0) { storage.bankAccounts.save(BANK_ACCOUNTS_DEFAULT); return BANK_ACCOUNTS_DEFAULT; }
-    return saved;
+    // Migrate: rename old "Petty Cash" → "Cash"
+    return saved.map(a => a.bank === 'Petty Cash' ? { ...a, bank: 'Cash' } : a);
   }, []);
 
   const exchangeRates = useMemo(() => {
@@ -55,6 +66,7 @@ const CreatePaymentPage: React.FC = () => {
   }, [exchangeRates]);
 
   // Form state
+  const [showAddClient, setShowAddClient] = useState(false);
   const [clientId, setClientId] = useState('');
   const [invoiceId, setInvoiceId] = useState('');
   const [amount, setAmount] = useState('');
@@ -66,11 +78,12 @@ const CreatePaymentPage: React.FC = () => {
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const [saved, setSaved] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Derived: filter accounts by methodType (bank = DSB/HKB, cash = Petty Cash) + currency
+  // Derived: filter accounts by methodType (bank = DSB/HKB, cash = Cash) + currency
   const filteredBanks = bankAccounts.filter(b =>
     b.currency === currency &&
-    (methodType === 'bank' ? b.bank !== 'Petty Cash' : b.bank === 'Petty Cash')
+    (methodType === 'bank' ? b.bank !== 'Cash' : b.bank === 'Cash')
   );
   const clientInvoices = useMemo(() => mockInvoices.filter(inv => inv.clientId === clientId && inv.status !== 'Paid'), [clientId]);
 
@@ -95,11 +108,16 @@ const CreatePaymentPage: React.FC = () => {
     return selectedInvoice.totalAmount - paid;
   }, [selectedInvoice]);
 
+  // Reset USDT currency if crypto is disabled
+  useEffect(() => {
+    if (!enableCrypto && currency === 'USDT') setCurrency('SRD');
+  }, [enableCrypto]);
+
   // Auto-select first bank account when currency or methodType changes
   useEffect(() => {
     const banks = bankAccounts.filter(b =>
       b.currency === currency &&
-      (methodType === 'bank' ? b.bank !== 'Petty Cash' : b.bank === 'Petty Cash')
+      (methodType === 'bank' ? b.bank !== 'Cash' : b.bank === 'Cash')
     );
     if (banks.length > 0) setBankAccountId(banks[0].id);
     else setBankAccountId('');
@@ -144,7 +162,13 @@ const CreatePaymentPage: React.FC = () => {
 
   const handleSave = () => {
     const amt = parseFloat(amount || '0');
-    if (!amt || !clientId) return;
+    const newErrors: Record<string, string> = {};
+    if (!clientId) newErrors.clientId = 'Selecteer een klant';
+    if (!amount || amt <= 0) newErrors.amount = 'Vul een geldig bedrag in';
+    if (!date) newErrors.date = 'Vul een datum in';
+    if (!methodType) newErrors.methodType = 'Selecteer een betaalmethode';
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
 
     const paymentId = editId || `pay_${Date.now()}`;
     const paymentNumber = isEdit ? reference : commitDocNumber('pay');
@@ -212,13 +236,13 @@ const CreatePaymentPage: React.FC = () => {
 
       {/* Banner: pre-filled from invoice */}
       {fromInvoiceState && !editId && (
-        <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex items-center gap-4">
-          <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
-            <Banknote size={18} className="text-blue-600" />
+        <div className="bg-brand-accent-light border border-brand-primary/20 p-4 rounded-2xl flex items-center gap-4">
+          <div className="w-9 h-9 bg-brand-primary/10 rounded-xl flex items-center justify-center shrink-0">
+            <Banknote size={18} className="text-brand-primary" />
           </div>
           <div>
-            <p className="text-xs font-black text-blue-800 uppercase tracking-widest">Payment for Invoice</p>
-            <p className="text-[11px] text-blue-600 font-medium mt-0.5">Client and invoice have been pre-selected. Enter the amount and confirm.</p>
+            <p className="text-xs font-black text-brand-accent uppercase tracking-widest">Payment for Invoice</p>
+            <p className="text-[11px] text-brand-primary font-medium mt-0.5">Client and invoice have been pre-selected. Enter the amount and confirm.</p>
           </div>
         </div>
       )}
@@ -237,10 +261,21 @@ const CreatePaymentPage: React.FC = () => {
             {/* Client */}
             <div className="space-y-1.5 lg:col-span-3">
               <label className={`${LABEL} flex items-center gap-2`}><Users size={10}/> Client</label>
-              <select value={clientId} onChange={e => { setClientId(e.target.value); setInvoiceId(''); }} className={INPUT}>
-                <option value="">-- Select client --</option>
-                {mockClients.map(c => <option key={c.id} value={c.id}>{c.company} ({c.name})</option>)}
-              </select>
+              <div className="flex gap-2">
+                <select value={clientId} onChange={e => { setClientId(e.target.value); setInvoiceId(''); if (errors.clientId) setErrors(prev => ({ ...prev, clientId: '' })); }} className={`flex-1 px-4 py-3 bg-slate-50 border rounded-xl text-sm font-bold outline-none ${errors.clientId ? 'border-red-400' : 'border-slate-200'}`}>
+                  <option value="">-- Select client --</option>
+                  {allClients.map(c => <option key={c.id} value={c.id}>{c.company} ({c.name})</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowAddClient(true)}
+                  className="px-3 py-3 bg-brand-primary text-white rounded-xl hover:opacity-90 transition-all active:scale-95 shrink-0"
+                  title="Nieuwe klant toevoegen"
+                >
+                  <UserPlus size={16} />
+                </button>
+              </div>
+              {errors.clientId && <p className="text-red-500 text-xs mt-1">{errors.clientId}</p>}
             </div>
 
             {/* Invoice link */}
@@ -263,7 +298,8 @@ const CreatePaymentPage: React.FC = () => {
             {/* Date */}
             <div className="space-y-1.5">
               <label className={`${LABEL} flex items-center gap-2`}><Calendar size={10}/> Date</label>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)} className={INPUT}/>
+              <input type="date" value={date} onChange={e => { setDate(e.target.value); if (errors.date) setErrors(prev => ({ ...prev, date: '' })); }} className={`${INPUT} ${errors.date ? 'border-red-400' : ''}`}/>
+              {errors.date && <p className="text-red-500 text-xs mt-1">{errors.date}</p>}
             </div>
 
             {/* Currency */}
@@ -277,7 +313,8 @@ const CreatePaymentPage: React.FC = () => {
             {/* Amount */}
             <div className="space-y-1.5">
               <label className={LABEL}>Amount ({currency})</label>
-              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className={INPUT}/>
+              <input type="number" value={amount} onChange={e => { setAmount(e.target.value); if (errors.amount) setErrors(prev => ({ ...prev, amount: '' })); }} placeholder="0.00" className={`${INPUT} ${errors.amount ? 'border-red-400' : ''}`}/>
+              {errors.amount && <p className="text-red-500 text-xs mt-1">{errors.amount}</p>}
               {currency !== 'SRD' && (
                 <p className="text-xs text-slate-500 font-bold">≈ SRD {amountSRD.toFixed(2)}</p>
               )}
@@ -301,13 +338,14 @@ const CreatePaymentPage: React.FC = () => {
             {/* Payment Method: Bank or Cash toggle */}
             <div className="space-y-1.5 lg:col-span-3">
               <label className={`${LABEL} flex items-center gap-2`}><CreditCard size={10}/> Ontvangen via</label>
+              {errors.methodType && <p className="text-red-500 text-xs mt-1">{errors.methodType}</p>}
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setMethodType('bank')}
                   className={`flex items-center justify-center gap-3 py-4 rounded-2xl border-2 font-black text-sm transition-all ${
                     methodType === 'bank'
-                      ? 'border-slate-900 bg-slate-900 text-white shadow-lg'
+                      ? 'border-brand-primary bg-brand-primary text-white shadow-lg'
                       : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
                   }`}
                 >
@@ -318,22 +356,22 @@ const CreatePaymentPage: React.FC = () => {
                   onClick={() => setMethodType('cash')}
                   className={`flex items-center justify-center gap-3 py-4 rounded-2xl border-2 font-black text-sm transition-all ${
                     methodType === 'cash'
-                      ? 'border-emerald-600 bg-emerald-600 text-white shadow-lg'
+                      ? 'border-brand-primary bg-brand-primary text-white shadow-lg'
                       : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
                   }`}
                 >
-                  <Banknote size={18}/> Kas (Cash)
+                  <Banknote size={18}/> Cash
                 </button>
               </div>
             </div>
 
             {/* Bank Account */}
             <div className="space-y-1.5 lg:col-span-3">
-              <label className={`${LABEL} flex items-center gap-2`}><Landmark size={10}/> {methodType === 'cash' ? 'Kas Rekening' : 'Bank Rekening'} ({currency})</label>
+              <label className={`${LABEL} flex items-center gap-2`}><Landmark size={10}/> {methodType === 'cash' ? 'Cash Account' : 'Bank Account'} ({currency})</label>
               <select value={bankAccountId} onChange={e => setBankAccountId(e.target.value)} className={INPUT}>
-                {filteredBanks.length === 0 && <option value="">Geen {currency} {methodType === 'cash' ? 'kas' : 'bank'} rekeningen</option>}
+                {filteredBanks.length === 0 && <option value="">No {currency} {methodType === 'cash' ? 'cash' : 'bank'} accounts</option>}
                 {filteredBanks.map(b => (
-                  <option key={b.id} value={b.id}>{b.bank} — {b.currency} {b.balance.toLocaleString()} ({b.iban !== '—' ? b.iban : 'Kas'})</option>
+                  <option key={b.id} value={b.id}>{b.bank} — {b.currency} {b.balance.toLocaleString()} ({b.iban !== '—' ? b.iban : 'Cash'})</option>
                 ))}
               </select>
             </div>
@@ -362,10 +400,10 @@ const CreatePaymentPage: React.FC = () => {
             <div className="flex flex-wrap gap-8">
               <div>
                 <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">Client</p>
-                <p className="text-lg font-black">{mockClients.find(c => c.id === clientId)?.company || '—'}</p>
+                <p className="text-lg font-black">{allClients.find(c => c.id === clientId)?.company || '—'}</p>
               </div>
               <div>
-                <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">{methodType === 'cash' ? 'Kas' : 'Bank'}</p>
+                <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">{methodType === 'cash' ? 'Cash' : 'Bank'}</p>
                 <p className="text-lg font-black">{bankAccounts.find(b => b.id === bankAccountId)?.bank || (methodType === 'cash' ? 'Cash' : 'Bank')}</p>
               </div>
               <div>
@@ -377,13 +415,23 @@ const CreatePaymentPage: React.FC = () => {
               </div>
             </div>
             <button onClick={handleSave}
-              className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:bg-emerald-500 transition-all active:scale-95">
+              className="flex items-center gap-2 px-6 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:opacity-90 transition-all active:scale-95">
               {saved ? <Check size={14}/> : <Save size={14}/>}
               {saved ? 'Saved...' : isEdit ? 'Save Payment' : 'Register Payment'}
             </button>
           </div>
         </div>
       </div>
+      {showAddClient && (
+        <QuickAddClientModal
+          onClose={() => setShowAddClient(false)}
+          onCreated={(newClient) => {
+            setClientRefresh(r => r + 1);
+            setClientId(newClient.id);
+            setShowAddClient(false);
+          }}
+        />
+      )}
     </div>
   );
 };

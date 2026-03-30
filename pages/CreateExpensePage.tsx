@@ -1,7 +1,9 @@
 import React, { useState, useRef, useContext } from 'react';
-import { ArrowLeft, Wallet, Tag, DollarSign, Calendar, Save, Trash2, Paperclip, X, FileText, Image, Link2, ExternalLink, Store, AlertTriangle, PlusCircle } from 'lucide-react';
+import { ArrowLeft, Wallet, Tag, DollarSign, Calendar, Save, Check, Trash2, Paperclip, X, FileText, Image, Link2, ExternalLink, Store, AlertTriangle, PlusCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
+import { storage } from '../lib/storage';
+import type { Expense } from '../types';
 
 interface Attachment {
   name: string;
@@ -24,6 +26,20 @@ const CreateExpensePage: React.FC = () => {
   const [pendingNav, setPendingNav] = useState<string | null>(null);
   const [selectedVendor, setSelectedVendor] = useState('');
 
+  // Controlled form state
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [category, setCategory] = useState('');
+  const [description, setDescription] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saved, setSaved] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Vendors from localStorage (names only, saved by ExpenseVendorsPage)
+  const [savedVendors] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('erp_expense_vendor_names') || '[]'); } catch { return []; }
+  });
+
   const handleNav = (path: string) => {
     if (isDirty) {
       setPendingNav(path);
@@ -40,6 +56,30 @@ const CreateExpensePage: React.FC = () => {
     }
     setSelectedVendor(value);
     setIsDirty(true);
+  };
+
+  const handleSave = () => {
+    const newErrors: Record<string, string> = {};
+    if (!category) newErrors.category = 'Selecteer een categorie';
+    if (!amount || parseFloat(amount) <= 0) newErrors.amount = 'Vul een geldig bedrag in';
+    if (!date) newErrors.date = 'Vul een datum in';
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
+    const newExpense: Expense = {
+      id: `exp-${Date.now()}`,
+      category: category || 'Other',
+      vendor: selectedVendor || undefined,
+      amount: parseFloat(amount) || 0,
+      currency: 'SRD',
+      date,
+      description,
+      notes,
+      status: 'Paid',
+    };
+    const existing = storage.expenses.get();
+    storage.expenses.save([...existing, newExpense]);
+    setSaved(true);
+    setTimeout(() => navigate('/expenses'), 1200);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,8 +170,8 @@ const CreateExpensePage: React.FC = () => {
         <button onClick={() => handleNav('/expenses')} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold">
           <ArrowLeft size={18} /> Back to Expenses
         </button>
-        <button className="bg-red-600 text-white px-8 py-2.5 rounded-xl font-black text-sm shadow-xl shadow-red-100 active:scale-95 transition-all flex items-center gap-2">
-          <Save size={16} /> Log Expense
+        <button onClick={handleSave} className="bg-red-600 text-white px-8 py-2.5 rounded-xl font-black text-sm shadow-xl shadow-red-100 active:scale-95 transition-all flex items-center gap-2">
+          {saved ? <><Check size={16} /> Saved!</> : <><Save size={16} /> Log Expense</>}
         </button>
       </div>
 
@@ -152,13 +192,15 @@ const CreateExpensePage: React.FC = () => {
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                   <DollarSign size={12} /> Amount (€)
                 </label>
-                <input aria-label="Bedrag" type="number" placeholder="0.00" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-black outline-none focus:bg-white transition-all shadow-inner" />
+                <input aria-label="Bedrag" type="number" placeholder="0.00" value={amount} onChange={e => { setAmount(e.target.value); setIsDirty(true); if (errors.amount) setErrors(prev => ({ ...prev, amount: '' })); }} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl text-lg font-black outline-none focus:bg-white transition-all shadow-inner ${errors.amount ? 'border-red-400' : 'border-slate-200'}`} />
+                {errors.amount && <p className="text-red-500 text-xs mt-1">{errors.amount}</p>}
              </div>
              <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                   <Calendar size={12} /> Date
                 </label>
-                <input aria-label="Datum" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none" />
+                <input aria-label="Datum" type="date" value={date} onChange={e => { setDate(e.target.value); if (errors.date) setErrors(prev => ({ ...prev, date: '' })); }} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl text-sm font-bold outline-none ${errors.date ? 'border-red-400' : 'border-slate-200'}`} />
+                {errors.date && <p className="text-red-500 text-xs mt-1">{errors.date}</p>}
              </div>
           </div>
 
@@ -166,13 +208,15 @@ const CreateExpensePage: React.FC = () => {
              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                <Tag size={12} /> Category
              </label>
-             <select aria-label="Categorie" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none">
-               <option>Inventory / Wood Stock</option>
-               <option>Logistics & Shipping</option>
-               <option>Rent & Utilities</option>
-               <option>Marketing</option>
-               <option>Tools & Machinery</option>
+             <select aria-label="Categorie" value={category} onChange={e => { setCategory(e.target.value); setIsDirty(true); if (errors.category) setErrors(prev => ({ ...prev, category: '' })); }} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl text-sm font-bold outline-none ${errors.category ? 'border-red-400' : 'border-slate-200'}`}>
+               <option value="">— Select category —</option>
+               <option value="Inventory">Inventory / Wood Stock</option>
+               <option value="Logistics">Logistics & Shipping</option>
+               <option value="Rent & Utilities">Rent & Utilities</option>
+               <option value="Marketing">Marketing</option>
+               <option value="Tools & Machinery">Tools & Machinery</option>
              </select>
+             {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
           </div>
 
           <div className="space-y-1.5">
@@ -193,6 +237,14 @@ const CreateExpensePage: React.FC = () => {
                <option>Brandstof Suriname</option>
                <option>Tropical Timber Co.</option>
                <option>Local Market</option>
+               {savedVendors.length > 0 && (
+                 <>
+                   <option disabled>──────────────</option>
+                   {savedVendors.map((v: string) => (
+                     <option key={v} value={v}>{v}</option>
+                   ))}
+                 </>
+               )}
                <option disabled>──────────────</option>
                <option value="__new__">＋ {t('newVendor')}</option>
              </select>
@@ -202,7 +254,7 @@ const CreateExpensePage: React.FC = () => {
              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                Description
              </label>
-             <input aria-label="Beschrijving" type="text" placeholder="e.g. Fuel for truck #02" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none" />
+             <input aria-label="Beschrijving" type="text" placeholder="e.g. Fuel for truck #02" value={description} onChange={e => { setDescription(e.target.value); setIsDirty(true); }} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none" />
           </div>
 
           {/* Attachment Section */}
@@ -242,7 +294,7 @@ const CreateExpensePage: React.FC = () => {
                   className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-blue-300"
                   autoFocus
                 />
-                <button onClick={handleAddLink} className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black hover:bg-blue-700 transition-all">
+                <button onClick={handleAddLink} className="px-4 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black hover:opacity-90 transition-all">
                   Toevoegen
                 </button>
                 <button title="Close" onClick={() => setShowLinkInput(false)} className="px-3 py-2.5 bg-slate-100 text-slate-400 rounded-xl text-xs font-black hover:bg-slate-200 transition-all">

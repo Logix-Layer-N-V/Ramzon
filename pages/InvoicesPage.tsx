@@ -3,7 +3,7 @@ import { LanguageContext } from '../lib/context';
 import {
   Search, Plus, Filter, FileText, Download, Send,
   MoreHorizontal, CheckCircle2, Clock, AlertCircle, X,
-  ChevronUp, ChevronDown
+  ChevronUp, ChevronDown, Trash2
 } from 'lucide-react';
 import { mockInvoices, mockClients } from '../lib/mock-data';
 import { InvoiceStatus, Invoice } from '../types';
@@ -25,11 +25,26 @@ const getStatusStyle = (status: InvoiceStatus) => {
 const InvoicesPage: React.FC = () => {
   const navigate = useNavigate();
   const { t, currencySymbol } = useContext(LanguageContext);
-  const [allInvoices] = useState<Invoice[]>(() => {
+  const [refresh, setRefresh] = useState(0);
+
+  const allInvoices = useMemo(() => {
     const stored = storage.invoices.get();
     const storedIds = new Set(stored.map((e: Invoice) => e.id));
     return [...stored, ...mockInvoices.filter((e: Invoice) => !storedIds.has(e.id))];
-  });
+  }, [refresh]);
+
+  const handleDeleteInvoice = (id: string) => {
+    if (!window.confirm('Factuur verwijderen?')) return;
+    const updated = allInvoices.filter(inv => inv.id !== id);
+    storage.invoices.save(updated.filter(inv => !mockInvoices.find(m => m.id === inv.id)));
+    setRefresh(r => r + 1);
+  };
+
+  const allClients = useMemo(() => {
+    const stored = storage.clients.get();
+    const ids = new Set(stored.map(c => c.id));
+    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
+  }, []);
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState<InvoiceStatus | 'All'>('All');
@@ -104,7 +119,7 @@ const InvoicesPage: React.FC = () => {
           </button>
           <button
             onClick={() => navigate('/invoices/new')}
-            className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-black hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-xl shadow-emerald-100 active:scale-95"
+            className="bg-brand-primary text-white px-5 py-2.5 rounded-xl text-sm font-black hover:opacity-90 transition-all flex items-center gap-2 shadow-xl active:scale-95"
           >
             <Plus size={18}/> New Invoice
           </button>
@@ -286,7 +301,7 @@ const InvoicesPage: React.FC = () => {
                   <td className="px-6 py-4 font-black text-slate-900 italic">{inv.invoiceNumber}</td>
                   <td className="px-6 py-4">
                     {(() => {
-                      const c = mockClients.find(cl => cl.id === inv.clientId);
+                      const c = allClients.find(cl => cl.id === inv.clientId);
                       return (
                         <>
                           <div className="font-bold text-slate-900">{c?.name || inv.clientName}</div>
@@ -324,6 +339,13 @@ const InvoicesPage: React.FC = () => {
                         title="More options"
                       >
                         <MoreHorizontal size={16} />
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleDeleteInvoice(inv.id); }}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Verwijderen"
+                      >
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </td>

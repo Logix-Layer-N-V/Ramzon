@@ -17,6 +17,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { mockClients } from '../lib/mock-data';
+import { storage } from '../lib/storage';
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
 
@@ -27,13 +28,20 @@ const ClientsPage: React.FC = () => {
   const [sortKey, setSortKey] = useState<string>('company');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
+  const allClients = useMemo(() => {
+    const stored = storage.clients.get();
+    if (stored.length === 0) return mockClients;
+    const ids = new Set(stored.map(c => c.id));
+    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
+  }, []);
+
   const handleSort = (key: string) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
   };
 
-  const filteredClients = mockClients.filter(c =>
-    c.company.toLowerCase().includes(search.toLowerCase()) || 
+  const filteredClients = allClients.filter(c =>
+    c.company.toLowerCase().includes(search.toLowerCase()) ||
     c.name.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -86,7 +94,7 @@ const ClientsPage: React.FC = () => {
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Active Accounts</p>
           <div className="flex items-end justify-between">
-            <h3 className="text-3xl font-bold text-slate-900">{mockClients.length}</h3>
+            <h3 className="text-3xl font-bold text-slate-900">{allClients.length}</h3>
             <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">+2 this month</span>
           </div>
         </div>

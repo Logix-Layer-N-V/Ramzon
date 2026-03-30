@@ -1,6 +1,8 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { Store, Plus, Pencil, Trash2, Check, X, Phone, Mail, MapPin } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
+
+const LS_KEY = 'erp_expense_vendors';
 
 const DEFAULT_VENDORS = [
   { id: 'v1', name: 'Shell Suriname', category: 'Logistiek', phone: '+597 410-000', email: 'info@shell.sr', address: 'Paramaribo' },
@@ -10,7 +12,20 @@ const DEFAULT_VENDORS = [
 
 const ExpenseVendorsPage: React.FC = () => {
   const { t } = useContext(LanguageContext);
-  const [vendors, setVendors] = useState(DEFAULT_VENDORS);
+  const [vendors, setVendors] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+      return stored ?? DEFAULT_VENDORS;
+    } catch {
+      return DEFAULT_VENDORS;
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(LS_KEY, JSON.stringify(vendors));
+    // Also persist just vendor names for the CreateExpensePage dropdown
+    localStorage.setItem('erp_expense_vendor_names', JSON.stringify(vendors.map((v: typeof vendors[0]) => v.name)));
+  }, [vendors]);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', category: '', phone: '', email: '', address: '' });

@@ -18,21 +18,15 @@ const CreateClientPage: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [preferredCurrency, setPreferredCurrency] = useState('SRD');
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const canSave = contactName.trim().length > 0;
 
   const handleSave = () => {
-    const validation = ClientSchema.safeParse({
-      name: contactName,
-      email: email,
-      company: company || undefined,
-      phone: phone || undefined,
-      address: address || undefined,
-      vatNumber: btw || undefined,
-    });
-    if (!validation.success) {
-      alert(validation.error.issues[0].message); // Phase 1 — inline errors in Task 8
-      return;
-    }
+    const newErrors: Record<string, string> = {};
+    if (!contactName.trim()) newErrors.name = 'Naam is verplicht';
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Ongeldig emailadres';
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
     const existing = storage.clients.get();
     const newClient = {
       id: `c${Date.now()}`,
@@ -94,13 +88,14 @@ const CreateClientPage: React.FC = () => {
                 type="text"
                 placeholder="Full name of contact person..."
                 value={contactName}
-                onChange={e => setContactName(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-brand-primary/20 focus:bg-white transition-all"
+                onChange={e => { setContactName(e.target.value); if (errors.name) setErrors(prev => ({ ...prev, name: '' })); }}
+                className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-brand-primary/20 focus:bg-white transition-all ${errors.name ? 'border-red-400' : 'border-slate-200'}`}
                 autoFocus
               />
-              {!contactName.trim() && (
-                <p className="text-[10px] text-slate-400 font-semibold">Required – name of the contact person</p>
-              )}
+              {errors.name
+                ? <p className="text-red-500 text-xs mt-1">{errors.name}</p>
+                : !contactName.trim() && <p className="text-[10px] text-slate-400 font-semibold">Required – name of the contact person</p>
+              }
             </div>
 
             {/* 2. Company Name (optional) */}
@@ -140,9 +135,10 @@ const CreateClientPage: React.FC = () => {
                 type="email"
                 placeholder="client@company.sr"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-brand-primary/20 focus:bg-white transition-all"
+                onChange={e => { setEmail(e.target.value); if (errors.email) setErrors(prev => ({ ...prev, email: '' })); }}
+                className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-brand-primary/20 focus:bg-white transition-all ${errors.email ? 'border-red-400' : 'border-slate-200'}`}
               />
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
             </div>
 
             {/* 5. Default Currency */}

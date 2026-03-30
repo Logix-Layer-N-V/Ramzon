@@ -38,6 +38,7 @@ export interface Credit {
   date: string;
   reason: string;
   status: 'Available' | 'Used';
+  notes?: string;
 }
 
 export interface WoodProduct {
@@ -123,6 +124,7 @@ export interface Expense {
   currency?: string;
   date: string;
   description: string;
+  notes?: string;
   status: 'Paid' | 'Unpaid';
 }
 

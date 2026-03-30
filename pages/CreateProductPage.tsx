@@ -2,30 +2,21 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Save, Check, Package, Ruler, Calculator, Box, Plus, Hash, ChevronRight, Pencil, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { storage } from '../lib/storage';
-import type { DoorModel, ProfileSize, WoodSpecies, DoorPriceEntry, WoodProduct } from '../types';
+import type { DoorModel, DoorPriceEntry, WoodProduct } from '../types';
 
-const PRODUCT_CATEGORIES = ['Doors', 'Mouldings', 'Frames', 'Window Frames', 'Crating'];
-const CRATE_TYPES = ['Standard crate (small)', 'Standard crate (medium)', 'Standard crate (large)', 'Custom crate', 'Pallet box', 'Export crate'];
-const MOULDING_PRODUCTS = ['Crown moulding', 'Skirting board', 'Architrave', 'Fascia board', 'Ceiling moulding', 'Door casing'];
-const FRAME_SIZES = ['18×40mm', '18×60mm', '18×80mm', '25×50mm', '25×75mm', '25×100mm', '32×100mm'];
-const WINDOW_FRAME_SIZES = ['56×56mm', '56×69mm', '56×89mm', '70×70mm', '70×90mm', '90×90mm', '140×90mm'];
-
+// ─── Fallback lists (if localStorage is empty) ────────────────────────────────
 const DEFAULT_DOOR_MODELS: DoorModel[] = [
-  { id: 'dm1', name: 'Panel door' }, { id: 'dm2', name: 'Classic door' },
-  { id: 'dm3', name: 'Stile & rail door' }, { id: 'dm4', name: 'Sliding door' },
-  { id: 'dm5', name: 'Overlay door' }, { id: 'dm6', name: 'Louvre door' },
+  { id: 'dm1', name: 'Panel door' },       { id: 'dm2', name: 'Classic door' },
+  { id: 'dm3', name: 'Stile & rail door' },{ id: 'dm4', name: 'Sliding door' },
+  { id: 'dm5', name: 'Overlay door' },     { id: 'dm6', name: 'Louvre door' },
 ];
-const DEFAULT_PROFILE_SIZES: ProfileSize[] = [
-  { id: 'ps1', label: '800×2100mm', mmW: 800, mmH: 2100 },
-  { id: 'ps2', label: '900×2100mm', mmW: 900, mmH: 2100 },
-  { id: 'ps3', label: '1000×2200mm', mmW: 1000, mmH: 2200 },
-  { id: 'ps4', label: '1200×2400mm', mmW: 1200, mmH: 2400 },
-];
-const DEFAULT_WOOD_SPECIES: WoodSpecies[] = [
-  { id: 'ws1', name: 'Teak', color: '#c8a87a' }, { id: 'ws2', name: 'Oak', color: '#d4a96a' },
-  { id: 'ws3', name: 'Mahogany', color: '#8b3a2a' }, { id: 'ws4', name: 'Pine', color: '#e8c98a' },
-  { id: 'ws5', name: 'Kopi', color: '#6b4226' }, { id: 'ws6', name: 'Purpleheart', color: '#6a3772' },
-  { id: 'ws7', name: 'Wenge', color: '#3d2b1f' }, { id: 'ws8', name: 'Ipe', color: '#5c3a1a' },
+
+const DEFAULT_CATEGORIES = [
+  { id: 'cat1', name: 'Doors',         pricingType: 'm2'  },
+  { id: 'cat2', name: 'Mouldings',     pricingType: 'lm'  },
+  { id: 'cat3', name: 'Frames',        pricingType: 'lm'  },
+  { id: 'cat4', name: 'Window Frames', pricingType: 'lm'  },
+  { id: 'cat5', name: 'Crating',       pricingType: 'pcs' },
 ];
 
 function initList<T>(key: string, defaults: T[]): T[] {
@@ -34,7 +25,7 @@ function initList<T>(key: string, defaults: T[]): T[] {
   return defaults;
 }
 
-const INPUT = 'w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-slate-400';
+const INPUT = 'w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-slate-400 transition-colors';
 const LABEL = 'text-[10px] font-black text-slate-400 uppercase tracking-widest';
 
 function InlineAdd({ label, onAdd }: { label: string; onAdd: (val: string) => void }) {
@@ -57,186 +48,147 @@ function InlineAdd({ label, onAdd }: { label: string; onAdd: (val: string) => vo
   );
 }
 
+// ─── Tax rate options ─────────────────────────────────────────────────────────
+const TAX_OPTIONS = [
+  { value: 0,  label: '0%',  desc: 'Vrijgesteld' },
+  { value: 10, label: '10%', desc: 'Verlaagd tarief' },
+  { value: 21, label: '21%', desc: 'Standaard tarief' },
+];
+
 const CreateProductPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = !!id;
   const [saved, setSaved] = useState(false);
-  const [category, setCategory] = useState('Doors');
 
-  // Door wizard state
+  // ── Categories (from localStorage) ──────────────────────────────────────────
+  const [categories] = useState<any[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('erp_product_categories') ?? 'null');
+      if (!saved || saved.some((c: any) => !c.pricingType)) return DEFAULT_CATEGORIES;
+      return saved;
+    } catch { return DEFAULT_CATEGORIES; }
+  });
+  const [category, setCategory] = useState(categories[0]?.name ?? 'Doors');
+  const activeCat = categories.find((c: any) => c.name === category) ?? categories[0];
+
+  // ── Shared product fields (all categories) ──────────────────────────────────
+  const [productName, setProductName]   = useState('');
+  const [description, setDescription]   = useState('');
+  const [defaultTaxRate, setDefaultTaxRate] = useState<0 | 10 | 21>(21);
+
+  // ── Door wizard state (2 steps: SKU + Model) ─────────────────────────────────
   const [doorStep, setDoorStep] = useState(1);
-  const [sku, setSku] = useState('');
+  const [sku, setSku]           = useState('');
   const [skuManual, setSkuManual] = useState(false);
-  const [doorModels, setDoorModels] = useState<DoorModel[]>(() => initList('doorModels', DEFAULT_DOOR_MODELS));
-  const [profileSizes, setProfileSizes] = useState<ProfileSize[]>(() => initList('profileSizes', DEFAULT_PROFILE_SIZES));
-  const [woodSpeciesList, setWoodSpeciesList] = useState<WoodSpecies[]>(() => initList('woodSpecies', DEFAULT_WOOD_SPECIES));
-  const [priceMatrix, setPriceMatrix] = useState<DoorPriceEntry[]>(() => storage.doorPriceMatrix.get());
 
+  // Models: load all, filter by category
+  const [allModels, setAllModels] = useState<any[]>(() => {
+    const m = storage.doorModels.get();
+    const base = m.length ? m : DEFAULT_DOOR_MODELS;
+    // migrate orphaned models to first category
+    return base.map((x: any) => x.categoryId ? x : { ...x, categoryId: 'cat1' });
+  });
   const [selectedModel, setSelectedModel] = useState<DoorModel | null>(null);
-  const [selectedProfile, setSelectedProfile] = useState<ProfileSize | null>(null);
-  const [selectedSpecies, setSelectedSpecies] = useState<WoodSpecies | null>(null);
 
-  // Inline edit state
-  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
-  const [editingProfileLabel, setEditingProfileLabel] = useState('');
-  const [editingSpeciesId, setEditingSpeciesId] = useState<string | null>(null);
-  const [editingSpeciesName, setEditingSpeciesName] = useState('');
-
-  // Other fields
-  const [name, setName] = useState('');
-  const [breedte, setBreedte] = useState<number>(800);
-  const [hoogte, setHoogte] = useState<number>(2100);
+  const [priceMatrix]   = useState<DoorPriceEntry[]>(() => storage.doorPriceMatrix.get());
+  const [breedte, setBreedte]     = useState<number>(800);
+  const [hoogte, setHoogte]       = useState<number>(2100);
   const [thickness, setThickness] = useState<number>(40);
   const [pricePerM2, setPricePerM2] = useState<number>(0);
   const [priceManual, setPriceManual] = useState(false);
-  const [stock, setStock] = useState<number>(0);
 
-  // Non-door fields
-  const [crateType, setCrateType] = useState(CRATE_TYPES[0]);
-  const [mouldingProduct, setMouldingProduct] = useState(MOULDING_PRODUCTS[0]);
-  const [frameSize, setFrameSize] = useState(FRAME_SIZES[0]);
-  const [windowFrameSize, setWindowFrameSize] = useState(WINDOW_FRAME_SIZES[0]);
-  const [lengte, setLengte] = useState<number>(2400);
-  const [houtsoort, setHoutsoort] = useState('Teak');
+  // ── Non-door fields ─────────────────────────────────────────────────────────
+  const [stock, setStock]           = useState<number>(0);
+  const [lengte, setLengte]         = useState<number>(2400);
+  const [houtsoort, setHoutsoort]   = useState('Teak');
   const [pricePerUnit, setPricePerUnit] = useState<number>(0);
-  const [unit, setUnit] = useState('m²');
+  const [unit, setUnit]             = useState('m²');
   const [calculationType, setCalculationType] = useState<'pcs' | 'm2' | 'lm'>('lm');
 
-  // Auto-set calculation type and unit when category changes
+  // ── Category change effects ──────────────────────────────────────────────────
   useEffect(() => {
-    if (category === 'Doors') {
-      setUnit('m²'); setCalculationType('m2');
-    } else if (['Mouldings', 'Frames', 'Window Frames'].includes(category)) {
-      setCalculationType('lm');
-    } else {
-      setCalculationType('pcs');
-    }
+    const pt = activeCat?.pricingType ?? 'pcs';
+    if (pt === 'm2') { setUnit('m²'); setCalculationType('m2'); }
+    else if (pt === 'lm') { setCalculationType('lm'); }
+    else { setCalculationType('pcs'); }
   }, [category]);
 
-  // Sync unit to calculationType for non-door products
   useEffect(() => {
-    if (category !== 'Doors') {
+    if (activeCat?.pricingType !== 'm2') {
       setUnit(calculationType === 'm2' ? 'm²' : calculationType === 'lm' ? 'lm' : 'pcs');
     }
   }, [calculationType, category]);
 
-  // Auto-generate SKU from selections
+  // ── Auto-generate SKU (when model selected) ─────────────────────────────────
   useEffect(() => {
-    if (category === 'Doors' && !skuManual && selectedModel && selectedProfile && selectedSpecies) {
-      const m = selectedModel.name.split(' ').map(w => w[0]).join('').toUpperCase();
-      const p = selectedProfile.label.replace('mm','').replace('×','-');
-      const w = selectedSpecies.name.substring(0, 3).toUpperCase();
-      setSku(`D-${m}-${p}-${w}`);
+    const isDoor = activeCat?.pricingType === 'm2';
+    if (isDoor && !skuManual && selectedModel) {
+      const m = selectedModel.name.split(' ').map((w: string) => w[0]).join('').toUpperCase();
+      setSku(`D-${m}`);
     }
-  }, [selectedModel, selectedProfile, selectedSpecies, skuManual, category]);
+  }, [selectedModel, skuManual, category]);
 
-  // Auto-fill price from matrix
-  useEffect(() => {
-    if (category === 'Doors' && !priceManual && selectedModel && selectedSpecies) {
-      const entry = priceMatrix.find(e => e.modelId === selectedModel.id && e.woodSpeciesId === selectedSpecies.id);
-      if (entry) setPricePerM2(entry.pricePerM2);
-    }
-  }, [selectedModel, selectedSpecies, priceMatrix, priceManual, category]);
-
-  // Sync profile dimensions to door size inputs
-  useEffect(() => {
-    if (selectedProfile) {
-      setBreedte(selectedProfile.mmW);
-      setHoogte(selectedProfile.mmH);
-    }
-  }, [selectedProfile]);
-
+  // ── Load existing product for edit ──────────────────────────────────────────
   useEffect(() => {
     if (id) {
       const p = storage.products.get().find((x: WoodProduct) => x.id === id);
       if (p) {
-        setName(p.name); setHoutsoort(p.woodType);
-        setCategory(p.category || 'Doors');
+        setProductName(p.name); setHoutsoort(p.woodType);
+        setCategory(p.category || categories[0]?.name || 'Doors');
         setPricePerUnit(p.pricePerUnit); setStock(p.stock);
         setUnit(p.unit); setBreedte(p.width); setHoogte(p.length); setThickness(p.thickness);
         if (p.sku) setSku(p.sku);
         if (p.calculationType) setCalculationType(p.calculationType);
+        if ((p as any).description) setDescription((p as any).description);
+        if ((p as any).defaultTaxRate !== undefined) setDefaultTaxRate((p as any).defaultTaxRate);
       }
     }
   }, [id]);
 
+  // ── Derived ──────────────────────────────────────────────────────────────────
+  const isDoor     = activeCat?.pricingType === 'm2';
   const oppervlakte = useMemo(() => (breedte / 1000) * (hoogte / 1000), [breedte, hoogte]);
-  const totalPrice = useMemo(() => {
-    if (category === 'Doors') return oppervlakte * pricePerM2;
-    if (['Mouldings', 'Frames', 'Window Frames'].includes(category)) return (lengte / 1000) * pricePerUnit;
+  const totalPrice  = useMemo(() => {
+    if (isDoor) return oppervlakte * pricePerM2;
+    if (activeCat?.pricingType === 'lm') return (lengte / 1000) * pricePerUnit;
     return pricePerUnit;
-  }, [category, oppervlakte, lengte, pricePerUnit, pricePerM2]);
+  }, [isDoor, activeCat, oppervlakte, lengte, pricePerUnit, pricePerM2]);
 
-  const addDoorModel = (name: string) => {
-    const updated = [...doorModels, { id: `dm${Date.now()}`, name }];
-    setDoorModels(updated); storage.doorModels.save(updated);
-  };
-  const addProfileSize = (label: string) => {
-    const parts = label.replace('mm','').split('×');
-    const updated = [...profileSizes, { id: `ps${Date.now()}`, label: label.includes('mm') ? label : `${label}mm`, mmW: +(parts[0]||0), mmH: +(parts[1]||0) }];
-    setProfileSizes(updated); storage.profileSizes.save(updated);
-  };
-  const addWoodSpecies = (name: string) => {
-    const updated = [...woodSpeciesList, { id: `ws${Date.now()}`, name }];
-    setWoodSpeciesList(updated); storage.woodSpecies.save(updated);
+  // Models for selected category
+  const catModels = allModels.filter((m: any) => m.categoryId === activeCat?.id);
+  const addModelForCat = (name: string) => {
+    const updated = [...allModels, { id: `dm${Date.now()}`, name, categoryId: activeCat?.id ?? 'cat1' }];
+    setAllModels(updated); storage.doorModels.save(updated);
   };
 
-  const saveProfileEdit = (id: string) => {
-    if (!editingProfileLabel.trim()) return;
-    const parts = editingProfileLabel.replace('mm','').split('×');
-    const updated = profileSizes.map(p => p.id === id
-      ? { ...p, label: editingProfileLabel.includes('mm') ? editingProfileLabel : `${editingProfileLabel}mm`, mmW: +(parts[0]||p.mmW), mmH: +(parts[1]||p.mmH) }
-      : p
-    );
-    setProfileSizes(updated); storage.profileSizes.save(updated);
-    if (selectedProfile?.id === id) setSelectedProfile(updated.find(p => p.id === id) ?? null);
-    setEditingProfileId(null);
+  // ── Step completion ──────────────────────────────────────────────────────────
+  const STEP_LABELS = ['SKU #', 'Model'];
+  const doorStepComplete = (step: number) => {
+    if (step === 1) return sku.length > 0;
+    if (step === 2) return selectedModel !== null;
+    return false;
   };
-  const deleteProfile = (id: string) => {
-    const updated = profileSizes.filter(p => p.id !== id);
-    setProfileSizes(updated); storage.profileSizes.save(updated);
-    if (selectedProfile?.id === id) setSelectedProfile(null);
-  };
+  const doorReady = isDoor && selectedModel && sku;
 
-  const saveSpeciesEdit = (id: string) => {
-    if (!editingSpeciesName.trim()) return;
-    const updated = woodSpeciesList.map(w => w.id === id ? { ...w, name: editingSpeciesName.trim() } : w);
-    setWoodSpeciesList(updated); storage.woodSpecies.save(updated);
-    if (selectedSpecies?.id === id) setSelectedSpecies(updated.find(w => w.id === id) ?? null);
-    setEditingSpeciesId(null);
-  };
-  const deleteSpecies = (id: string) => {
-    const updated = woodSpeciesList.filter(w => w.id !== id);
-    setWoodSpeciesList(updated); storage.woodSpecies.save(updated);
-    if (selectedSpecies?.id === id) setSelectedSpecies(null);
-  };
-
+  // ── Save ─────────────────────────────────────────────────────────────────────
   const handleSave = () => {
-    const isDoorProduct = category === 'Doors';
-    const autoName = isDoorProduct
-      ? `${selectedSpecies?.name ?? ''} ${selectedModel?.name ?? ''}`.trim()
-      : name;
+    const finalName = productName.trim() || (isDoor && selectedModel ? selectedModel.name : category);
     const product: WoodProduct & { [k: string]: any } = {
       id: id ?? `prod_${Date.now()}`,
-      name: autoName || name,
-      woodType: isDoorProduct ? (selectedSpecies?.name ?? '') : houtsoort,
-      thickness: isDoorProduct ? 40 : thickness,
+      name: finalName,
+      woodType: isDoor ? '' : houtsoort,
+      thickness: isDoor ? 40 : thickness,
       width:  breedte,
-      length: isDoorProduct ? hoogte : (['Mouldings', 'Frames', 'Window Frames'].includes(category) ? lengte : 0),
-      unit: (isDoorProduct ? 'm²' : unit) as WoodProduct['unit'],
-      pricePerUnit: isDoorProduct ? pricePerM2 : pricePerUnit,
+      length: isDoor ? hoogte : (activeCat?.pricingType === 'lm' ? lengte : 0),
+      unit: (isDoor ? 'm²' : unit) as WoodProduct['unit'],
+      pricePerUnit: isDoor ? pricePerM2 : pricePerUnit,
       stock,
       category,
-      calculationType: isDoorProduct ? 'm2' : calculationType,
-      ...(isDoorProduct && { sku, modelId: selectedModel?.id, profileId: selectedProfile?.id, speciesId: selectedSpecies?.id }),
-      ...(!isDoorProduct && {
-        productType: category === 'Crating' ? crateType
-          : category === 'Mouldings' ? mouldingProduct
-          : category === 'Frames' ? frameSize
-          : category === 'Window Frames' ? windowFrameSize
-          : '',
-      }),
+      calculationType: isDoor ? 'm2' : calculationType,
+      description,
+      defaultTaxRate,
+      ...(isDoor && { sku, modelId: selectedModel?.id }),
     };
     const existing = storage.products.get();
     if (id) {
@@ -248,16 +200,7 @@ const CreateProductPage: React.FC = () => {
     setTimeout(() => navigate('/products'), 1200);
   };
 
-  const doorStepComplete = (step: number) => {
-    if (step === 1) return sku.length > 0;
-    if (step === 2) return selectedModel !== null;
-    if (step === 3) return selectedProfile !== null;
-    if (step === 4) return selectedSpecies !== null;
-    return false;
-  };
-
-  const STEP_LABELS = ['SKU #', 'Door Model', 'Profile Size', 'Wood Species'];
-
+  // ── Door wizard (2 steps) ─────────────────────────────────────────────────────
   const renderDoorWizard = () => (
     <div className="space-y-6">
       {/* Step indicator */}
@@ -277,7 +220,7 @@ const CreateProductPage: React.FC = () => {
                 }`}>{done && !active ? <Check size={10}/> : step}</span>
                 <span className="hidden sm:inline">{label}</span>
               </button>
-              {i < 3 && <ChevronRight size={12} className="text-slate-300 flex-shrink-0"/>}
+              {i < 1 && <ChevronRight size={12} className="text-slate-300 flex-shrink-0"/>}
             </React.Fragment>
           );
         })}
@@ -288,217 +231,68 @@ const CreateProductPage: React.FC = () => {
         <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-2xl">
             <Hash size={16} className="text-amber-600"/>
-            <p className="text-xs font-bold text-amber-700">SKU is auto-generated once you pick Model, Profile & Species. You can also set it manually.</p>
+            <p className="text-xs font-bold text-amber-700">SKU is auto-generated once you pick a Model & Wood Species. You can also set it manually.</p>
           </div>
           <div className="space-y-1.5">
             <label className={LABEL}>SKU #</label>
             <input value={sku} onChange={e => { setSku(e.target.value); setSkuManual(true); }}
-              placeholder="e.g. D-PD-900-2100-TEA"
+              placeholder="e.g. D-PD-TEA"
               className={INPUT}/>
-            {skuManual && <button onClick={() => { setSkuManual(false); }} className="text-xs text-slate-400 hover:text-slate-700 font-bold">↺ Auto-generate</button>}
+            {skuManual && <button onClick={() => setSkuManual(false)} className="text-xs text-slate-400 hover:text-slate-700 font-bold">↺ Auto-generate</button>}
           </div>
           <button onClick={() => setDoorStep(2)}
             className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl text-xs font-black">
-            Next: Door Model <ChevronRight size={14}/>
+            Next: Model <ChevronRight size={14}/>
           </button>
         </div>
       )}
 
-      {/* Step 2: Door Model */}
+      {/* Step 2: Model */}
       {doorStep === 2 && (
         <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-          <div className="grid grid-cols-2 gap-2">
-            {doorModels.map(m => (
-              <button key={m.id} onClick={() => setSelectedModel(m)}
-                className={`px-4 py-3 rounded-xl text-sm font-bold border text-left transition-all ${
-                  selectedModel?.id === m.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-200 hover:border-slate-400 text-slate-700'
-                }`}>{m.name}</button>
-            ))}
-          </div>
-          <InlineAdd label="door model" onAdd={addDoorModel}/>
-          {selectedModel && (
-            <button onClick={() => setDoorStep(3)}
-              className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl text-xs font-black">
-              Next: Profile Size <ChevronRight size={14}/>
-            </button>
+          {catModels.length === 0 ? (
+            <div className="py-6 text-center text-sm font-bold text-slate-400">
+              No models for this category yet.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {catModels.map((m: any) => (
+                <button key={m.id} onClick={() => setSelectedModel(m)}
+                  className={`px-4 py-3 rounded-xl text-sm font-bold border text-left transition-all ${
+                    selectedModel?.id === m.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-200 hover:border-slate-400 text-slate-700'
+                  }`}>{m.name}</button>
+              ))}
+            </div>
           )}
+          <InlineAdd label="model" onAdd={addModelForCat}/>
         </div>
       )}
 
-      {/* Step 3: Profile Size */}
-      {doorStep === 3 && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-          <div className="grid grid-cols-2 gap-2">
-            {profileSizes.map(p => (
-              editingProfileId === p.id ? (
-                <div key={p.id} className="px-3 py-2 rounded-xl border-2 border-slate-900 bg-white flex flex-col gap-2">
-                  <input
-                    autoFocus
-                    value={editingProfileLabel}
-                    onChange={e => setEditingProfileLabel(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveProfileEdit(p.id); if (e.key === 'Escape') setEditingProfileId(null); }}
-                    placeholder="e.g. 900×2100mm"
-                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none"
-                  />
-                  <div className="flex gap-1.5">
-                    <button onClick={() => saveProfileEdit(p.id)} className="flex-1 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-black">Opslaan</button>
-                    <button onClick={() => setEditingProfileId(null)} className="px-2 py-1 text-slate-400 hover:text-slate-700 rounded-lg text-[10px] font-bold">✕</button>
-                  </div>
-                </div>
-              ) : (
-                <div key={p.id} className={`group relative rounded-xl border text-left transition-all ${
-                  selectedProfile?.id === p.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-200 hover:border-slate-400 text-slate-700'
-                }`}>
-                  <button className="w-full px-4 py-3 text-left" onClick={() => setSelectedProfile(p)}>
-                    <div className="font-black text-sm">{p.label}</div>
-                    <div className="text-xs opacity-60">{(p.mmW/1000).toFixed(2)} × {(p.mmH/1000).toFixed(2)} m</div>
-                  </button>
-                  <div className="absolute top-1.5 right-1.5 hidden group-hover:flex gap-0.5">
-                    <button onClick={e => { e.stopPropagation(); setEditingProfileId(p.id); setEditingProfileLabel(p.label); }}
-                      className={`p-1 rounded-lg transition-all ${selectedProfile?.id === p.id ? 'text-white/60 hover:text-white hover:bg-white/10' : 'text-slate-300 hover:text-slate-700 hover:bg-slate-100'}`}>
-                      <Pencil size={11}/>
-                    </button>
-                    <button onClick={e => { e.stopPropagation(); deleteProfile(p.id); }}
-                      className={`p-1 rounded-lg transition-all ${selectedProfile?.id === p.id ? 'text-white/60 hover:text-red-300 hover:bg-white/10' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'}`}>
-                      <X size={11}/>
-                    </button>
-                  </div>
-                </div>
-              )
-            ))}
-          </div>
-          <InlineAdd label="profile size (e.g. 900×2100mm)" onAdd={addProfileSize}/>
-          <div className="pt-2 border-t border-slate-100 grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <label className={LABEL}>Width (mm)</label>
-              <input type="number" value={breedte} onChange={e => setBreedte(+e.target.value)} className={INPUT}/>
-            </div>
-            <div className="space-y-1.5">
-              <label className={LABEL}>Height (mm)</label>
-              <input type="number" value={hoogte} onChange={e => setHoogte(+e.target.value)} className={INPUT}/>
-            </div>
-            <div className="space-y-1.5">
-              <label className={LABEL}>Thickness (mm)</label>
-              <input type="number" value={thickness} onChange={e => setThickness(+e.target.value)} className={INPUT}/>
-            </div>
-          </div>
-          {selectedProfile && (
-            <button onClick={() => setDoorStep(4)}
-              className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl text-xs font-black">
-              Next: Wood Species <ChevronRight size={14}/>
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Step 4: Wood Species */}
-      {doorStep === 4 && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-          <div className="grid grid-cols-2 gap-2">
-            {woodSpeciesList.map(ws => (
-              editingSpeciesId === ws.id ? (
-                <div key={ws.id} className="px-3 py-2 rounded-xl border-2 border-slate-900 bg-white flex flex-col gap-2">
-                  <input
-                    autoFocus
-                    value={editingSpeciesName}
-                    onChange={e => setEditingSpeciesName(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveSpeciesEdit(ws.id); if (e.key === 'Escape') setEditingSpeciesId(null); }}
-                    placeholder="Naam houtsoort..."
-                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none"
-                  />
-                  <div className="flex gap-1.5">
-                    <button onClick={() => saveSpeciesEdit(ws.id)} className="flex-1 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-black">Opslaan</button>
-                    <button onClick={() => setEditingSpeciesId(null)} className="px-2 py-1 text-slate-400 hover:text-slate-700 rounded-lg text-[10px] font-bold">✕</button>
-                  </div>
-                </div>
-              ) : (
-                <div key={ws.id} className={`group relative rounded-xl border text-left transition-all ${
-                  selectedSpecies?.id === ws.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-200 hover:border-slate-400 text-slate-700'
-                }`}>
-                  <button className="w-full px-4 py-3 flex items-center gap-3" onClick={() => setSelectedSpecies(ws)}>
-                    {ws.color && <span className="w-4 h-4 rounded-full flex-shrink-0 border border-black/10" style={{ backgroundColor: ws.color }}/>}
-                    <span className="text-sm font-bold">{ws.name}</span>
-                  </button>
-                  <div className="absolute top-1.5 right-1.5 hidden group-hover:flex gap-0.5">
-                    <button onClick={e => { e.stopPropagation(); setEditingSpeciesId(ws.id); setEditingSpeciesName(ws.name); }}
-                      className={`p-1 rounded-lg transition-all ${selectedSpecies?.id === ws.id ? 'text-white/60 hover:text-white hover:bg-white/10' : 'text-slate-300 hover:text-slate-700 hover:bg-slate-100'}`}>
-                      <Pencil size={11}/>
-                    </button>
-                    <button onClick={e => { e.stopPropagation(); deleteSpecies(ws.id); }}
-                      className={`p-1 rounded-lg transition-all ${selectedSpecies?.id === ws.id ? 'text-white/60 hover:text-red-300 hover:bg-white/10' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'}`}>
-                      <X size={11}/>
-                    </button>
-                  </div>
-                </div>
-              )
-            ))}
-          </div>
-          <InlineAdd label="wood species" onAdd={addWoodSpecies}/>
-        </div>
-      )}
     </div>
   );
 
+  // ── Non-door category fields ──────────────────────────────────────────────────
   const renderCategoryFields = () => {
-    switch (category) {
-      case 'Doors': return renderDoorWizard();
-      case 'Mouldings':
-        return (<>
-          <div className="space-y-1.5">
-            <label className={LABEL}>Moulding Product</label>
-            <select value={mouldingProduct} onChange={e => setMouldingProduct(e.target.value)} className={INPUT}>
-              {MOULDING_PRODUCTS.map(m => <option key={m}>{m}</option>)}
-            </select>
-          </div>
+    if (isDoor) return renderDoorWizard();
+    return (
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <label className={LABEL}>Wood Type / Material</label>
+          <input value={houtsoort} onChange={e => setHoutsoort(e.target.value)} className={INPUT}/>
+        </div>
+        {activeCat?.pricingType === 'lm' && (
           <div className="space-y-1.5">
             <label className={LABEL}>Length (mm)</label>
             <input type="number" value={lengte} onChange={e => setLengte(+e.target.value)} className={INPUT}/>
           </div>
-        </>);
-      case 'Frames':
-        return (<>
-          <div className="space-y-1.5">
-            <label className={LABEL}>Profile Size</label>
-            <select value={frameSize} onChange={e => setFrameSize(e.target.value)} className={INPUT}>
-              {FRAME_SIZES.map(a => <option key={a}>{a}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label className={LABEL}>Length (mm)</label>
-            <input type="number" value={lengte} onChange={e => setLengte(+e.target.value)} className={INPUT}/>
-          </div>
-        </>);
-      case 'Window Frames':
-        return (<>
-          <div className="space-y-1.5">
-            <label className={LABEL}>Cross-section Size</label>
-            <select value={windowFrameSize} onChange={e => setWindowFrameSize(e.target.value)} className={INPUT}>
-              {WINDOW_FRAME_SIZES.map(k => <option key={k}>{k}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label className={LABEL}>Length (mm)</label>
-            <input type="number" value={lengte} onChange={e => setLengte(+e.target.value)} className={INPUT}/>
-          </div>
-        </>);
-      case 'Crating':
-        return (
-          <div className="space-y-1.5">
-            <label className={LABEL}>Crate Type</label>
-            <select value={crateType} onChange={e => setCrateType(e.target.value)} className={INPUT}>
-              {CRATE_TYPES.map(c => <option key={c}>{c}</option>)}
-            </select>
-          </div>
-        );
-      default: return null;
-    }
+        )}
+      </div>
+    );
   };
-
-  const isDoor = category === 'Doors';
-  const doorReady = isDoor && selectedModel && selectedProfile && selectedSpecies && sku;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <button onClick={() => navigate('/products')} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold text-xs uppercase tracking-widest">
           <ArrowLeft size={16}/> Back to Catalog
@@ -511,19 +305,23 @@ const CreateProductPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-6">
-          {/* Category tabs */}
+
+          {/* Category tabs (from localStorage) */}
           <div className="bg-white p-6 rounded-[28px] border border-slate-200 shadow-sm">
             <h3 className={`${LABEL} mb-4`}>Category</h3>
-            <div className="grid grid-cols-5 gap-2">
-              {PRODUCT_CATEGORIES.map(cat => (
-                <button key={cat} onClick={() => setCategory(cat)}
-                  className={`px-3 py-3 rounded-xl text-xs font-black border transition-all ${
-                    category === cat ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-400'
-                  }`}>{cat}</button>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((cat: any) => (
+                <button key={cat.id} onClick={() => { setCategory(cat.name); setSelectedModel(null); setDoorStep(1); }}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${
+                    category === cat.name ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-400'
+                  }`}>
+                  {cat.name}
+                </button>
               ))}
             </div>
           </div>
 
+          {/* Main form card */}
           <div className="bg-white p-8 rounded-[28px] border border-slate-200 shadow-sm space-y-6">
             <div className="flex items-center gap-4 border-b border-slate-50 pb-4">
               <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center"><Package size={22}/></div>
@@ -533,85 +331,90 @@ const CreateProductPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Product name + description (ALL categories) */}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className={LABEL}>Product Name</label>
+                <input value={productName} onChange={e => setProductName(e.target.value)}
+                  placeholder={isDoor && selectedModel ? selectedModel.name : `e.g. ${category} product...`}
+                  className={INPUT}/>
+                {isDoor && !productName && selectedModel && (
+                  <p className="text-[10px] text-slate-400 font-medium">Auto: "{selectedModel.name}"</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <label className={LABEL}>Product Description</label>
+                <textarea value={description} onChange={e => setDescription(e.target.value)}
+                  rows={3}
+                  placeholder="Geef een omschrijving van het product..."
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-slate-400 transition-colors resize-none"/>
+              </div>
+            </div>
+
+            {/* Calculation type (non-door) */}
             {!isDoor && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5 md:col-span-2">
-                  <label className={LABEL}>Product Name</label>
-                  <input value={name} onChange={e => setName(e.target.value)} placeholder={`e.g. Teak ${category}...`} className={INPUT}/>
-                </div>
-                <div className="space-y-1.5">
-                  <label className={LABEL}>Wood Type</label>
-                  <input value={houtsoort} onChange={e => setHoutsoort(e.target.value)} className={INPUT}/>
-                </div>
-                <div className="space-y-1.5">
-                  <label className={LABEL}>Unit</label>
-                  <div className="px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm font-black text-slate-600">{unit}</div>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <label className={LABEL}>Calculation Type</label>
-                  <div className="flex gap-2 flex-wrap">
-                    <button type="button" onClick={() => setCalculationType('pcs')}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${calculationType === 'pcs' ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-400'}`}>
-                      📦 Fixed Item (PCS)
-                    </button>
-                    <button type="button" onClick={() => setCalculationType('m2')}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${calculationType === 'm2' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300'}`}>
-                      📐 Area-based (m²)
-                    </button>
-                    <button type="button" onClick={() => setCalculationType('lm')}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${calculationType === 'lm' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-emerald-300'}`}>
-                      📏 Length-based (lm)
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {isDoor && (
-              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl">
+              <div className="space-y-2">
+                <label className={LABEL}>Calculation Type</label>
                 <div className="flex gap-2 flex-wrap">
-                  {selectedModel && <span className="px-3 py-1 bg-slate-200 rounded-full text-xs font-black">{selectedModel.name}</span>}
-                  {selectedProfile && <span className="px-3 py-1 bg-slate-200 rounded-full text-xs font-black">{selectedProfile.label}</span>}
-                  {selectedSpecies && (
-                    <span className="px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 bg-slate-200">
-                      {selectedSpecies.color && <span className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedSpecies.color }}/>}
-                      {selectedSpecies.name}
-                    </span>
-                  )}
-                  {sku && <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-black font-mono">{sku}</span>}
+                  <button type="button" onClick={() => setCalculationType('pcs')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${calculationType === 'pcs' ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-400'}`}>
+                    📦 Fixed Item (PCS)
+                  </button>
+                  <button type="button" onClick={() => setCalculationType('m2')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${calculationType === 'm2' ? 'bg-brand-primary text-white border-brand-primary' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-brand-primary'}`}>
+                    ⊞ Area-based (m²)
+                  </button>
+                  <button type="button" onClick={() => setCalculationType('lm')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${calculationType === 'lm' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-emerald-300'}`}>
+                    ↔ Length-based (lm)
+                  </button>
                 </div>
               </div>
             )}
 
+            {/* Door selection summary */}
+            {isDoor && (selectedModel || sku) && (
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl flex-wrap">
+                {selectedModel && <span className="px-3 py-1 bg-slate-200 rounded-full text-xs font-black">{selectedModel.name}</span>}
+                {sku && <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-black font-mono">{sku}</span>}
+              </div>
+            )}
+
+            {/* Category-specific configuration */}
             <div className="space-y-4 pt-4 border-t border-slate-50">
-              <h3 className={`${LABEL} flex items-center gap-2`}><Ruler size={12}/> {category} configuration</h3>
+              <h3 className={`${LABEL} flex items-center gap-2`}><Ruler size={12}/> {category} configuratie</h3>
               {renderCategoryFields()}
             </div>
           </div>
         </div>
 
+        {/* ── Right panel ─────────────────────────────────────────────────── */}
         <div className="lg:col-span-4">
           <div className="bg-slate-900 p-8 rounded-[28px] text-white shadow-2xl space-y-6 sticky top-24">
-            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">Price & Stock</h3>
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">Prijs & Voorraad</h3>
+
+            {/* Price input */}
             <div className="space-y-4">
               {isDoor ? (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Price per m²</label>
-                    {!priceManual && <span className="text-[9px] text-emerald-400 font-bold">Auto from matrix</span>}
+                    <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Prijs per m²</label>
+                    {!priceManual && <span className="text-[9px] text-emerald-400 font-bold">Auto matrix</span>}
                   </div>
                   <input type="number" value={pricePerM2} min={0}
                     onChange={e => { setPricePerM2(+e.target.value); setPriceManual(true); }}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-black text-white outline-none"/>
-                  {priceManual && <button onClick={() => setPriceManual(false)} className="text-[10px] text-white/40 hover:text-white/70 font-bold">↺ Use matrix price</button>}
+                  {priceManual && <button onClick={() => setPriceManual(false)} className="text-[10px] text-white/40 hover:text-white/70 font-bold">↺ Gebruik matrix prijs</button>}
                 </div>
               ) : (
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Price per {unit}</label>
+                  <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Prijs per {unit}</label>
                   <input type="number" value={pricePerUnit} min={0} onChange={e => setPricePerUnit(+e.target.value)}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-black text-white outline-none"/>
                 </div>
               )}
+
+              {/* Stock */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Opening Stock</label>
                 <div className="relative">
@@ -620,39 +423,59 @@ const CreateProductPage: React.FC = () => {
                     className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-black text-white outline-none"/>
                 </div>
               </div>
+
+              {/* Default Tax Rate */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Standaard BTW tarief</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {TAX_OPTIONS.map(opt => (
+                    <button key={opt.value} type="button" onClick={() => setDefaultTaxRate(opt.value as 0 | 10 | 21)}
+                      className={`py-2 rounded-xl text-xs font-black border transition-all flex flex-col items-center gap-0.5 ${
+                        defaultTaxRate === opt.value
+                          ? 'bg-brand-primary text-white border-brand-primary'
+                          : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'
+                      }`}>
+                      <span>{opt.label}</span>
+                      <span className="text-[8px] opacity-70 font-medium">{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
+            {/* Price calculator */}
             <div className="bg-white/5 rounded-2xl p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Calculator size={14} className="text-amber-400"/>
-                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Price Calculator</p>
+                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Prijs Calculator</p>
               </div>
               {isDoor && (
                 <>
                   <div className="flex justify-between text-xs font-bold opacity-60"><span>{breedte}×{hoogte}mm</span><span>{oppervlakte.toFixed(4)} m²</span></div>
-                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Price / m²</span><span>SRD {pricePerM2.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Prijs / m²</span><span>SRD {pricePerM2.toFixed(2)}</span></div>
                 </>
               )}
-              {['Mouldings','Frames','Window Frames'].includes(category) && (
+              {activeCat?.pricingType === 'lm' && (
                 <>
-                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Length</span><span>{(lengte/1000).toFixed(2)} lm</span></div>
-                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Price / lm</span><span>SRD {pricePerUnit}</span></div>
+                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Lengte</span><span>{(lengte/1000).toFixed(2)} lm</span></div>
+                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Prijs / lm</span><span>SRD {pricePerUnit}</span></div>
                 </>
               )}
+              <div className="flex justify-between text-xs font-bold opacity-60"><span>BTW</span><span>{defaultTaxRate}%</span></div>
               <div className="h-px bg-white/10"/>
               <div className="flex justify-between items-center">
-                <span className="text-xs font-black text-white/60">Unit Price</span>
+                <span className="text-xs font-black text-white/60">Eenheidsprijs</span>
                 <span className="text-2xl font-black text-amber-400">SRD {totalPrice.toFixed(2)}</span>
               </div>
             </div>
 
             <button onClick={handleSave} disabled={isDoor && !doorReady}
-              className="w-full py-3 bg-amber-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-amber-700 transition-all flex items-center justify-center gap-2 disabled:opacity-40">
-              <Save size={14}/> {isEdit ? 'Save' : 'Add Product'}
+              className="w-full py-3 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2 disabled:opacity-40">
+              <Save size={14}/> {isEdit ? 'Opslaan' : 'Product Toevoegen'}
             </button>
 
             {isDoor && !doorReady && (
-              <p className="text-[10px] text-white/30 text-center">Complete all 4 steps to save</p>
+              <p className="text-[10px] text-white/30 text-center">Kies een model en voer een SKU in om op te slaan</p>
             )}
           </div>
         </div>
