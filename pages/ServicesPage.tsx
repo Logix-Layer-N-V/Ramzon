@@ -184,8 +184,8 @@ const ServicesPage: React.FC = () => {
         {filtered.length === 0 ? (
           <div className="py-20 text-center text-slate-400">
             <Wrench size={32} className="mx-auto mb-3 opacity-20" />
-            <p className="text-sm font-bold">Geen services gevonden</p>
-            <button onClick={openAdd} className="mt-3 text-xs text-brand-primary font-black hover:underline">+ Voeg eerste service toe</button>
+            <p className="text-sm font-bold">No services found</p>
+            <button onClick={openAdd} className="mt-3 text-xs text-brand-primary font-black hover:underline">+ Add first service</button>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -214,14 +214,14 @@ const ServicesPage: React.FC = () => {
                     <button
                       onClick={e => { e.stopPropagation(); openEdit(s); }}
                       className="p-2 text-slate-400 hover:text-brand-primary hover:bg-brand-accent-light rounded-lg transition-colors"
-                      title="Bewerken"
+                      title="Edit"
                     >
                       <Pencil size={15} />
                     </button>
                     <button
                       onClick={e => { e.stopPropagation(); handleDelete(s.id); }}
                       className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Verwijderen"
+                      title="Delete"
                     >
                       <Trash2 size={15} />
                     </button>
@@ -235,14 +235,14 @@ const ServicesPage: React.FC = () => {
                       {menuId === s.id && (
                         <div className="absolute right-0 top-full mt-1 bg-white rounded-xl border border-slate-200 shadow-xl z-20 min-w-[170px] overflow-hidden" onClick={e => e.stopPropagation()}>
                           <button onClick={() => openEdit(s)} className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50">
-                            <Pencil size={13} className="text-brand-primary" /> Bewerken
+                            <Pencil size={13} className="text-brand-primary" /> Edit
                           </button>
                           <button onClick={() => toggleStatus(s.id)} className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50">
                             <Check size={13} className="text-emerald-500" /> Status wijzigen
                           </button>
                           <div className="border-t border-slate-100" />
                           <button onClick={() => handleDelete(s.id)} className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-black text-red-500 hover:bg-red-50">
-                            <Trash2 size={13} /> Verwijderen
+                            <Trash2 size={13} /> Delete
                           </button>
                         </div>
                       )}
@@ -289,7 +289,7 @@ const ServicesPage: React.FC = () => {
                   <Wrench size={15} className="text-white" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-slate-900">{editingId ? 'Service Bewerken' : 'Nieuwe Service'}</h2>
+                  <h2 className="text-sm font-black text-slate-900">{editingId ? 'Edit Service' : 'New Service'}</h2>
                   <p className="text-[10px] text-slate-400 font-bold">Vul de service details in</p>
                 </div>
               </div>
@@ -387,7 +387,7 @@ const ServicesPage: React.FC = () => {
                 onClick={handleSubmit}
                 className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-black uppercase tracking-widest hover:opacity-90 transition-all active:scale-95 shadow-lg"
               >
-                <Check size={14} /> {editingId ? 'Opslaan' : 'Toevoegen'}
+                <Check size={14} /> {editingId ? 'Save' : 'Add'}
               </button>
             </div>
           </div>

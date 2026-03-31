@@ -56,9 +56,9 @@ const CreateCreditPage: React.FC = () => {
 
   const handleSave = () => {
     const newErrors: Record<string, string> = {};
-    if (!clientId) newErrors.clientId = 'Selecteer een klant';
+    if (!clientId) newErrors.clientId = 'Please select a client';
     if (!amount || parseFloat(amount) <= 0) newErrors.amount = 'Vul een geldig bedrag in';
-    if (!reason) newErrors.reason = 'Selecteer een reden';
+    if (!reason) newErrors.reason = 'Please select a reason';
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
     const existing = storage.credits.get();
@@ -142,7 +142,7 @@ const CreateCreditPage: React.FC = () => {
                 type="button"
                 onClick={() => setShowAddClient(true)}
                 className="px-3 py-3 bg-brand-primary text-white rounded-xl hover:opacity-90 transition-all active:scale-95 shrink-0"
-                title="Nieuwe klant toevoegen"
+                title="Add new client"
               >
                 <UserPlus size={16} />
               </button>

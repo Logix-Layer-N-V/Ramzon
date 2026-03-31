@@ -222,8 +222,8 @@ const CreateInvoicePage: React.FC = () => {
   const updateItem = (id: string, field: keyof LineItem, val: any) => setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
   const handleSave = () => {
     const newErrors: Record<string, string> = {};
-    if (!selectedClient) newErrors.clientId = 'Selecteer een klant';
-    if (items.length === 0) newErrors.items = 'Voeg minimaal één artikel toe';
+    if (!selectedClient) newErrors.clientId = 'Please select a client';
+    if (items.length === 0) newErrors.items = 'Add at least one item';
     const invalidItems = items.filter(i => i.qty <= 0 || i.price < 0);
     if (invalidItems.length > 0) newErrors.itemValues = 'Alle artikelen moeten een geldige hoeveelheid en prijs hebben';
     setErrors(newErrors);
@@ -319,7 +319,7 @@ const CreateInvoicePage: React.FC = () => {
                   type="button"
                   onClick={() => setShowAddClient(true)}
                   className="px-3 py-3 bg-brand-primary text-white rounded-xl hover:opacity-90 transition-all active:scale-95 shrink-0"
-                  title="Nieuwe klant toevoegen"
+                  title="Add new client"
                 >
                   <UserPlus size={16} />
                 </button>

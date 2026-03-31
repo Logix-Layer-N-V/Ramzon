@@ -163,7 +163,7 @@ const CreatePaymentPage: React.FC = () => {
   const handleSave = () => {
     const amt = parseFloat(amount || '0');
     const newErrors: Record<string, string> = {};
-    if (!clientId) newErrors.clientId = 'Selecteer een klant';
+    if (!clientId) newErrors.clientId = 'Please select a client';
     if (!amount || amt <= 0) newErrors.amount = 'Vul een geldig bedrag in';
     if (!date) newErrors.date = 'Vul een datum in';
     if (!methodType) newErrors.methodType = 'Please select a payment method';
@@ -270,7 +270,7 @@ const CreatePaymentPage: React.FC = () => {
                   type="button"
                   onClick={() => setShowAddClient(true)}
                   className="px-3 py-3 bg-brand-primary text-white rounded-xl hover:opacity-90 transition-all active:scale-95 shrink-0"
-                  title="Nieuwe klant toevoegen"
+                  title="Add new client"
                 >
                   <UserPlus size={16} />
                 </button>

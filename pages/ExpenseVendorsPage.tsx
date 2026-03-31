@@ -156,14 +156,14 @@ const ExpenseVendorsPage: React.FC = () => {
                   </div>
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all shrink-0">
                     <button
-                      title="Bewerken"
+                      title="Edit"
                       onClick={() => handleEdit(v)}
                       className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
                     >
                       <Pencil size={16} />
                     </button>
                     <button
-                      title="Verwijderen"
+                      title="Delete"
                       onClick={() => setVendors(vendors.filter(x => x.id !== v.id))}
                       className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     >

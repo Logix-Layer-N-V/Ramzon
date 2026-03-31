@@ -244,7 +244,7 @@ const TrafficInsightsPage: React.FC = () => {
           <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-5">Factuurstatus Verdeling</h3>
           {isEmpty(invoices) ? (
             <div className="h-32 flex items-center justify-center text-slate-400">
-              <div className="text-center"><FileText size={28} className="mx-auto mb-2 opacity-30" /><p className="text-sm font-bold">Geen facturen gevonden</p></div>
+              <div className="text-center"><FileText size={28} className="mx-auto mb-2 opacity-30" /><p className="text-sm font-bold">No invoices found</p></div>
             </div>
           ) : (
             <div className="space-y-4">

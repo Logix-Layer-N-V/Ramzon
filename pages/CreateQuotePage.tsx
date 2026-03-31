@@ -238,12 +238,12 @@ const CreateQuotePage: React.FC = () => {
   const updateItem = (id: string, field: keyof LineItem, val: any) => setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
   const handleSave = () => {
     const newErrors: Record<string, string> = {};
-    if (!client) newErrors.client = 'Selecteer een klant';
-    if (items.length === 0) newErrors.items = 'Voeg minimaal één artikel toe';
+    if (!client) newErrors.client = 'Please select a client';
+    if (items.length === 0) newErrors.items = 'Add at least one item';
     if (!validUntil) {
-      newErrors.validUntil = 'Vul een geldigheidsdatum in';
+      newErrors.validUntil = 'Please enter a validity date';
     } else if (validUntil < new Date().toISOString().split('T')[0]) {
-      newErrors.validUntil = 'Geldigheidsdatum moet vandaag of later zijn';
+      newErrors.validUntil = 'Validity date must be today or later';
     }
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
@@ -357,7 +357,7 @@ const CreateQuotePage: React.FC = () => {
                   type="button"
                   onClick={() => setShowAddClient(true)}
                   className="px-3 py-2.5 bg-brand-primary text-white rounded-xl hover:opacity-90 transition-all active:scale-95 shrink-0"
-                  title="Nieuwe klant toevoegen"
+                  title="Add new client"
                 >
                   <UserPlus size={16} />
                 </button>
@@ -372,10 +372,10 @@ const CreateQuotePage: React.FC = () => {
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valid Until</label>
               <div className="flex gap-1 flex-wrap mb-1.5">
                 {[
-                  { label: '1 dag',   days: 1  },
-                  { label: '3 dagen', days: 3  },
+                  { label: '1 day',    days: 1  },
+                  { label: '3 days',  days: 3  },
                   { label: '1 week',  days: 7  },
-                  { label: '2 weken', days: 14 },
+                  { label: '2 weeks', days: 14 },
                 ].map(opt => (
                   <button key={opt.days} type="button"
                     onClick={() => {
@@ -413,7 +413,7 @@ const CreateQuotePage: React.FC = () => {
               />
               {paidAmount > 0 && (
                 <p className="text-xs text-emerald-600 mt-1 font-medium">
-                  Saldo: {currencySymbol}{Math.max(0, total - paidAmount).toFixed(2)}
+                  Balance: {currencySymbol}{Math.max(0, total - paidAmount).toFixed(2)}
                 </p>
               )}
             </div>

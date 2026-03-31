@@ -241,7 +241,7 @@ const PaymentsPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        <button title="Bewerken"
+                        <button title="Edit"
                           onClick={(e) => { e.stopPropagation(); navigate(`/payments/edit/${p.id}`); }}
                           className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         ><Pencil size={15}/></button>
@@ -253,7 +253,7 @@ const PaymentsPage: React.FC = () => {
                           onClick={(e) => { e.stopPropagation(); navigate(`/payments/${p.id}`); }}
                           className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
                         ><ExternalLink size={15}/></button>
-                        <button title="Verwijderen"
+                        <button title="Delete"
                           onClick={(e) => { e.stopPropagation(); handleDeletePayment(p.id); }}
                           className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         ><Trash2 size={15}/></button>

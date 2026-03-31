@@ -1,6 +1,7 @@
 // components/DocPDF.tsx
 import React from 'react';
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
+import { getLatestExchangeRate, toBase } from '../lib/storage';
 
 const getAccentColor = () => localStorage.getItem('erp_doc_accent_color') || '#8B1D2A';
 
@@ -98,7 +99,7 @@ export const DocPDF: React.FC<DocPDFProps> = ({
             <Text style={S.label}>{fmtDate(date)}</Text>
             {validUntil && (
               <Text style={S.label}>
-                {docType === 'quote' ? 'GELDIG T/M ' : 'VERVALDATUM '}{fmtDate(validUntil)}
+                {docType === 'quote' ? 'VALID UNTIL ' : 'DUE DATE '}{fmtDate(validUntil)}
               </Text>
             )}
             {docType === 'invoice' && !validUntil && (
@@ -109,7 +110,7 @@ export const DocPDF: React.FC<DocPDFProps> = ({
 
         {/* ── CLIENT BLOCK (AAN) ── */}
         <View style={{ marginBottom: 12 }}>
-          <Text style={[S.label, { marginBottom: 4 }]}>Aan</Text>
+          <Text style={[S.label, { marginBottom: 4 }]}>To</Text>
           <Text style={[S.value, S.bold]}>{clientName}</Text>
           {clientCompany && <Text style={[S.value, { fontSize: 9 }]}>{clientCompany}</Text>}
           {clientAddress && <Text style={[S.label, { marginTop: 2 }]}>{clientAddress.toUpperCase()}</Text>}
@@ -150,15 +151,16 @@ export const DocPDF: React.FC<DocPDFProps> = ({
           const showPrijs     = showCols['prijs']     !== false;
           const showSubtotaal = showCols['subtotaal'] !== false;
           const showBtw       = showCols['btw']       !== false;
+          /* Column header "Totaal" → "Total" is handled below */
           return (
             <>
               <View style={{ flexDirection: 'row', backgroundColor: accentColor, paddingVertical: 7, paddingHorizontal: 4, marginTop: 12 }}>
-                <Text style={{ flex: 3, color: 'white', fontSize: 7, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.6 }}>Omschrijving</Text>
+                <Text style={{ flex: 3, color: 'white', fontSize: 7, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.6 }}>Description</Text>
                 <Text style={{ flex: 1, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>QTY</Text>
-                {showPrijs     && <Text style={{ width: 56, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Prijs</Text>}
+                {showPrijs     && <Text style={{ width: 56, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Price</Text>}
                 {showBtw       && <Text style={{ width: 36, color: 'white', fontSize: 7, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.6 }}>BTW</Text>}
                 {showSubtotaal && <Text style={{ width: 64, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Subtotal</Text>}
-                <Text style={{ width: 64, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Totaal</Text>
+                <Text style={{ width: 64, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Total</Text>
               </View>
               {items.map((item, i) => {
                 const itemSub = item.subtotal ?? item.total;
@@ -183,32 +185,96 @@ export const DocPDF: React.FC<DocPDFProps> = ({
         })()}
 
         {/* ── TOTALS ── */}
-        <View style={S.totals}>
-          <View style={S.totalRow}>
-            <Text style={S.label}>Subtotaal</Text>
-            <Text style={S.value}>{fmt(subtotal)}</Text>
-          </View>
-          <View style={S.totalRow}>
-            <Text style={S.label}>BTW</Text>
-            <Text style={S.value}>{fmt(tax)}</Text>
-          </View>
-          <View style={[S.totalRow, { borderTopWidth: 1.5, borderTopColor: accentColor, paddingTop: 5, marginTop: 4 }]}>
-            <Text style={[S.value, S.bold, { color: accentColor }]}>TOTAAL ({currency})</Text>
-            <Text style={[S.value, S.bold, { color: accentColor }]}>{fmt(total)}</Text>
-          </View>
-          {paidAmount != null && paidAmount > 0 && (
-            <>
+        {(() => {
+          const rate = getLatestExchangeRate();
+          const fmtNum = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const totalSRD = toBase(total, currency, 'SRD', rate);
+          const totalUSD = toBase(total, currency, 'USD', rate);
+          const totalEUR = toBase(total, currency, 'EUR', rate);
+          const balanceAmt = paidAmount != null && paidAmount > 0 ? Math.max(0, total - paidAmount) : null;
+          const balSRD = balanceAmt != null ? toBase(balanceAmt, currency, 'SRD', rate) : null;
+          const balUSD = balanceAmt != null ? toBase(balanceAmt, currency, 'USD', rate) : null;
+          const balEUR = balanceAmt != null ? toBase(balanceAmt, currency, 'EUR', rate) : null;
+
+          return (
+            <View style={S.totals}>
               <View style={S.totalRow}>
-                <Text style={[S.label, { color: '#10b981' }]}>Paid</Text>
-                <Text style={[S.value, { color: '#10b981' }]}>-{fmt(paidAmount)}</Text>
+                <Text style={S.label}>Subtotal</Text>
+                <Text style={S.value}>{fmt(subtotal)}</Text>
               </View>
-              <View style={[S.totalRow, { borderTopWidth: 0.5, borderTopColor: '#e2e8f0', paddingTop: 4, marginTop: 2 }]}>
-                <Text style={[S.value, S.bold]}>Balance</Text>
-                <Text style={[S.value, S.bold]}>{fmt(Math.max(0, total - paidAmount))}</Text>
+              <View style={S.totalRow}>
+                <Text style={S.label}>BTW</Text>
+                <Text style={S.value}>{fmt(tax)}</Text>
               </View>
-            </>
-          )}
-        </View>
+              <View style={[S.totalRow, { borderTopWidth: 1.5, borderTopColor: accentColor, paddingTop: 5, marginTop: 4 }]}>
+                <Text style={[S.value, S.bold, { color: accentColor }]}>TOTAL ({currency})</Text>
+                <Text style={[S.value, S.bold, { color: accentColor }]}>{fmt(total)}</Text>
+              </View>
+
+              {/* ── Multi-currency equivalents ── */}
+              {rate && (
+                <View style={{ backgroundColor: '#f8fafc', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 6, marginTop: 4 }}>
+                  <Text style={{ fontSize: 6, fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 }}>Equivalent</Text>
+                  {currency !== 'SRD' && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
+                      <Text style={{ fontSize: 8, color: '#64748b' }}>SRD</Text>
+                      <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#334155' }}>SRD {fmtNum(totalSRD)}</Text>
+                    </View>
+                  )}
+                  {currency !== 'USD' && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
+                      <Text style={{ fontSize: 8, color: '#64748b' }}>USD</Text>
+                      <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#334155' }}>$ {fmtNum(totalUSD)}</Text>
+                    </View>
+                  )}
+                  {currency !== 'EUR' && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
+                      <Text style={{ fontSize: 8, color: '#64748b' }}>EUR</Text>
+                      <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#334155' }}>€ {fmtNum(totalEUR)}</Text>
+                    </View>
+                  )}
+                  <Text style={{ fontSize: 6, color: '#94a3b8', marginTop: 2 }}>Rate: 1 USD = SRD {rate.usdSrd} · 1 EUR = SRD {rate.eurSrd}</Text>
+                </View>
+              )}
+
+              {paidAmount != null && paidAmount > 0 && (
+                <>
+                  <View style={[S.totalRow, { marginTop: 6 }]}>
+                    <Text style={[S.label, { color: '#10b981' }]}>Paid</Text>
+                    <Text style={[S.value, { color: '#10b981' }]}>-{fmt(paidAmount)}</Text>
+                  </View>
+                  <View style={[S.totalRow, { borderTopWidth: 0.5, borderTopColor: '#e2e8f0', paddingTop: 4, marginTop: 2 }]}>
+                    <Text style={[S.value, S.bold]}>Balance</Text>
+                    <Text style={[S.value, S.bold]}>{fmt(balanceAmt!)}</Text>
+                  </View>
+                  {rate && balSRD != null && balUSD != null && balEUR != null && (
+                    <View style={{ backgroundColor: '#f8fafc', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 6, marginTop: 4 }}>
+                      <Text style={{ fontSize: 6, fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 }}>Balance Equivalent</Text>
+                      {currency !== 'SRD' && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
+                          <Text style={{ fontSize: 8, color: '#64748b' }}>SRD</Text>
+                          <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#334155' }}>SRD {fmtNum(balSRD)}</Text>
+                        </View>
+                      )}
+                      {currency !== 'USD' && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
+                          <Text style={{ fontSize: 8, color: '#64748b' }}>USD</Text>
+                          <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#334155' }}>$ {fmtNum(balUSD)}</Text>
+                        </View>
+                      )}
+                      {currency !== 'EUR' && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
+                          <Text style={{ fontSize: 8, color: '#64748b' }}>EUR</Text>
+                          <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#334155' }}>€ {fmtNum(balEUR)}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
+          );
+        })()}
 
         {/* ── FOOTER ── */}
         {(bankDetails || legalDisclaimer) && (

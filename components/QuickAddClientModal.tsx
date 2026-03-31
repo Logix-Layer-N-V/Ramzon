@@ -56,8 +56,8 @@ const QuickAddClientModal: React.FC<Props> = ({ onClose, onCreated }) => {
               <UserPlus size={15} className="text-white" />
             </div>
             <div>
-              <h2 className="text-sm font-black text-slate-900">Nieuwe Klant</h2>
-              <p className="text-[10px] text-slate-400 font-bold">Klant toevoegen en direct selecteren</p>
+              <h2 className="text-sm font-black text-slate-900">New Client</h2>
+              <p className="text-[10px] text-slate-400 font-bold">Add client and select immediately</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
@@ -129,7 +129,7 @@ const QuickAddClientModal: React.FC<Props> = ({ onClose, onCreated }) => {
             onClick={handleSave}
             className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-black uppercase tracking-widest hover:opacity-90 transition-all active:scale-95 shadow-lg"
           >
-            <Check size={14} /> Opslaan & Selecteren
+            <Check size={14} /> Save & Select
           </button>
         </div>
       </div>

@@ -22,6 +22,9 @@ Ramzon/
 # Claude Code — local only
 .claude/settings.local.json
 
+# Private documentation — never commit
+LXL Documentatie.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

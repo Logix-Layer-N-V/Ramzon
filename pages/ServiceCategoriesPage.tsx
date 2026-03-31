@@ -60,14 +60,14 @@ const ServiceCategoriesPage: React.FC = () => {
           onClick={() => setIsAdding(true)}
           className="bg-brand-primary text-white px-5 py-2.5 rounded-xl text-sm font-black hover:opacity-90 transition-all flex items-center gap-2 shadow-xl active:scale-95"
         >
-          <Plus size={18} /> Nieuwe Service
+          <Plus size={18} /> New Service
         </button>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {isAdding && (
           <div className="p-4 border-b border-purple-200 bg-purple-50/40 space-y-3">
-            <p className="text-xs font-black text-purple-700 uppercase tracking-widest">Nieuwe service toevoegen</p>
+            <p className="text-xs font-black text-purple-700 uppercase tracking-widest">Add new service</p>
             <div className="flex items-center gap-3">
               <input
                 aria-label="Naam van service"
@@ -82,7 +82,7 @@ const ServiceCategoriesPage: React.FC = () => {
               <button title="Save" onClick={handleAdd} className="p-2 bg-brand-primary text-white rounded-lg hover:opacity-90 transition-colors">
                 <Check size={18} />
               </button>
-              <button title="Annuleren" onClick={() => setIsAdding(false)} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors">
+              <button title="Cancel" onClick={() => setIsAdding(false)} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors">
                 <X size={18} />
               </button>
             </div>
@@ -182,16 +182,16 @@ const ServiceCategoriesPage: React.FC = () => {
                     <button title="Save" onClick={() => handleSaveEdit(cat.id)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
                       <Check size={16} />
                     </button>
-                    <button title="Annuleren" onClick={() => setEditingId(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors">
+                    <button title="Cancel" onClick={() => setEditingId(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors">
                       <X size={16} />
                     </button>
                   </>
                 ) : (
                   <>
-                    <button title="Bewerken" onClick={() => handleEdit(cat)} className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors">
+                    <button title="Edit" onClick={() => handleEdit(cat)} className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors">
                       <Pencil size={16} />
                     </button>
-                    <button title="Verwijderen" onClick={() => handleDelete(cat.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                    <button title="Delete" onClick={() => handleDelete(cat.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                       <Trash2 size={16} />
                     </button>
                   </>

@@ -1036,7 +1036,7 @@ const AppearancePage: React.FC = () => {
               </SettingsSec>
 
               <SettingsSec label={L.tableCols}>
-                <p className="text-[10px] text-slate-400 mb-2 leading-relaxed">Geldt voor PDF/print (klant-versie). In bewerkmodus zijn altijd alle kolommen zichtbaar.</p>
+                <p className="text-[10px] text-slate-400 mb-2 leading-relaxed">Applies to PDF/print (client version). In edit mode, all columns are always visible.</p>
                 <div className="space-y-1.5">
                   {tableColsOrder.map((key, idx) => (
                     <div
@@ -1319,7 +1319,7 @@ const AppearancePage: React.FC = () => {
                 return (
                   <div key={i} className="p-5 bg-slate-50 border border-slate-100 rounded-lg hover:bg-white hover:shadow-lg transition-all cursor-pointer group relative">
                     <button
-                      title="Verwijder template"
+                      title="Delete template"
                       onClick={() => setNoteTemplates(prev => prev.filter((_, idx) => idx !== i))}
                       className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-slate-300 hover:text-red-500"
                     >

@@ -50,9 +50,9 @@ function InlineAdd({ label, onAdd }: { label: string; onAdd: (val: string) => vo
 
 // ─── Tax rate options ─────────────────────────────────────────────────────────
 const TAX_OPTIONS = [
-  { value: 0,  label: '0%',  desc: 'Vrijgesteld' },
-  { value: 10, label: '10%', desc: 'Verlaagd tarief' },
-  { value: 21, label: '21%', desc: 'Standaard tarief' },
+  { value: 0,  label: '0%',  desc: 'Exempt' },
+  { value: 10, label: '10%', desc: 'Reduced rate' },
+  { value: 21, label: '21%', desc: 'Standard rate' },
 ];
 
 const CreateProductPage: React.FC = () => {
@@ -346,7 +346,7 @@ const CreateProductPage: React.FC = () => {
                 <label className={LABEL}>Product Description</label>
                 <textarea value={description} onChange={e => setDescription(e.target.value)}
                   rows={3}
-                  placeholder="Geef een omschrijving van het product..."
+                  placeholder="Enter a product description..."
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-slate-400 transition-colors resize-none"/>
               </div>
             </div>
@@ -382,7 +382,7 @@ const CreateProductPage: React.FC = () => {
 
             {/* Category-specific configuration */}
             <div className="space-y-4 pt-4 border-t border-slate-50">
-              <h3 className={`${LABEL} flex items-center gap-2`}><Ruler size={12}/> {category} configuratie</h3>
+              <h3 className={`${LABEL} flex items-center gap-2`}><Ruler size={12}/> {category} Configuration</h3>
               {renderCategoryFields()}
             </div>
           </div>
@@ -391,24 +391,24 @@ const CreateProductPage: React.FC = () => {
         {/* ── Right panel ─────────────────────────────────────────────────── */}
         <div className="lg:col-span-4">
           <div className="bg-slate-900 p-8 rounded-[28px] text-white shadow-2xl space-y-6 sticky top-24">
-            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">Prijs & Voorraad</h3>
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">Price & Stock</h3>
 
             {/* Price input */}
             <div className="space-y-4">
               {isDoor ? (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Prijs per m²</label>
+                    <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Price per m²</label>
                     {!priceManual && <span className="text-[9px] text-emerald-400 font-bold">Auto matrix</span>}
                   </div>
                   <input type="number" value={pricePerM2} min={0}
                     onChange={e => { setPricePerM2(+e.target.value); setPriceManual(true); }}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-black text-white outline-none"/>
-                  {priceManual && <button onClick={() => setPriceManual(false)} className="text-[10px] text-white/40 hover:text-white/70 font-bold">↺ Gebruik matrix prijs</button>}
+                  {priceManual && <button onClick={() => setPriceManual(false)} className="text-[10px] text-white/40 hover:text-white/70 font-bold">↺ Use matrix price</button>}
                 </div>
               ) : (
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Prijs per {unit}</label>
+                  <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Price per {unit}</label>
                   <input type="number" value={pricePerUnit} min={0} onChange={e => setPricePerUnit(+e.target.value)}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-black text-white outline-none"/>
                 </div>
@@ -426,7 +426,7 @@ const CreateProductPage: React.FC = () => {
 
               {/* Default Tax Rate */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Standaard BTW tarief</label>
+                <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Standard VAT Rate</label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {TAX_OPTIONS.map(opt => (
                     <button key={opt.value} type="button" onClick={() => setDefaultTaxRate(opt.value as 0 | 10 | 21)}
@@ -447,35 +447,35 @@ const CreateProductPage: React.FC = () => {
             <div className="bg-white/5 rounded-2xl p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Calculator size={14} className="text-amber-400"/>
-                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Prijs Calculator</p>
+                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Price Calculator</p>
               </div>
               {isDoor && (
                 <>
                   <div className="flex justify-between text-xs font-bold opacity-60"><span>{breedte}×{hoogte}mm</span><span>{oppervlakte.toFixed(4)} m²</span></div>
-                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Prijs / m²</span><span>SRD {pricePerM2.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Price / m²</span><span>SRD {pricePerM2.toFixed(2)}</span></div>
                 </>
               )}
               {activeCat?.pricingType === 'lm' && (
                 <>
-                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Lengte</span><span>{(lengte/1000).toFixed(2)} lm</span></div>
-                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Prijs / lm</span><span>SRD {pricePerUnit}</span></div>
+                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Length</span><span>{(lengte/1000).toFixed(2)} lm</span></div>
+                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Price / lm</span><span>SRD {pricePerUnit}</span></div>
                 </>
               )}
               <div className="flex justify-between text-xs font-bold opacity-60"><span>BTW</span><span>{defaultTaxRate}%</span></div>
               <div className="h-px bg-white/10"/>
               <div className="flex justify-between items-center">
-                <span className="text-xs font-black text-white/60">Eenheidsprijs</span>
+                <span className="text-xs font-black text-white/60">Unit price</span>
                 <span className="text-2xl font-black text-amber-400">SRD {totalPrice.toFixed(2)}</span>
               </div>
             </div>
 
             <button onClick={handleSave} disabled={isDoor && !doorReady}
               className="w-full py-3 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2 disabled:opacity-40">
-              <Save size={14}/> {isEdit ? 'Opslaan' : 'Product Toevoegen'}
+              <Save size={14}/> {isEdit ? 'Save Changes' : 'Add Product'}
             </button>
 
             {isDoor && !doorReady && (
-              <p className="text-[10px] text-white/30 text-center">Kies een model en voer een SKU in om op te slaan</p>
+              <p className="text-[10px] text-white/30 text-center">Select a model and enter a SKU to save</p>
             )}
           </div>
         </div>

@@ -364,7 +364,7 @@ const QuotesPage: React.FC = () => {
                       <button
                         onClick={e => handleEdit(e, q.id)}
                         className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Bewerken"
+                        title="Edit"
                       >
                         <Pencil size={15} />
                       </button>

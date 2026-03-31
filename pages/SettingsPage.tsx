@@ -495,7 +495,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ viewMode, setViewMode }) =>
                         <button 
                           onClick={(e) => { e.stopPropagation(); removeTaxRate(rate.id); }}
                           className="p-2 text-slate-300 hover:text-red-500 transition-all"
-                          title="Verwijderen"
+                          title="Delete"
                         >
                           <Trash2 size={16} />
                         </button>

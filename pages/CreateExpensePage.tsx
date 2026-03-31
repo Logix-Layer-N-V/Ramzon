@@ -60,7 +60,7 @@ const CreateExpensePage: React.FC = () => {
 
   const handleSave = () => {
     const newErrors: Record<string, string> = {};
-    if (!category) newErrors.category = 'Selecteer een categorie';
+    if (!category) newErrors.category = 'Please select a category';
     if (!amount || parseFloat(amount) <= 0) newErrors.amount = 'Vul een geldig bedrag in';
     if (!date) newErrors.date = 'Vul een datum in';
     setErrors(newErrors);
@@ -372,7 +372,7 @@ const CreateExpensePage: React.FC = () => {
                         <ExternalLink size={14} />
                       </a>
                       <button
-                        title="Verwijder bijlage"
+                        title="Remove attachment"
                         onClick={() => removeAttachment(idx)}
                         className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
                       >

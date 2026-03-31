@@ -3,6 +3,7 @@ import { Printer, X, Download } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
 import { pdf } from '@react-pdf/renderer';
 import { DocPDF } from './DocPDF';
+import { getLatestExchangeRate, toBase } from '../lib/storage';
 
 export interface ModalLineItem {
   id: string;
@@ -380,34 +381,82 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
           })()}
 
           {/* ── TOTALS ── */}
-          <div className="flex justify-end mb-8">
-            <div className="w-64">
-              <div className="flex justify-between py-2 text-sm border-t border-slate-200">
-                <span className="text-slate-500 font-medium">Subtotal</span>
-                <span className="font-bold">{currencySymbol}{subtotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between py-2 text-sm border-b border-slate-100">
-                <span className="text-slate-500 font-medium">BTW</span>
-                <span className="font-bold">{currencySymbol}{tax.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between py-3 border-t-2" style={{ borderColor: accentColor }}>
-                <span className="font-black text-base" style={{ color: accentColor }}>TOTAL ({currency})</span>
-                <span className="font-black text-base" style={{ color: accentColor }}>{currencySymbol}{total.toFixed(2)}</span>
-              </div>
-              {paidAmount != null && paidAmount > 0 && (
-                <>
-                  <div className="flex justify-between py-2 text-sm border-t border-slate-100">
-                    <span className="text-emerald-600 font-medium">Paid</span>
-                    <span className="font-bold text-emerald-600">− {currencySymbol}{paidAmount.toFixed(2)}</span>
+          {(() => {
+            const rate = getLatestExchangeRate();
+            const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const totalSRD = toBase(total, currency, 'SRD', rate);
+            const totalUSD = toBase(total, currency, 'USD', rate);
+            const totalEUR = toBase(total, currency, 'EUR', rate);
+            const balanceAmt = paidAmount != null && paidAmount > 0 ? Math.max(0, total - paidAmount) : null;
+            const balSRD = balanceAmt != null ? toBase(balanceAmt, currency, 'SRD', rate) : null;
+            const balUSD = balanceAmt != null ? toBase(balanceAmt, currency, 'USD', rate) : null;
+            const balEUR = balanceAmt != null ? toBase(balanceAmt, currency, 'EUR', rate) : null;
+            return (
+              <div className="flex justify-end mb-8">
+                <div className="w-72">
+                  <div className="flex justify-between py-2 text-sm border-t border-slate-200">
+                    <span className="text-slate-500 font-medium">Subtotal</span>
+                    <span className="font-bold">{currencySymbol}{subtotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between py-3 border-t-2 border-slate-900">
-                    <span className="font-black text-slate-900 text-base">BALANCE</span>
-                    <span className="font-black text-slate-900 text-base">{currencySymbol}{Math.max(0, total - paidAmount).toFixed(2)}</span>
+                  <div className="flex justify-between py-2 text-sm border-b border-slate-100">
+                    <span className="text-slate-500 font-medium">BTW</span>
+                    <span className="font-bold">{currencySymbol}{tax.toFixed(2)}</span>
                   </div>
-                </>
-              )}
-            </div>
-          </div>
+                  <div className="flex justify-between py-3 border-t-2" style={{ borderColor: accentColor }}>
+                    <span className="font-black text-base" style={{ color: accentColor }}>TOTAL ({currency})</span>
+                    <span className="font-black text-base" style={{ color: accentColor }}>{currencySymbol}{total.toFixed(2)}</span>
+                  </div>
+
+                  {/* ── Multi-currency equivalents ── */}
+                  {rate && (
+                    <div className="bg-slate-50 rounded-lg px-3 py-2.5 mt-1 space-y-1">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Equivalent</p>
+                      {currency !== 'SRD' && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500">SRD</span>
+                          <span className="font-bold text-slate-700">SRD {fmt(totalSRD)}</span>
+                        </div>
+                      )}
+                      {currency !== 'USD' && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500">USD</span>
+                          <span className="font-bold text-slate-700">$ {fmt(totalUSD)}</span>
+                        </div>
+                      )}
+                      {currency !== 'EUR' && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500">EUR</span>
+                          <span className="font-bold text-slate-700">&euro; {fmt(totalEUR)}</span>
+                        </div>
+                      )}
+                      <p className="text-[7px] text-slate-400 mt-1">Rate: 1 USD = SRD {rate.usdSrd} &middot; 1 EUR = SRD {rate.eurSrd}</p>
+                    </div>
+                  )}
+
+                  {paidAmount != null && paidAmount > 0 && (
+                    <>
+                      <div className="flex justify-between py-2 text-sm border-t border-slate-100 mt-2">
+                        <span className="text-emerald-600 font-medium">Paid</span>
+                        <span className="font-bold text-emerald-600">− {currencySymbol}{paidAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between py-3 border-t-2 border-slate-900">
+                        <span className="font-black text-slate-900 text-base">BALANCE</span>
+                        <span className="font-black text-slate-900 text-base">{currencySymbol}{Math.max(0, total - paidAmount).toFixed(2)}</span>
+                      </div>
+                      {rate && balSRD != null && balUSD != null && balEUR != null && (
+                        <div className="bg-slate-50 rounded-lg px-3 py-2 space-y-1">
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Balance Equivalent</p>
+                          {currency !== 'SRD' && <div className="flex justify-between text-xs"><span className="text-slate-500">SRD</span><span className="font-bold">SRD {fmt(balSRD)}</span></div>}
+                          {currency !== 'USD' && <div className="flex justify-between text-xs"><span className="text-slate-500">USD</span><span className="font-bold">$ {fmt(balUSD)}</span></div>}
+                          {currency !== 'EUR' && <div className="flex justify-between text-xs"><span className="text-slate-500">EUR</span><span className="font-bold">&euro; {fmt(balEUR)}</span></div>}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ── FOOTER ── */}
           {(bankDetails || legalDisclaimer) && (

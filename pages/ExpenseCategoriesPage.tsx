@@ -119,7 +119,7 @@ const ExpenseCategoriesPage: React.FC = () => {
         </div>
         <button onClick={() => { setIsAdding(true); setShowPicker(false); }}
           className="bg-brand-primary text-white px-5 py-2.5 rounded-xl text-sm font-black hover:bg-red-800 transition-all flex items-center gap-2 shadow-xl active:scale-95">
-          <Plus size={18} /> Nieuwe Categorie
+          <Plus size={18} /> New Category
         </button>
       </div>
 
@@ -150,7 +150,7 @@ const ExpenseCategoriesPage: React.FC = () => {
               <button title="Save" onClick={handleAdd} className="p-2 bg-brand-primary text-white rounded-lg hover:bg-red-800 transition-colors">
                 <Check size={18} />
               </button>
-              <button title="Annuleren" onClick={() => { setIsAdding(false); setShowPicker(false); }} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors">
+              <button title="Cancel" onClick={() => { setIsAdding(false); setShowPicker(false); }} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors">
                 <X size={18} />
               </button>
             </div>
@@ -199,16 +199,16 @@ const ExpenseCategoriesPage: React.FC = () => {
                     <button title="Save" onClick={() => handleSaveEdit(cat.id)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
                       <Check size={16} />
                     </button>
-                    <button title="Annuleren" onClick={() => { setEditingId(null); setShowEditPicker(false); }} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors">
+                    <button title="Cancel" onClick={() => { setEditingId(null); setShowEditPicker(false); }} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors">
                       <X size={16} />
                     </button>
                   </>
                 ) : (
                   <>
-                    <button title="Bewerken" onClick={() => handleEdit(cat)} className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors">
+                    <button title="Edit" onClick={() => handleEdit(cat)} className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors">
                       <Pencil size={16} />
                     </button>
-                    <button title="Verwijderen" onClick={() => handleDelete(cat.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                    <button title="Delete" onClick={() => handleDelete(cat.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                       <Trash2 size={16} />
                     </button>
                   </>
@@ -221,7 +221,7 @@ const ExpenseCategoriesPage: React.FC = () => {
         {categories.length === 0 && (
           <div className="p-12 text-center text-slate-300">
             <Tag size={40} className="mx-auto mb-3 opacity-30" />
-            <p className="font-bold text-sm">Geen categorieën gevonden</p>
+            <p className="font-bold text-sm">No categories found</p>
           </div>
         )}
       </div>
