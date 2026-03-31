@@ -80,11 +80,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 async function handleAuth(req: VercelRequest, res: VercelResponse, sub: string, m: string) {
   if (sub === 'login' && m === 'POST') {
-    const { email, password } = req.body;
+    const { email, password } = req.body ?? {};
+    console.log('[login] email:', email, 'body keys:', Object.keys(req.body ?? {}));
     const sql = getSql();
-    const rows = await sql`SELECT * FROM users WHERE email=${email} AND status='Active'`;
+    const rows = await sql`SELECT id, email, role, name, status, password FROM users WHERE email=${email}`;
+    console.log('[login] rows found:', rows.length, 'status:', (rows[0] as any)?.status);
     const user = rows[0] as any;
-    if (!user || !(await bcrypt.compare(password, user.password)))
+    if (!user || user.status !== 'Active') {
+      console.log('[login] user not found or inactive');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    const match = await bcrypt.compare(password, user.password);
+    console.log('[login] bcrypt match:', match, 'hash prefix:', user.password?.substring(0, 10));
+    if (!match)
       return res.status(401).json({ error: 'Invalid credentials' });
     const payload: AuthUser = { id: user.id, role: user.role, name: user.name };
     const accessToken = signAccess(payload);
