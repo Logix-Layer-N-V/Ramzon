@@ -1,7 +1,14 @@
 import axios from 'axios';
 
+// On Vercel (non-localhost), always use same-origin /api — never localhost
+const _envUrl = import.meta.env.VITE_API_URL as string | undefined;
+const _baseURL =
+  typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
+    ? '/api'
+    : (_envUrl || 'http://localhost:4000/api');
+
 export const api = axios.create({
-  baseURL: (import.meta.env.VITE_API_URL as string | undefined) || '/api',
+  baseURL: _baseURL,
   withCredentials: true,
 });
 
