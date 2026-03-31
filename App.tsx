@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
@@ -332,6 +333,7 @@ const App: React.FC = () => {
       formatDate,
     }}>
       <AppRoutes isSidebarCollapsed={isSidebarCollapsed} setIsSidebarCollapsed={setIsSidebarCollapsed} />
+      <Analytics />
     </LanguageContext.Provider>
     </AuthProvider>
     </QueryClientProvider>
