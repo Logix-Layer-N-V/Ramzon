@@ -2,13 +2,14 @@ import React, { useState, useContext, useMemo } from 'react';
 import {
   Search, Plus, Filter, ClipboardList, Send,
   MoreHorizontal, Check, FileText, Pencil, X,
-  CheckCircle2, AlertCircle, ChevronUp, ChevronDown
+  CheckCircle2, AlertCircle, ChevronUp, ChevronDown, Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { mockEstimates, mockClients } from '../lib/mock-data';
 import { Estimate, EstimateStatus } from '../types';
 import { LanguageContext } from '../lib/context';
 import { storage } from '../lib/storage';
+import { sendDocumentEmail } from '../lib/sendDocument';
 
 const STATUS_OPTIONS: EstimateStatus[] = ['Accepted', 'Sent', 'Draft', 'Expired'];
 
@@ -47,6 +48,70 @@ const QuotesPage: React.FC = () => {
   const handleSort = (key: string) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
+  };
+
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const { companyName, companyAddress, companyPhone, companyEmail, companyLogo } = useContext(LanguageContext);
+
+  const allClients = useMemo(() => {
+    const stored = storage.clients.get();
+    const ids = new Set(stored.map(c => c.id));
+    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
+  }, []);
+
+  const handleSendEmail = async (e: React.MouseEvent, q: Estimate) => {
+    e.stopPropagation();
+    const client = allClients.find(c => c.id === q.clientId);
+    const email = client?.email;
+    if (!email) {
+      alert('This client has no email address. Please add one first.');
+      return;
+    }
+    if (!window.confirm(`Send ${q.estimateNumber} to ${email}?`)) return;
+    setSendingId(q.id);
+    try {
+      await sendDocumentEmail({
+        to: email,
+        clientName: client?.name || q.clientName,
+        docType: 'estimate',
+        docNumber: q.estimateNumber,
+        total: q.total,
+        currency: q.currency || 'SRD',
+        currencySymbol,
+        companyName,
+        pdfProps: {
+          docType: 'quote',
+          docNumber: q.estimateNumber,
+          date: q.date,
+          clientName: client?.name || q.clientName,
+          clientCompany: client?.company,
+          clientAddress: client?.address,
+          clientPhone: client?.phone,
+          clientEmail: client?.email,
+          clientVAT: client?.vatNumber,
+          companyName, companyAddress, companyPhone, companyEmail, companyLogo,
+          rep: q.rep,
+          paidAmount: q.paidAmount,
+          currency: q.currency || 'SRD',
+          currencySymbol,
+          items: (q.items || []).map(it => ({
+            description: it.description,
+            qty: it.quantity,
+            unit: 'pcs',
+            price: it.unitPrice,
+            total: it.total,
+          })),
+          subtotal: q.subtotal,
+          tax: q.taxAmount,
+          total: q.total,
+        },
+      });
+      alert(`Estimate sent to ${email}`);
+    } catch (err: any) {
+      alert(`Failed to send: ${err?.response?.data?.error || err.message}`);
+    } finally {
+      setSendingId(null);
+    }
   };
 
   const handleApprove = (e: React.MouseEvent, id: string) => {
@@ -361,6 +426,14 @@ const QuotesPage: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      <button
+                        onClick={e => handleSendEmail(e, q)}
+                        disabled={sendingId === q.id}
+                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                        title="Send Email"
+                      >
+                        {sendingId === q.id ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                      </button>
                       <button
                         onClick={e => handleEdit(e, q.id)}
                         className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

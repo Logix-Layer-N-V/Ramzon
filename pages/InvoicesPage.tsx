@@ -3,13 +3,14 @@ import { LanguageContext } from '../lib/context';
 import {
   Search, Plus, Filter, FileText, Download, Send,
   MoreHorizontal, CheckCircle2, Clock, AlertCircle, X,
-  ChevronUp, ChevronDown, Trash2
+  ChevronUp, ChevronDown, Trash2, Loader2
 } from 'lucide-react';
 import { mockInvoices, mockClients } from '../lib/mock-data';
 import { InvoiceStatus, Invoice } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { exportCSV } from '../lib/csvExport';
 import { storage } from '../lib/storage';
+import { sendDocumentEmail } from '../lib/sendDocument';
 
 const STATUS_OPTIONS: InvoiceStatus[] = ['Paid', 'Pending', 'Overdue', 'Draft'];
 
@@ -32,6 +33,65 @@ const InvoicesPage: React.FC = () => {
     const storedIds = new Set(stored.map((e: Invoice) => e.id));
     return [...stored, ...mockInvoices.filter((e: Invoice) => !storedIds.has(e.id))];
   }, [refresh]);
+
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const { companyName, companyAddress, companyPhone, companyEmail, companyLogo } = useContext(LanguageContext);
+
+  const handleSendEmail = async (e: React.MouseEvent, inv: Invoice) => {
+    e.stopPropagation();
+    const client = allClients.find(c => c.id === inv.clientId);
+    const email = client?.email;
+    if (!email) {
+      alert('This client has no email address. Please add one first.');
+      return;
+    }
+    if (!window.confirm(`Send ${inv.invoiceNumber} to ${email}?`)) return;
+    setSendingId(inv.id);
+    try {
+      await sendDocumentEmail({
+        to: email,
+        clientName: client?.name || inv.clientName,
+        docType: 'invoice',
+        docNumber: inv.invoiceNumber,
+        total: inv.totalAmount,
+        currency: inv.currency || 'SRD',
+        currencySymbol,
+        companyName,
+        pdfProps: {
+          docType: 'invoice',
+          docNumber: inv.invoiceNumber,
+          date: inv.date,
+          validUntil: inv.dueDate,
+          clientName: client?.name || inv.clientName,
+          clientCompany: client?.company,
+          clientAddress: client?.address,
+          clientPhone: client?.phone,
+          clientEmail: client?.email,
+          clientVAT: client?.vatNumber,
+          companyName, companyAddress, companyPhone, companyEmail, companyLogo,
+          rep: inv.rep,
+          paidAmount: inv.paidAmount,
+          currency: inv.currency || 'SRD',
+          currencySymbol,
+          items: inv.items.map(it => ({
+            description: it.description,
+            qty: it.quantity,
+            unit: 'pcs',
+            price: it.unitPrice,
+            total: it.total,
+          })),
+          subtotal: inv.subtotal,
+          tax: inv.taxAmount,
+          total: inv.totalAmount,
+        },
+      });
+      alert(`Invoice sent to ${email}`);
+    } catch (err: any) {
+      alert(`Failed to send: ${err?.response?.data?.error || err.message}`);
+    } finally {
+      setSendingId(null);
+    }
+  };
 
   const handleDeleteInvoice = (id: string) => {
     if (!window.confirm('Factuur verwijderen?')) return;
@@ -320,11 +380,12 @@ const InvoicesPage: React.FC = () => {
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
                       <button
-                        onClick={e => { e.stopPropagation(); }}
-                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        onClick={e => handleSendEmail(e, inv)}
+                        disabled={sendingId === inv.id}
+                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
                         title="Send Email"
                       >
-                        <Send size={16} />
+                        {sendingId === inv.id ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                       </button>
                       <button
                         onClick={e => { e.stopPropagation(); }}

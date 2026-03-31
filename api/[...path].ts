@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { Resend } from 'resend';
 
 /* ── Inline helpers (no external _lib imports) ──────────────────────────── */
 
@@ -67,6 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'expenses':  return handleExpenses(req, res, id, m);
       case 'products':  return handleProducts(req, res, id, m);
       case 'users':     return handleUsers(req, res, id, m);
+      case 'send-document': return handleSendDocument(req, res, m);
       case 'health':    return res.json({ status: 'ok' });
       default:          return res.status(404).json({ error: 'Not found' });
     }
@@ -349,4 +351,74 @@ async function handleUsers(req: VercelRequest, res: VercelResponse, _id: string 
     return res.json(rows);
   }
   return res.status(405).json({ error: 'Method not allowed' });
+}
+
+/* ── SEND DOCUMENT (Email via Resend) ──────────────────────────────────── */
+
+async function handleSendDocument(req: VercelRequest, res: VercelResponse, m: string) {
+  if (m !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const user = getAuthUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'Email service not configured — set RESEND_API_KEY' });
+
+  const {
+    to,               // client email address
+    clientName,       // client name for greeting
+    docType,          // 'invoice' | 'estimate'
+    docNumber,        // e.g. "INV-2024-001"
+    total,            // formatted total string e.g. "1,250.00"
+    currency,         // e.g. "SRD"
+    pdfBase64,        // base64-encoded PDF file
+    companyName,      // sender company name
+  } = req.body ?? {};
+
+  if (!to || !docNumber || !pdfBase64)
+    return res.status(400).json({ error: 'Missing required fields: to, docNumber, pdfBase64' });
+
+  const resend = new Resend(apiKey);
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+  const typeLabel = docType === 'invoice' ? 'Invoice' : 'Estimate';
+  const filename = `${docNumber.replace(/\s+/g, '_')}.pdf`;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `${companyName || 'Ramzon N.V.'} <${fromEmail}>`,
+      to: [to],
+      subject: `${typeLabel} ${docNumber} — ${companyName || 'Ramzon N.V.'}`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+          <h2 style="color: #1e293b; margin-bottom: 8px;">${typeLabel} ${docNumber}</h2>
+          <p style="color: #64748b; font-size: 15px; line-height: 1.6;">
+            Dear ${clientName || 'Client'},
+          </p>
+          <p style="color: #64748b; font-size: 15px; line-height: 1.6;">
+            Please find attached your ${typeLabel.toLowerCase()} <strong>${docNumber}</strong>
+            for a total of <strong>${currency} ${total}</strong>.
+          </p>
+          <p style="color: #64748b; font-size: 15px; line-height: 1.6;">
+            If you have any questions, please don't hesitate to contact us.
+          </p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;" />
+          <p style="color: #94a3b8; font-size: 12px;">
+            ${companyName || 'Ramzon N.V.'}<br/>
+            Sent by ${user.name || 'Admin'}
+          </p>
+        </div>
+      `,
+      attachments: [{ filename, content: pdfBase64 }],
+    });
+
+    if (error) {
+      console.error('Resend error:', error);
+      return res.status(500).json({ error: 'Failed to send email', details: (error as any).message });
+    }
+
+    return res.json({ success: true, messageId: data?.id });
+  } catch (e: any) {
+    console.error('Email send error:', e);
+    return res.status(500).json({ error: 'Failed to send email', message: e.message });
+  }
 }
