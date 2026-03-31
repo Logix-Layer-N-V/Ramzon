@@ -28,6 +28,7 @@ import {
   X,
 } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
+import { useAuth } from '../lib/auth';
 
 interface SidebarProps {
   currentPath: string;
@@ -38,6 +39,8 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isCollapsed, onToggleCollapse }) => {
   const { t, multiCurrency, companyName, companyLogo } = useContext(LanguageContext);
+  const { user } = useAuth();
+  const role = user?.role || 'Sales'; // default to least-privileged non-accountant role
   const [openMenus, setOpenMenus] = useState<{ [key: string]: boolean }>({
     dashboard: false,
     billing: currentPath.startsWith('/invoices') || currentPath.startsWith('/estimates') || currentPath.startsWith('/payments') || currentPath.startsWith('/credits'),
@@ -162,85 +165,111 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isCollapsed,
         )}
 
         <div className="flex-1 space-y-1 mt-4 overflow-y-auto no-scrollbar pb-4">
+          {/* Overview — all roles */}
           <NavItem label={t('overview')} icon={LayoutDashboard} path="/dashboard" active={currentPath === '/dashboard'} />
-          <NavItem label={t('crm')} icon={Users} path="/clients" active={currentPath.startsWith('/clients')} />
-          
-          {/* Billing */}
+
+          {/* CRM — Admin, Sales */}
+          {(role === 'Admin' || role === 'Sales') && (
+            <NavItem label={t('crm')} icon={Users} path="/clients" active={currentPath.startsWith('/clients')} />
+          )}
+
+          {/* Billing — all roles, but sub-items vary */}
           <div className="space-y-1">
             <NavItem label={t('billing')} icon={CreditCard} hasDropdown menuKey="billing"
               active={currentPath.startsWith('/invoices') || currentPath.startsWith('/estimates') || currentPath.startsWith('/payments') || currentPath.startsWith('/credits') || currentPath.startsWith('/recurring') || currentPath.startsWith('/currencies')} />
             {openMenus.billing && (
               <div className="overflow-hidden">
-                <SubMenuItem label={t('estimates')} icon={ClipboardList} path="/estimates" active={currentPath === '/estimates'} />
+                {(role === 'Admin' || role === 'Sales') && (
+                  <SubMenuItem label={t('estimates')} icon={ClipboardList} path="/estimates" active={currentPath === '/estimates'} />
+                )}
                 <SubMenuItem label={t('invoices')} icon={Receipt} path="/invoices" active={currentPath === '/invoices'} />
-                <SubMenuItem label={t('payments')} icon={Banknote} path="/payments" active={currentPath === '/payments'} />
-                <SubMenuItem label={t('credits')} icon={Coins} path="/credits" active={currentPath === '/credits'} />
+                {(role === 'Admin' || role === 'Accountant') && (
+                  <SubMenuItem label={t('payments')} icon={Banknote} path="/payments" active={currentPath === '/payments'} />
+                )}
+                {(role === 'Admin' || role === 'Accountant') && (
+                  <SubMenuItem label={t('credits')} icon={Coins} path="/credits" active={currentPath === '/credits'} />
+                )}
                 <SubMenuItem label={t('multiCurrencyMenu')} icon={Globe2} path="/currencies" active={currentPath === '/currencies'} />
               </div>
             )}
           </div>
 
-          {/* Expenses */}
-          <div className="space-y-1">
-            <NavItem label={t('expenses')} icon={Wallet} hasDropdown menuKey="expenses" active={currentPath.startsWith('/expenses')} />
-            {openMenus.expenses && (
-              <div className="overflow-hidden">
-                <SubMenuItem label={t('allExpenses')} icon={ListFilter} path="/expenses" active={currentPath === '/expenses'} />
-                <SubMenuItem label={t('categories')} icon={Tag} path="/expenses/categories" active={currentPath === '/expenses/categories'} />
-                <SubMenuItem label={t('vendors')} icon={Store} path="/expenses/vendors" active={currentPath === '/expenses/vendors'} />
-              </div>
-            )}
-          </div>
+          {/* Expenses — Admin, Accountant */}
+          {(role === 'Admin' || role === 'Accountant') && (
+            <div className="space-y-1">
+              <NavItem label={t('expenses')} icon={Wallet} hasDropdown menuKey="expenses" active={currentPath.startsWith('/expenses')} />
+              {openMenus.expenses && (
+                <div className="overflow-hidden">
+                  <SubMenuItem label={t('allExpenses')} icon={ListFilter} path="/expenses" active={currentPath === '/expenses'} />
+                  <SubMenuItem label={t('categories')} icon={Tag} path="/expenses/categories" active={currentPath === '/expenses/categories'} />
+                  <SubMenuItem label={t('vendors')} icon={Store} path="/expenses/vendors" active={currentPath === '/expenses/vendors'} />
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Internal Finance */}
-          <NavItem label={t('internalFinance')} icon={Landmark} path="/finance" active={currentPath === '/finance'} />
+          {/* Internal Finance — Admin, Accountant */}
+          {(role === 'Admin' || role === 'Accountant') && (
+            <NavItem label={t('internalFinance')} icon={Landmark} path="/finance" active={currentPath === '/finance'} />
+          )}
 
-          {/* Products */}
-          <div className="space-y-1">
-            <NavItem label={t('products')} icon={Layers} hasDropdown menuKey="products" active={currentPath.startsWith('/products')} />
-            {openMenus.products && (
-              <div className="overflow-hidden">
-                <SubMenuItem label={t('allProducts')} icon={Layers} path="/products" active={currentPath === '/products'} />
-                <SubMenuItem label={t('categories')} icon={Tag} path="/products/categories" active={currentPath === '/products/categories'} />
-              </div>
-            )}
-          </div>
+          {/* Products — Admin, Sales */}
+          {(role === 'Admin' || role === 'Sales') && (
+            <div className="space-y-1">
+              <NavItem label={t('products')} icon={Layers} hasDropdown menuKey="products" active={currentPath.startsWith('/products')} />
+              {openMenus.products && (
+                <div className="overflow-hidden">
+                  <SubMenuItem label={t('allProducts')} icon={Layers} path="/products" active={currentPath === '/products'} />
+                  <SubMenuItem label={t('categories')} icon={Tag} path="/products/categories" active={currentPath === '/products/categories'} />
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Services */}
-          <div className="space-y-1">
-            <NavItem label={t('services')} icon={Settings2} hasDropdown menuKey="services" active={currentPath.startsWith('/services')} />
-            {openMenus.services && (
-              <div className="overflow-hidden">
-                <SubMenuItem label={t('allServices')} icon={Settings2} path="/services" active={currentPath === '/services'} />
-                <SubMenuItem label={t('categories')} icon={Tag} path="/services/categories" active={currentPath === '/services/categories'} />
-              </div>
-            )}
-          </div>
+          {/* Services — Admin, Sales */}
+          {(role === 'Admin' || role === 'Sales') && (
+            <div className="space-y-1">
+              <NavItem label={t('services')} icon={Settings2} hasDropdown menuKey="services" active={currentPath.startsWith('/services')} />
+              {openMenus.services && (
+                <div className="overflow-hidden">
+                  <SubMenuItem label={t('allServices')} icon={Settings2} path="/services" active={currentPath === '/services'} />
+                  <SubMenuItem label={t('categories')} icon={Tag} path="/services/categories" active={currentPath === '/services/categories'} />
+                </div>
+              )}
+            </div>
+          )}
 
-          <NavItem label={t('docStyles')} icon={LayoutTemplate} path="/appearance" active={currentPath === '/appearance'} />
+          {/* Doc Styles — Admin, Sales */}
+          {(role === 'Admin' || role === 'Sales') && (
+            <NavItem label={t('docStyles')} icon={LayoutTemplate} path="/appearance" active={currentPath === '/appearance'} />
+          )}
 
-          {/* Reports */}
-          <div className="space-y-1">
-            <NavItem label={t('reports')} icon={FileText} hasDropdown menuKey="reports"
-              active={currentPath.startsWith('/reports')} />
-            {openMenus.reports && (
-              <div className="overflow-hidden">
-                <SubMenuItem label={t('financeReports')} icon={BarChart3} path="/reports/finance" active={currentPath === '/reports/finance'} />
-                <SubMenuItem label={t('systemHealth')}   icon={Activity}  path="/reports/health"  active={currentPath === '/reports/health'} />
-              </div>
-            )}
-          </div>
+          {/* Reports — Admin, Accountant */}
+          {(role === 'Admin' || role === 'Accountant') && (
+            <div className="space-y-1">
+              <NavItem label={t('reports')} icon={FileText} hasDropdown menuKey="reports"
+                active={currentPath.startsWith('/reports')} />
+              {openMenus.reports && (
+                <div className="overflow-hidden">
+                  <SubMenuItem label={t('financeReports')} icon={BarChart3} path="/reports/finance" active={currentPath === '/reports/finance'} />
+                  <SubMenuItem label={t('systemHealth')}   icon={Activity}  path="/reports/health"  active={currentPath === '/reports/health'} />
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Users */}
-          <div className="space-y-1">
-            <NavItem label={t('users')} icon={Users} hasDropdown menuKey="users" active={currentPath === '/users' || currentPath === '/documentation'} />
-            {openMenus.users && (
-              <div className="overflow-hidden">
-                <SubMenuItem label={t('users')} icon={Users} path="/users" active={currentPath === '/users'} />
-                <SubMenuItem label={t('documentation')} icon={BookOpen} path="/documentation" active={currentPath === '/documentation'} />
-              </div>
-            )}
-          </div>
+          {/* Users — Admin only */}
+          {role === 'Admin' && (
+            <div className="space-y-1">
+              <NavItem label={t('users')} icon={Users} hasDropdown menuKey="users" active={currentPath === '/users' || currentPath === '/documentation'} />
+              {openMenus.users && (
+                <div className="overflow-hidden">
+                  <SubMenuItem label={t('users')} icon={Users} path="/users" active={currentPath === '/users'} />
+                  <SubMenuItem label={t('documentation')} icon={BookOpen} path="/documentation" active={currentPath === '/documentation'} />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className={`px-3 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center gap-2 ${isCollapsed ? 'justify-center' : ''}`}>

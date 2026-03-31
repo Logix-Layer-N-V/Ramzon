@@ -58,34 +58,34 @@ const FinancePage: React.FC = () => {
   const [refresh, setRefresh] = useState(0);
 
   // Filter state (accounts tab)
-  const [filterBank, setFilterBank] = useState('Alle');
-  const [filterCurrency, setFilterCurrency] = useState('Alle');
-  const [filterType, setFilterType] = useState('Alle');
+  const [filterBank, setFilterBank] = useState('All');
+  const [filterCurrency, setFilterCurrency] = useState('All');
+  const [filterType, setFilterType] = useState('All');
   const [showExport, setShowExport] = useState(false);
 
   // Filter state (transactions tab)
-  const [txFilterBank, setTxFilterBank] = useState('Alle');
-  const [txFilterCurrency, setTxFilterCurrency] = useState('Alle');
+  const [txFilterBank, setTxFilterBank] = useState('All');
+  const [txFilterCurrency, setTxFilterCurrency] = useState('All');
   const [txDateFrom, setTxDateFrom] = useState('');
   const [txDateTo, setTxDateTo] = useState('');
 
-  const uniqueBanks = ['Alle', ...Array.from(new Set(BANK_ACCOUNTS_DEFAULT.map(a => a.bank)))];
+  const uniqueBanks = ['All', ...Array.from(new Set(BANK_ACCOUNTS_DEFAULT.map(a => a.bank)))];
 
   // Load all payments for transactions tab
   const allPayments = useMemo(() => storage.payments.get().sort((a, b) => b.date.localeCompare(a.date)), [refresh]);
 
   const filteredAccounts = useMemo(() => accounts.filter(acc => {
-    const bankOk = filterBank === 'Alle' || acc.bank === filterBank;
-    const currOk = filterCurrency === 'Alle' || acc.currency === filterCurrency;
+    const bankOk = filterBank === 'All' || acc.bank === filterBank;
+    const currOk = filterCurrency === 'All' || acc.currency === filterCurrency;
     const isCash = acc.bank === 'Cash';
-    const typeOk = filterType === 'Alle' || (filterType === 'Cash' ? isCash : !isCash);
+    const typeOk = filterType === 'All' || (filterType === 'Cash' ? isCash : !isCash);
     return bankOk && currOk && typeOk;
   }), [accounts, filterBank, filterCurrency, filterType]);
 
   const filteredTransactions = useMemo(() => allPayments.filter(p => {
     const acct = accounts.find(a => a.id === p.bankAccountId);
-    const bankOk = txFilterBank === 'Alle' || acct?.bank === txFilterBank;
-    const currOk = txFilterCurrency === 'Alle' || p.currency === txFilterCurrency;
+    const bankOk = txFilterBank === 'All' || acct?.bank === txFilterBank;
+    const currOk = txFilterCurrency === 'All' || p.currency === txFilterCurrency;
     const fromOk = !txDateFrom || p.date >= txDateFrom;
     const toOk = !txDateTo || p.date <= txDateTo;
     return bankOk && currOk && fromOk && toOk;
@@ -148,8 +148,8 @@ const FinancePage: React.FC = () => {
       {/* Header */}
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Interne Finance</h1>
-          <p className="text-sm font-medium text-slate-500 italic">Bank rekeningen, kas beheer & wisselkoersen</p>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Internal Finance</h1>
+          <p className="text-sm font-medium text-slate-500 italic">Bank accounts, cash management & exchange rates</p>
         </div>
       </div>
 
@@ -222,13 +222,13 @@ const FinancePage: React.FC = () => {
                 </select>
               </div>
               <select value={filterCurrency} onChange={e => setFilterCurrency(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black outline-none bg-white text-slate-700">
-                {['Alle','SRD','USD','EUR'].map(c => <option key={c}>{c}</option>)}
+                {['All','SRD','USD','EUR'].map(c => <option key={c}>{c}</option>)}
               </select>
               <select value={filterType} onChange={e => setFilterType(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black outline-none bg-white text-slate-700">
-                {['Alle','Bank','Cash'].map(t => <option key={t}>{t}</option>)}
+                {['All','Bank','Cash'].map(t => <option key={t}>{t}</option>)}
               </select>
-              {(filterBank !== 'Alle' || filterCurrency !== 'Alle' || filterType !== 'Alle') && (
-                <button onClick={() => { setFilterBank('Alle'); setFilterCurrency('Alle'); setFilterType('Alle'); }} className="px-2 py-1 bg-brand-primary text-white rounded-lg text-[9px] font-black flex items-center gap-1">
+              {(filterBank !== 'All' || filterCurrency !== 'All' || filterType !== 'All') && (
+                <button onClick={() => { setFilterBank('All'); setFilterCurrency('All'); setFilterType('All'); }} className="px-2 py-1 bg-brand-primary text-white rounded-lg text-[9px] font-black flex items-center gap-1">
                   <X size={10}/> Reset
                 </button>
               )}
@@ -242,18 +242,18 @@ const FinancePage: React.FC = () => {
                       <FileText size={13} className="text-emerald-600"/> Export CSV
                     </button>
                     <button onClick={() => setShowExport(false)} className="w-full flex items-center gap-2 px-4 py-2.5 text-[10px] font-black text-slate-400 hover:bg-slate-50">
-                      <FileSpreadsheet size={13} className="text-blue-500"/> Excel (binnenkort)
+                      <FileSpreadsheet size={13} className="text-blue-500"/> Excel (coming soon)
                     </button>
                   </div>
                 )}
               </div>
               <button onClick={() => setAddingAccount(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[10px] font-black hover:bg-slate-800">
-                <Plus size={12}/> Rekening
+                <Plus size={12}/> Account
               </button>
             </div>
           </div>
           <div className="px-6 py-2 bg-slate-50/30 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-            {filteredAccounts.length} van {accounts.length} rekeningen getoond
+            {filteredAccounts.length} OF {accounts.length} ACCOUNTS SHOWN
           </div>
 
           {addingAccount && (
@@ -262,7 +262,7 @@ const FinancePage: React.FC = () => {
                 <div>
                   <label className="text-[9px] font-black text-slate-400 uppercase">Bank</label>
                   <select value={newBank} onChange={e => setNewBank(e.target.value)} className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none bg-white">
-                    <option>DSB Bank</option><option>HKB Hakrinbank</option><option>Cash</option><option>Overig</option>
+                    <option>DSB Bank</option><option>HKB Hakrinbank</option><option>Cash</option><option>Other</option>
                   </select>
                 </div>
                 <div>

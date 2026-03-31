@@ -26,6 +26,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
 import { storage } from '../lib/storage';
+import { useAuth } from '../lib/auth';
 
 interface HeaderProps {
   onLogout?: () => void;
@@ -34,6 +35,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
   const { t, companyName, companyLogo } = useContext(LanguageContext);
+  const { user } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -269,7 +271,7 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
               <LayoutDashboard size={24} className="text-brand-primary" />
             )}
           </div>
-          <span className="hidden md:inline">Admin Dashboard</span>
+          <span className="hidden md:inline">{user?.role ? `${user.role} Dashboard` : 'Dashboard'}</span>
         </button>
         <span className="text-slate-300 hidden md:inline">/</span>
         <span className="font-semibold italic text-slate-600 hidden md:inline">{breadcrumbLabel}</span>
