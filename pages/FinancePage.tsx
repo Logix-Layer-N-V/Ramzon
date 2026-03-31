@@ -156,9 +156,9 @@ const FinancePage: React.FC = () => {
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: 'Totaal SRD', value: `SRD ${totalBySRD.toLocaleString()}`, icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Totaal USD', value: `USD ${totalByUSD.toLocaleString()}`, icon: DollarSign, color: 'text-brand-primary', bg: 'bg-brand-accent-light' },
-          { label: 'Totaal EUR', value: `EUR ${totalByEUR.toLocaleString()}`, icon: Globe2, color: 'text-purple-600', bg: 'bg-purple-50' },
+          { label: 'Total SRD', value: `SRD ${totalBySRD.toLocaleString()}`, icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Total USD', value: `USD ${totalByUSD.toLocaleString()}`, icon: DollarSign, color: 'text-brand-primary', bg: 'bg-brand-accent-light' },
+          { label: 'Total EUR', value: `EUR ${totalByEUR.toLocaleString()}`, icon: Globe2, color: 'text-purple-600', bg: 'bg-purple-50' },
         ].map(card => (
           <div key={card.label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${card.bg} ${card.color}`}>

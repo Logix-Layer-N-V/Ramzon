@@ -367,7 +367,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
                     <th className="text-center py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white w-16" style={{ backgroundColor: accentColor }}>QTY</th>
                     <th className="text-center py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white w-14" style={{ backgroundColor: accentColor }}>U/M</th>
                     <th className="text-right py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white w-24" style={{ backgroundColor: accentColor }}>Prijs</th>
-                    <th className="text-right py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white w-24" style={{ backgroundColor: accentColor }}>Totaal</th>
+                    <th className="text-right py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white w-24" style={{ backgroundColor: accentColor }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -388,7 +388,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
             <div className="flex justify-end mb-8">
               <div className="w-64">
                 <div className="flex justify-between py-2 text-sm border-t border-slate-200">
-                  <span className="text-slate-500 font-medium">Subtotaal</span>
+                  <span className="text-slate-500 font-medium">Subtotal</span>
                   <span className="font-bold">{fmt(invoiceTotal / 1.21)}</span>
                 </div>
                 <div className="flex justify-between py-2 text-sm border-b border-slate-100">
@@ -396,18 +396,18 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
                   <span className="font-bold">{fmt(invoiceTotal - invoiceTotal / 1.21)}</span>
                 </div>
                 <div className="flex justify-between py-3 border-t-2" style={{ borderColor: accentColor }}>
-                  <span className="font-black text-base" style={{ color: accentColor }}>TOTAAL ({cur})</span>
+                  <span className="font-black text-base" style={{ color: accentColor }}>TOTAL ({cur})</span>
                   <span className="font-black text-base" style={{ color: accentColor }}>{fmt(invoiceTotal)}</span>
                 </div>
                 {totalPaid > 0 && (
                   <>
                     <div className="flex justify-between py-2 text-sm border-t border-slate-100">
-                      <span className="text-emerald-600 font-medium">Betaald</span>
+                      <span className="text-emerald-600 font-medium">Paid</span>
                       <span className="font-bold text-emerald-600">− SRD {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between py-3 border-t-2 border-slate-900">
                       <span className={`font-black text-base ${balance <= 0 ? 'text-emerald-700' : 'text-slate-900'}`}>
-                        {balance <= 0 ? '✓ BETAALD' : 'SALDO'}
+                        {balance <= 0 ? '✓ PAID' : 'BALANCE'}
                       </span>
                       <span className={`font-black text-base ${balance <= 0 ? 'text-emerald-700' : 'text-slate-900'}`}>
                         {balance <= 0 ? '—' : `SRD ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
@@ -423,13 +423,13 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
               <div className="border-t border-slate-200 pt-5 mt-4 grid grid-cols-2 gap-6 text-[10px] text-slate-500">
                 {bankDetails && (
                   <div>
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Betalingsgegevens</p>
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Payment Details</p>
                     <p className="whitespace-pre-wrap leading-relaxed">{bankDetails}</p>
                   </div>
                 )}
                 {legalDisclaimer && (
                   <div>
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Voorwaarden</p>
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Terms & Conditions</p>
                     <p className="whitespace-pre-wrap leading-relaxed">{legalDisclaimer}</p>
                   </div>
                 )}

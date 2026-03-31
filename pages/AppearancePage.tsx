@@ -312,7 +312,7 @@ const LivePreview: React.FC<LivePreviewProps> = ({
             <p className="font-bold text-slate-900 text-sm">13-03-2025</p>
           </div>
           <div>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Betaaltermijn</p>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Payment Term</p>
             <p className="font-bold text-slate-900 text-sm">30 dagen</p>
           </div>
           <div>
@@ -350,13 +350,13 @@ const LivePreview: React.FC<LivePreviewProps> = ({
       <div className="flex justify-end mb-6">
         <div className="w-56">
           <div className="flex justify-between py-1.5 text-xs border-t border-slate-200">
-            <span className="text-slate-500">Subtotaal</span><span className="font-bold">$2,010.00</span>
+            <span className="text-slate-500">Subtotal</span><span className="font-bold">$2,010.00</span>
           </div>
           <div className="flex justify-between py-1.5 text-xs border-b border-slate-100">
             <span className="text-slate-500">BTW (10%)</span><span className="font-bold">$201.00</span>
           </div>
           <div className="flex justify-between py-2 border-t-2 border-slate-900">
-            <span className="font-black text-slate-900">TOTAAL</span><span className="font-black text-slate-900">$2,432.10</span>
+            <span className="font-black text-slate-900">TOTAL</span><span className="font-black text-slate-900">$2,432.10</span>
           </div>
         </div>
       </div>
@@ -364,11 +364,11 @@ const LivePreview: React.FC<LivePreviewProps> = ({
       {/* Footer */}
       <div className="border-t border-slate-200 pt-4 grid grid-cols-2 gap-4 text-[10px] text-slate-500">
         <div>
-          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Betalingsgegevens</p>
+          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Payment Details</p>
           <p>ING Bank: NL88 INGB 0123 4567 89</p>
         </div>
         <div>
-          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Voorwaarden</p>
+          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Terms & Conditions</p>
           <p>Betalingstermijn is 14 dagen.</p>
         </div>
       </div>
@@ -1498,7 +1498,7 @@ const AppearancePage: React.FC = () => {
                     </div>
                     <div className="col-span-3 flex flex-col divide-y divide-slate-200">
                       <div className="flex-1 p-3 flex justify-between items-center">
-                        <span className="text-xs font-black uppercase">Totaal</span>
+                        <span className="text-xs font-black uppercase">Total</span>
                         <span className="text-xs font-bold">USD 1,380.00</span>
                       </div>
                       <div className="flex-1 p-3 flex justify-between items-center bg-slate-50">

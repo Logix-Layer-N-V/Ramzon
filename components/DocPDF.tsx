@@ -102,7 +102,7 @@ export const DocPDF: React.FC<DocPDFProps> = ({
               </Text>
             )}
             {docType === 'invoice' && !validUntil && (
-              <Text style={S.label}>Betaaltermijn 30 dagen</Text>
+              <Text style={S.label}>Payment term: 30 days</Text>
             )}
           </View>
         </View>
@@ -157,7 +157,7 @@ export const DocPDF: React.FC<DocPDFProps> = ({
                 <Text style={{ flex: 1, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>QTY</Text>
                 {showPrijs     && <Text style={{ width: 56, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Prijs</Text>}
                 {showBtw       && <Text style={{ width: 36, color: 'white', fontSize: 7, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.6 }}>BTW</Text>}
-                {showSubtotaal && <Text style={{ width: 64, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Subtotaal</Text>}
+                {showSubtotaal && <Text style={{ width: 64, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Subtotal</Text>}
                 <Text style={{ width: 64, color: 'white', fontSize: 7, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 0.6 }}>Totaal</Text>
               </View>
               {items.map((item, i) => {
@@ -199,11 +199,11 @@ export const DocPDF: React.FC<DocPDFProps> = ({
           {paidAmount != null && paidAmount > 0 && (
             <>
               <View style={S.totalRow}>
-                <Text style={[S.label, { color: '#10b981' }]}>Betaald</Text>
+                <Text style={[S.label, { color: '#10b981' }]}>Paid</Text>
                 <Text style={[S.value, { color: '#10b981' }]}>-{fmt(paidAmount)}</Text>
               </View>
               <View style={[S.totalRow, { borderTopWidth: 0.5, borderTopColor: '#e2e8f0', paddingTop: 4, marginTop: 2 }]}>
-                <Text style={[S.value, S.bold]}>Saldo</Text>
+                <Text style={[S.value, S.bold]}>Balance</Text>
                 <Text style={[S.value, S.bold]}>{fmt(Math.max(0, total - paidAmount))}</Text>
               </View>
             </>

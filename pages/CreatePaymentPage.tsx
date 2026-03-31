@@ -166,7 +166,7 @@ const CreatePaymentPage: React.FC = () => {
     if (!clientId) newErrors.clientId = 'Selecteer een klant';
     if (!amount || amt <= 0) newErrors.amount = 'Vul een geldig bedrag in';
     if (!date) newErrors.date = 'Vul een datum in';
-    if (!methodType) newErrors.methodType = 'Selecteer een betaalmethode';
+    if (!methodType) newErrors.methodType = 'Please select a payment method';
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 

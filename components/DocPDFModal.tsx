@@ -275,7 +275,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                 </p>
               )}
               {docType === 'invoice' && !validUntil && (
-                <p className="text-xs text-slate-500 mt-0.5">Betaaltermijn 30 dagen</p>
+                <p className="text-xs text-slate-500 mt-0.5">Payment term: 30 days</p>
               )}
             </div>
           </div>
@@ -329,7 +329,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
               eenheid:      { label: 'U/M',          align: 'center', width: '44px', cell: (item) => <span className="text-slate-500">{item.unit}</span> },
               houtsoort:    { label: 'Wood',         align: 'left',   width: '80px', cell: (item) => <span className="text-slate-600">{item.houtsoort || '—'}</span> },
               prijs:        { label: 'Rate',         align: 'right',  width: '72px', cell: (item) => `${currencySymbol}${item.price.toFixed(2)}` },
-              subtotaal:    { label: 'Subtotaal',    align: 'right',  width: '80px', cell: (_item, _idx, _area, lineTotal) => `${currencySymbol}${lineTotal.toFixed(2)}` },
+              subtotaal:    { label: 'Subtotal',     align: 'right',  width: '80px', cell: (_item, _idx, _area, lineTotal) => `${currencySymbol}${lineTotal.toFixed(2)}` },
               btw:          { label: 'BTW%',         align: 'center', width: '48px', cell: (item) => `${item.taxRate ?? 10}%` },
               totaal:       { label: 'Amount',       align: 'right',  width: '80px', cell: (item, _idx, _area, lineTotal) => <span className="font-black">{currencySymbol}{(lineTotal * (1 + (item.taxRate ?? 10) / 100)).toFixed(2)}</span> },
             };
@@ -383,7 +383,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
           <div className="flex justify-end mb-8">
             <div className="w-64">
               <div className="flex justify-between py-2 text-sm border-t border-slate-200">
-                <span className="text-slate-500 font-medium">Subtotaal</span>
+                <span className="text-slate-500 font-medium">Subtotal</span>
                 <span className="font-bold">{currencySymbol}{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between py-2 text-sm border-b border-slate-100">
@@ -391,17 +391,17 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                 <span className="font-bold">{currencySymbol}{tax.toFixed(2)}</span>
               </div>
               <div className="flex justify-between py-3 border-t-2" style={{ borderColor: accentColor }}>
-                <span className="font-black text-base" style={{ color: accentColor }}>TOTAAL ({currency})</span>
+                <span className="font-black text-base" style={{ color: accentColor }}>TOTAL ({currency})</span>
                 <span className="font-black text-base" style={{ color: accentColor }}>{currencySymbol}{total.toFixed(2)}</span>
               </div>
               {paidAmount != null && paidAmount > 0 && (
                 <>
                   <div className="flex justify-between py-2 text-sm border-t border-slate-100">
-                    <span className="text-emerald-600 font-medium">Betaald</span>
+                    <span className="text-emerald-600 font-medium">Paid</span>
                     <span className="font-bold text-emerald-600">− {currencySymbol}{paidAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between py-3 border-t-2 border-slate-900">
-                    <span className="font-black text-slate-900 text-base">SALDO</span>
+                    <span className="font-black text-slate-900 text-base">BALANCE</span>
                     <span className="font-black text-slate-900 text-base">{currencySymbol}{Math.max(0, total - paidAmount).toFixed(2)}</span>
                   </div>
                 </>
@@ -414,13 +414,13 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
             <div className="border-t border-slate-200 pt-5 mt-4 grid grid-cols-2 gap-6 text-[10px] text-slate-500">
               {bankDetails && (
                 <div>
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Betalingsgegevens</p>
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Payment Details</p>
                   <p className="whitespace-pre-wrap leading-relaxed">{bankDetails}</p>
                 </div>
               )}
               {legalDisclaimer && (
                 <div>
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Voorwaarden</p>
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Terms & Conditions</p>
                   <p className="whitespace-pre-wrap leading-relaxed">{legalDisclaimer}</p>
                 </div>
               )}

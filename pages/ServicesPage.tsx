@@ -258,7 +258,7 @@ const ServicesPage: React.FC = () => {
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Totaal Services', value: services.length, icon: Wrench, color: 'bg-brand-accent-light text-brand-primary' },
+          { label: 'Total Services', value: services.length, icon: Wrench, color: 'bg-brand-accent-light text-brand-primary' },
           { label: 'Beschikbaar', value: services.filter(s => s.status === 'Available').length, icon: Check, color: 'bg-emerald-50 text-emerald-600' },
           { label: 'Geboekt', value: services.filter(s => s.status === 'Booked').length, icon: Tag, color: 'bg-amber-50 text-amber-600' },
         ].map(card => (

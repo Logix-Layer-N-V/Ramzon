@@ -97,7 +97,7 @@ const TrafficInsightsPage: React.FC = () => {
     const total = filtered.length || 1;
     const count = (s: string) => filtered.filter(inv => inv.status === s).length;
     return [
-      { label: 'Betaald',      key: 'paid',      color: 'bg-emerald-500', text: 'text-emerald-700', count: count('paid') },
+      { label: 'Paid',          key: 'paid',      color: 'bg-emerald-500', text: 'text-emerald-700', count: count('paid') },
       { label: 'Openstaand',   key: 'sent',       color: 'bg-blue-500',   text: 'text-blue-700',    count: count('sent') + count('partial') },
       { label: 'Achterstallig',key: 'overdue',    color: 'bg-red-500',    text: 'text-red-700',     count: count('overdue') },
       { label: 'Concept',      key: 'draft',      color: 'bg-slate-300',  text: 'text-slate-600',   count: count('draft') },
@@ -175,7 +175,7 @@ const TrafficInsightsPage: React.FC = () => {
           { label: 'Omzet ontvangen', value: fmt(kpis.revenue, currencySymbol), icon: DollarSign, color: 'bg-emerald-50 text-emerald-600', trend: null },
           { label: 'Openstaand (AR)',  value: fmt(kpis.openAR, currencySymbol),  icon: AlertCircle, color: 'bg-amber-50 text-amber-600',  trend: null },
           { label: 'Gem. factuurwaarde', value: fmt(kpis.avgInvoice, currencySymbol), icon: FileText, color: 'bg-blue-50 text-blue-600', trend: null },
-          { label: 'Gem. betaaltermijn', value: kpis.avgDays > 0 ? `${kpis.avgDays} dagen` : '—', icon: Clock, color: 'bg-purple-50 text-purple-600', trend: null },
+          { label: 'Avg. Payment Term', value: kpis.avgDays > 0 ? `${kpis.avgDays} days` : '—', icon: Clock, color: 'bg-purple-50 text-purple-600', trend: null },
         ].map((kpi, i) => (
           <div key={i} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
             <div className="flex items-start justify-between mb-3">
@@ -297,7 +297,7 @@ const TrafficInsightsPage: React.FC = () => {
                       </div>
                       <div className="text-right shrink-0 ml-2">
                         <p className="text-xs font-black text-slate-900">{fmt(c.billed, currencySymbol)}</p>
-                        <p className={`text-[9px] font-black ${paidPct >= 100 ? 'text-emerald-600' : paidPct > 50 ? 'text-amber-600' : 'text-red-500'}`}>{paidPct}% betaald</p>
+                        <p className={`text-[9px] font-black ${paidPct >= 100 ? 'text-emerald-600' : paidPct > 50 ? 'text-amber-600' : 'text-red-500'}`}>{paidPct}% paid</p>
                       </div>
                     </div>
                     <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -316,7 +316,7 @@ const TrafficInsightsPage: React.FC = () => {
 
         {/* Payment Methods */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-5">Betaalmethode Verdeling</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-5">Payment Method Distribution</h3>
           {isEmpty(paymentMethods) ? (
             <div className="h-32 flex items-center justify-center text-slate-400">
               <div className="text-center"><CreditCard size={28} className="mx-auto mb-2 opacity-30" /><p className="text-sm font-bold">Geen betalingen beschikbaar</p></div>

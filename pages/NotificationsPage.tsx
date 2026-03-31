@@ -12,10 +12,10 @@ type Notif = typeof ALL_NOTIFICATIONS[number];
 const ALL_NOTIFICATIONS = [
   {
     id: 1,
-    title: 'Factuur achterstallig',
-    message: 'Factuur INV-0042 van Tropical Wood NV is 14 dagen te laat. Actie vereist.',
-    time: '2 uur geleden',
-    date: 'Vandaag',
+    title: 'Overdue Invoice',
+    message: 'Invoice INV-0042 from Tropical Wood NV is 14 days overdue. Action required.',
+    time: '2 hours ago',
+    date: 'Today',
     icon: AlertTriangle,
     color: 'text-amber-600',
     bgColor: 'bg-amber-50',
@@ -25,10 +25,10 @@ const ALL_NOTIFICATIONS = [
   },
   {
     id: 2,
-    title: 'Betaling ontvangen',
-    message: 'USD 3.450 ontvangen van Caribbean Furniture Group voor INV-0038.',
-    time: '1 dag geleden',
-    date: 'Gisteren',
+    title: 'Payment Received',
+    message: 'USD 3,450 received from Caribbean Furniture Group for INV-0038.',
+    time: '1 day ago',
+    date: 'Yesterday',
     icon: CheckCircle2,
     color: 'text-emerald-600',
     bgColor: 'bg-emerald-50',
@@ -38,10 +38,10 @@ const ALL_NOTIFICATIONS = [
   },
   {
     id: 3,
-    title: 'Nieuwe offerte aangevraagd',
-    message: 'Jiawan Interiors heeft een offerte aangevraagd voor Merbau vloerdelen.',
-    time: '2 dagen geleden',
-    date: 'Gisteren',
+    title: 'New Estimate Requested',
+    message: 'Jiawan Interiors has requested an estimate for Merbau flooring.',
+    time: '2 days ago',
+    date: 'Yesterday',
     icon: FileText,
     color: 'text-blue-600',
     bgColor: 'bg-blue-50',
@@ -51,8 +51,8 @@ const ALL_NOTIFICATIONS = [
   },
   {
     id: 4,
-    title: 'Voorraad bijna op',
-    message: 'Ceder planken (4x10cm) hebben nog maar 12 CBM voorraad. Bestelling aanbevolen.',
+    title: 'Stock Running Low',
+    message: 'Cedar planks (4x10cm) have only 12 CBM stock remaining. Reordering recommended.',
     time: '3 dagen geleden',
     date: 'Ma 9 maart',
     icon: Package,
@@ -64,8 +64,8 @@ const ALL_NOTIFICATIONS = [
   },
   {
     id: 5,
-    title: 'Creditnota verwerkt',
-    message: 'Creditnota CN-0011 voor USD 850 is goedgekeurd en verwerkt.',
+    title: 'Credit Note Processed',
+    message: 'Credit Note CN-0011 for USD 850 has been approved and processed.',
     time: '4 dagen geleden',
     date: 'Ma 9 maart',
     icon: CreditCard,
@@ -77,8 +77,8 @@ const ALL_NOTIFICATIONS = [
   },
   {
     id: 6,
-    title: 'Systeemupdate voltooid',
-    message: 'Ramzon ERP is bijgewerkt naar versie 2.4.1. Nieuwe functies beschikbaar.',
+    title: 'System Update Complete',
+    message: 'Ramzon ERP has been updated to version 2.4.1. New features available.',
     time: '5 dagen geleden',
     date: 'Zo 8 maart',
     icon: Info,
@@ -90,8 +90,8 @@ const ALL_NOTIFICATIONS = [
   },
   {
     id: 7,
-    title: 'Factuur bijna verlopen',
-    message: 'INV-0045 van Dinesh Abhelak vervalt over 3 dagen (USD 1.200).',
+    title: 'Invoice Expiring Soon',
+    message: 'Invoice INV-0045 from Dinesh Abhelak expires in 3 days (USD 1,200).',
     time: '6 dagen geleden',
     date: 'Za 7 maart',
     icon: Clock,
@@ -104,11 +104,11 @@ const ALL_NOTIFICATIONS = [
 ];
 
 const CATEGORY_TABS: { id: NotifCategory; label: string }[] = [
-  { id: 'all',      label: 'Alle' },
-  { id: 'unread',   label: 'Ongelezen' },
-  { id: 'invoices', label: 'Facturen' },
-  { id: 'payments', label: 'Betalingen' },
-  { id: 'system',   label: 'Systeem' },
+  { id: 'all',      label: 'All' },
+  { id: 'unread',   label: 'Unread' },
+  { id: 'invoices', label: 'Invoices' },
+  { id: 'payments', label: 'Payments' },
+  { id: 'system',   label: 'System' },
 ];
 
 const NotificationsPage: React.FC = () => {
@@ -139,9 +139,9 @@ const NotificationsPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-3xl font-black tracking-tighter text-slate-900">Notificaties</h1>
+          <h1 className="text-3xl font-black tracking-tighter text-slate-900">Notifications</h1>
           <p className="text-slate-500 font-bold italic mt-0.5 text-sm">
-            {unreadCount > 0 ? `${unreadCount} ongelezen melding${unreadCount > 1 ? 'en' : ''}` : 'Alles bijgewerkt'}
+            {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}` : 'All caught up'}
           </p>
         </div>
         {unreadCount > 0 && (
@@ -149,7 +149,7 @@ const NotificationsPage: React.FC = () => {
             onClick={markAllRead}
             className="flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all shadow-sm"
           >
-            <Check size={14} /> Alles als gelezen markeren
+            <Check size={14} /> Mark all as read
           </button>
         )}
       </div>
@@ -177,7 +177,7 @@ const NotificationsPage: React.FC = () => {
       {Object.keys(grouped).length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4 text-slate-300">
           <Bell size={48} strokeWidth={1.5} />
-          <p className="text-sm font-black uppercase tracking-widest">Geen meldingen</p>
+          <p className="text-sm font-black uppercase tracking-widest">No notifications</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -219,7 +219,7 @@ const NotificationsPage: React.FC = () => {
                             onClick={() => { markRead(n.id); navigate(n.link!); }}
                             className="text-[9px] font-black uppercase tracking-widest text-brand-primary hover:underline"
                           >
-                            Bekijken →
+                            View →
                           </button>
                         )}
                         {!n.isRead && (
@@ -227,14 +227,14 @@ const NotificationsPage: React.FC = () => {
                             onClick={() => markRead(n.id)}
                             className="text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-700"
                           >
-                            Markeer gelezen
+                            Mark as read
                           </button>
                         )}
                         <button
                           onClick={() => dismiss(n.id)}
                           className="text-[9px] font-black uppercase tracking-widest text-slate-300 hover:text-red-400 ml-auto flex items-center gap-1"
                         >
-                          <Trash2 size={10} /> Verwijder
+                          <Trash2 size={10} /> Dismiss
                         </button>
                       </div>
                     </div>

@@ -685,14 +685,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ viewMode, setViewMode }) =>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Aangepaste Kleuren</p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-700 uppercase tracking-widest">Primaire Kleur</label>
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-widest">Primary Color</label>
                   <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
                     <input
                       type="color"
                       value={brandColor}
                       onChange={e => setBrandColor(e.target.value)}
                       className="w-10 h-10 rounded-lg border-0 cursor-pointer bg-transparent"
-                      title="Primaire kleur (knoppen, accenten)"
+                      title="Primary color (buttons, accents)"
                     />
                     <div className="flex-1">
                       <p className="text-xs font-black text-slate-900">{brandColor.toUpperCase()}</p>

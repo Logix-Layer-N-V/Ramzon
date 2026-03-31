@@ -101,9 +101,9 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
   const notifications = [
     {
       id: 1,
-      title: 'Factuur achterstallig',
-      message: 'Factuur INV-0042 van Tropical Wood NV is 14 dagen te laat.',
-      time: '2 UUR GELEDEN',
+      title: 'Overdue Invoice',
+      message: 'Invoice INV-0042 from Tropical Wood NV is 14 days overdue.',
+      time: '2 HOURS AGO',
       icon: AlertTriangle,
       color: 'text-amber-600',
       bgColor: 'bg-amber-50',
@@ -111,9 +111,9 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
     },
     {
       id: 2,
-      title: 'Betaling ontvangen',
-      message: 'USD 3.450 ontvangen van Caribbean Furniture Group.',
-      time: '1 DAG GELEDEN',
+      title: 'Payment Received',
+      message: 'USD 3,450 received from Caribbean Furniture Group.',
+      time: '1 DAY AGO',
       icon: CheckCircle2,
       color: 'text-emerald-600',
       bgColor: 'bg-emerald-50',
@@ -490,7 +490,7 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
                     <Settings size={18} className="text-slate-400 group-hover:text-slate-900" /> <span>{t('settings')}</span>
                   </button>
                   <button onClick={() => { navigate('/documentation'); setIsUserMenuOpen(false); }} className="w-full px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 rounded-2xl flex items-center gap-4 transition-colors group text-left">
-                    <BookOpen size={18} className="text-slate-400 group-hover:text-slate-900" /> <span>Documentatie</span>
+                    <BookOpen size={18} className="text-slate-400 group-hover:text-slate-900" /> <span>Documentation</span>
                   </button>
                   <button className="w-full px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 rounded-2xl flex items-center gap-4 transition-colors group text-left">
                     <Shield size={18} className="text-slate-400 group-hover:text-slate-900" /> <span>{t('security')}</span>
