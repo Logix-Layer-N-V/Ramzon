@@ -2,9 +2,9 @@
 import React, { useState, useContext, useMemo } from 'react';
 import { Search, Filter, Plus, CreditCard, FileText, CheckCircle2, Pencil, ExternalLink, X, Coins, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { mockCredits, mockClients } from '../lib/mock-data';
 import { LanguageContext } from '../lib/context';
-import { storage } from '../lib/storage';
+import { useCredits, useDeleteCredit } from '../lib/hooks/useCredits';
+import { useClients } from '../lib/hooks/useClients';
 
 const STATUS_OPTIONS = ['Available', 'Used'] as const;
 
@@ -16,8 +16,6 @@ const CreditsPage: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [sortKey, setSortKey] = useState<string>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [refresh, setRefresh] = useState(0);
-
   const handleSort = (key: string) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
@@ -28,33 +26,20 @@ const CreditsPage: React.FC = () => {
   const [customTo, setCustomTo] = useState('');
   const [customToTime, setCustomToTime] = useState('23:59');
 
-  // merge localStorage credits (user-created/edited) on top of mock data
-  const allCredits = useMemo(() => {
-    const stored = storage.credits.get();
-    if (stored.length === 0) return mockCredits;
-    const storedIds = new Set(stored.map(c => c.id));
-    const mockOnly = mockCredits.filter(c => !storedIds.has(c.id));
-    return [...mockOnly, ...stored];
-  }, [refresh]);
+  const { data: allCredits = [], isLoading } = useCredits();
+  const { data: allClients = [] } = useClients();
 
+  const deleteCredit = useDeleteCredit();
   const handleDeleteCredit = (id: string) => {
     if (!window.confirm('Credit note verwijderen?')) return;
-    const updated = allCredits.filter(c => c.id !== id);
-    storage.credits.save(updated.filter(c => !mockCredits.find(m => m.id === c.id)));
-    setRefresh(r => r + 1);
+    deleteCredit.mutate(id);
   };
-
-  const allClients = useMemo(() => {
-    const stored = storage.clients.get();
-    const ids = new Set(stored.map(c => c.id));
-    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
-  }, []);
 
   const filteredCredits = allCredits.filter(c => {
     const client = allClients.find(cl => cl.id === c.clientId);
     const matchSearch = client?.company.toLowerCase().includes(search.toLowerCase()) ||
            c.reason.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = filterStatus === 'All' || c.status === filterStatus;
+    const matchStatus = filterStatus === 'All' || (c.status ?? 'Available') === filterStatus;
     return matchSearch && matchStatus;
   });
 
@@ -71,7 +56,7 @@ const CreditsPage: React.FC = () => {
     });
   }, [filteredCredits, sortKey, sortDir]);
 
-  const totalAvailable = filteredCredits.filter(c => c.status === 'Available').reduce((s, c) => s + c.amount, 0);
+  const totalAvailable = filteredCredits.filter(c => (c.status ?? 'Available') === 'Available').reduce((s, c) => s + c.amount, 0);
 
   const SortTh = ({ col, label, className }: { col: string; label: string; className?: string }) => (
     <th
@@ -87,6 +72,8 @@ const CreditsPage: React.FC = () => {
       </span>
     </th>
   );
+
+  if (isLoading) return <div className="flex items-center justify-center h-64 text-slate-400 font-bold">Loading credits…</div>;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10">
@@ -231,9 +218,9 @@ const CreditsPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${
-                        c.status === 'Available' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'
+                        (c.status ?? 'Available') === 'Available' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'
                       }`}>
-                        {c.status === 'Available' && <CheckCircle2 size={10} />} {c.status}
+                        {(c.status ?? 'Available') === 'Available' && <CheckCircle2 size={10} />} {c.status ?? 'Available'}
                       </span>
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-400 tracking-tight">{c.date}</td>

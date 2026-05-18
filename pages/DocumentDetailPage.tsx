@@ -24,10 +24,15 @@ import {
   MessageSquareText,
 } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
-import { mockInvoices, mockEstimates, mockPayments, mockCredits, mockClients, mockExpenses } from '../lib/mock-data';
 import { storage, getLatestExchangeRate, toSRD, NoteTemplate } from '../lib/storage';
 import { commitDocNumber } from '../lib/docNumbering';
-import type { Payment, BankAccount } from '../types';
+import type { BankAccount } from '../types';
+import { useClients } from '../lib/hooks/useClients';
+import { useInvoice, useUpdateInvoice, useDeleteInvoice } from '../lib/hooks/useInvoices';
+import { useEstimate, useDeleteEstimate } from '../lib/hooks/useEstimates';
+import { usePayments, usePayment, useCreatePayment, useDeletePayment } from '../lib/hooks/usePayments';
+import { useCredit, useDeleteCredit } from '../lib/hooks/useCredits';
+import { useExpense, useDeleteExpense } from '../lib/hooks/useExpenses';
 import DocPDFModal from '../components/DocPDFModal';
 
 const BANK_ACCOUNTS_DEFAULT: BankAccount[] = [
@@ -70,55 +75,70 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer');
   const [paymentBankId, setPaymentBankId] = useState('dsb_srd');
-  const [paymentRefresh, setPaymentRefresh] = useState(0); // trigger re-render
+
+  const { data: allClients = [] } = useClients();
+  const { data: invoiceData } = useInvoice(type === 'invoices' ? (id ?? '') : '');
+  const { data: estimateData } = useEstimate(type === 'estimates' ? (id ?? '') : '');
+  const { data: singlePaymentData } = usePayment(type === 'payments' ? (id ?? '') : '');
+  const { data: creditData } = useCredit(type === 'credits' ? (id ?? '') : '');
+  const { data: expenseData } = useExpense(type === 'expenses' ? (id ?? '') : '');
+  const { data: allPayments = [] } = usePayments();
+
+  const deleteInvoice = useDeleteInvoice();
+  const deleteEstimate = useDeleteEstimate();
+  const deletePayment = useDeletePayment();
+  const deleteCredit = useDeleteCredit();
+  const deleteExpense = useDeleteExpense();
+  const createPayment = useCreatePayment();
+  const updateInvoice = useUpdateInvoice();
 
   // Persist notes per document
   useEffect(() => {
     if (id) localStorage.setItem(`notes_${type}_${id}`, notes);
   }, [notes, type, id]);
 
-  // Delete this document from storage and navigate back
+  // Delete this document and navigate back
   const handleDelete = useCallback(() => {
-    if (!window.confirm('Delete this document? This cannot be undone.')) return;
+    if (!id || !window.confirm('Delete this document? This cannot be undone.')) return;
+    const onSuccess = () => navigate(-1);
     switch (type) {
-      case 'invoices':  storage.invoices.save(storage.invoices.get().filter(i => i.id !== id)); break;
-      case 'estimates': storage.estimates.save(storage.estimates.get().filter(e => e.id !== id)); break;
-      case 'payments':  storage.payments.save(storage.payments.get().filter(p => p.id !== id)); break;
-      case 'credits':   storage.credits.save(storage.credits.get().filter(c => c.id !== id)); break;
-      case 'expenses':  storage.expenses.save(storage.expenses.get().filter(e => e.id !== id)); break;
+      case 'invoices':  deleteInvoice.mutate(id, { onSuccess }); break;
+      case 'estimates': deleteEstimate.mutate(id, { onSuccess }); break;
+      case 'payments':  deletePayment.mutate(id, { onSuccess }); break;
+      case 'credits':   deleteCredit.mutate(id, { onSuccess }); break;
+      case 'expenses':  deleteExpense.mutate(id, { onSuccess }); break;
     }
-    navigate(-1);
-  }, [type, id, navigate]);
+  }, [type, id, navigate, deleteInvoice, deleteEstimate, deletePayment, deleteCredit, deleteExpense]);
 
   const bankAccounts: BankAccount[] = useMemo(() => {
     const saved = storage.bankAccounts.get();
     return saved.length ? saved : BANK_ACCOUNTS_DEFAULT;
-  }, [paymentRefresh]);
+  }, []);
 
-  // Load persisted payments for this invoice
+  // Payments for this invoice from the API
   const linkedPayments = useMemo(() => {
     if (type !== 'invoices' || !id) return [];
-    return storage.payments.get().filter(p => p.invoiceId === id && p.status !== 'Refunded');
-  }, [type, id, paymentRefresh]);
+    return allPayments.filter(p => p.invoiceId === id);
+  }, [allPayments, type, id]);
 
   const totalPaid = useMemo(() =>
     linkedPayments.reduce((s, p) => s + toSRD(p.amount, p.currency), 0),
   [linkedPayments]);
 
-  // Fetch standard data based on type — check localStorage first, fallback to mock
+  // Derive document data from the appropriate hook
   const docData = useMemo(() => {
     switch (type) {
-      case 'invoices':  return storage.invoices.get().find(i => i.id === id)   ?? mockInvoices.find(i => i.id === id);
-      case 'estimates': return storage.estimates.get().find(e => e.id === id)  ?? mockEstimates.find(e => e.id === id);
-      case 'payments':  return storage.payments.get().find(p => p.id === id)   ?? mockPayments.find(p => p.id === id);
-      case 'credits':   return storage.credits.get().find(c => c.id === id)    ?? mockCredits.find(c => c.id === id);
-      case 'expenses':  return storage.expenses.get().find(e => e.id === id)   ?? mockExpenses.find(e => e.id === id);
-      case 'recurring': return { 
-        id: 'rec1', 
-        clientName: 'Build-It Ltd', 
-        date: '2024-03-01', 
-        totalAmount: 4500, 
-        status: 'Active', 
+      case 'invoices':  return invoiceData ?? null;
+      case 'estimates': return estimateData ?? null;
+      case 'payments':  return singlePaymentData ?? null;
+      case 'credits':   return creditData ?? null;
+      case 'expenses':  return expenseData ?? null;
+      case 'recurring': return {
+        id: 'rec1',
+        clientName: 'Build-It Ltd',
+        date: '2024-03-01',
+        totalAmount: 4500,
+        status: 'Active',
         plan: 'Quarterly Teak Delivery',
         items: [{ description: 'Quarterly Teak Supply Retainer', quantity: 1, unitPrice: 4500, amount: 4500 }]
       };
@@ -135,7 +155,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
       };
       default: return null;
     }
-  }, [type, id]);
+  }, [type, invoiceData, estimateData, singlePaymentData, creditData, expenseData]);
 
   // Duplicate — pre-fill the create form with this document's data
   const handleDuplicate = useCallback(() => {
@@ -153,12 +173,6 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
       }}});
     }
   }, [type, docData, navigate]);
-
-  const allClients = useMemo(() => {
-    const stored = storage.clients.get();
-    const ids = new Set(stored.map(c => c.id));
-    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
-  }, []);
 
   const client = useMemo(() => {
     if (!docData) return null;
@@ -600,32 +614,32 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
           if (amtSRD <= 0) return;
           const capped = Math.min(amtSRD, balance);
           const rate = getRateSRD(paymentCurrency);
+          const payAmt = paymentCurrency === 'SRD' ? capped : capped / rate;
+          const bankId = paymentBankId || (filteredBanks[0]?.id || 'cash_srd');
+          const invoiceTotal = (docData as any).totalAmount || (docData as any).total || 0;
+          const newTotalPaidSRD = totalPaid + capped;
 
-          const p: Payment = {
-            id: `pay_${Date.now()}`,
+          createPayment.mutate({
             clientId: (docData as any).clientId || '',
             invoiceId: id,
-            amount: paymentCurrency === 'SRD' ? capped : capped / rate,
+            amount: payAmt,
             currency: paymentCurrency,
-            exchangeRate: paymentCurrency !== 'SRD' ? rate : undefined,
-            bankAccountId: paymentBankId || (filteredBanks[0]?.id || 'cash_srd'),
             date: paymentDate,
             method: paymentMethod,
             reference: commitDocNumber('pay'),
-            status: 'Completed',
-          };
-
-          const payments = storage.payments.get();
-          storage.payments.save([...payments, p]);
-
-          // Update bank balance
-          const accts = storage.bankAccounts.get().length ? storage.bankAccounts.get() : BANK_ACCOUNTS_DEFAULT;
-          const ai = accts.findIndex(a => a.id === p.bankAccountId);
-          if (ai >= 0) { accts[ai] = { ...accts[ai], balance: accts[ai].balance + p.amount }; storage.bankAccounts.save(accts); }
-
-          setShowPaymentModal(false);
-          setPaymentAmount('');
-          setPaymentRefresh(n => n + 1);
+            notes: '',
+          }, {
+            onSuccess: () => {
+              const accts = storage.bankAccounts.get().length ? storage.bankAccounts.get() : BANK_ACCOUNTS_DEFAULT;
+              const ai = accts.findIndex(a => a.id === bankId);
+              if (ai >= 0) { accts[ai] = { ...accts[ai], balance: accts[ai].balance + payAmt }; storage.bankAccounts.save(accts); }
+              if (newTotalPaidSRD >= invoiceTotal && id) {
+                updateInvoice.mutate({ id, status: 'Paid' });
+              }
+              setShowPaymentModal(false);
+              setPaymentAmount('');
+            },
+          });
         };
 
         return (

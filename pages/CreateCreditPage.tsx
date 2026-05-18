@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { ArrowLeft, Save, Check, Coins, Users, Calendar, FileText, AlignLeft, Printer, UserPlus } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { mockClients, mockCredits, mockInvoices } from '../lib/mock-data';
 import { LanguageContext } from '../lib/context';
-import { storage } from '../lib/storage';
-import type { Credit } from '../types';
+import { useClients } from '../lib/hooks/useClients';
+import { useInvoices } from '../lib/hooks/useInvoices';
+import { useCredit, useCreateCredit, useUpdateCredit } from '../lib/hooks/useCredits';
 import DocPDFModal from '../components/DocPDFModal';
 import QuickAddClientModal from '../components/QuickAddClientModal';
 
@@ -19,7 +19,6 @@ const CreateCreditPage: React.FC = () => {
   const { id: editId } = useParams();
   const isEdit = !!editId;
   const [showAddClient, setShowAddClient] = useState(false);
-  const [clientRefresh, setClientRefresh] = useState(0);
   const [clientId, setClientId] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -30,29 +29,23 @@ const CreateCreditPage: React.FC = () => {
   const [showPDF, setShowPDF] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const allClients = useMemo(() => {
-    const stored = storage.clients.get();
-    if (stored.length === 0) return mockClients;
-    const ids = new Set(stored.map(c => c.id));
-    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
-  }, [clientRefresh]);
+  const { data: allClients = [] } = useClients();
+  const { data: allInvoices = [] } = useInvoices();
+  const { data: existingCredit } = useCredit(editId || '');
+  const createCredit = useCreateCredit();
+  const updateCredit = useUpdateCredit();
 
   useEffect(() => {
-    if (editId) {
-      // check localStorage first, fallback to mock data
-      const fromStorage = storage.credits.get().find(c => c.id === editId);
-      const existing = fromStorage ?? mockCredits.find(c => c.id === editId);
-      if (existing) {
-        setClientId(existing.clientId);
-        setAmount(existing.amount.toString());
-        setDate(existing.date);
-        setReason(existing.reason);
-        setNotes((existing as any).notes || '');
-      }
+    if (existingCredit) {
+      setClientId(existingCredit.clientId);
+      setAmount(existingCredit.amount.toString());
+      setDate(existingCredit.date);
+      setReason(existingCredit.reason);
+      setNotes((existingCredit as any).notes || '');
     }
-  }, [editId]);
+  }, [existingCredit]);
 
-  const clientInvoices = mockInvoices.filter(inv => inv.clientId === clientId);
+  const clientInvoices = allInvoices.filter(inv => inv.clientId === clientId);
 
   const handleSave = () => {
     const newErrors: Record<string, string> = {};
@@ -61,28 +54,25 @@ const CreateCreditPage: React.FC = () => {
     if (!reason) newErrors.reason = 'Please select a reason';
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
-    const existing = storage.credits.get();
+
+    const data = {
+      clientId,
+      amount: parseFloat(amount) || 0,
+      date,
+      reason,
+      notes,
+      status: 'Available' as const,
+    };
+
     if (isEdit && editId) {
-      const updated = existing.map(c =>
-        c.id === editId
-          ? { ...c, clientId, amount: parseFloat(amount) || 0, date, reason, notes, status: c.status }
-          : c
-      );
-      storage.credits.save(updated);
+      updateCredit.mutate({ id: editId, ...data }, {
+        onSuccess: () => { setSaved(true); setTimeout(() => navigate('/credits'), 1200); },
+      });
     } else {
-      const newCredit: Credit = {
-        id: `cr-${Date.now()}`,
-        clientId,
-        amount: parseFloat(amount) || 0,
-        date,
-        reason,
-        notes,
-        status: 'Available',
-      };
-      storage.credits.save([...existing, newCredit]);
+      createCredit.mutate(data, {
+        onSuccess: () => { setSaved(true); setTimeout(() => navigate('/credits'), 1200); },
+      });
     }
-    setSaved(true);
-    setTimeout(() => navigate('/credits'), 1200);
   };
 
   const selectedClient = allClients.find(c => c.id === clientId);
@@ -158,7 +148,7 @@ const CreateCreditPage: React.FC = () => {
               value={invoiceRef}
               onChange={e => {
                 setInvoiceRef(e.target.value);
-                const inv = mockInvoices.find(i => i.id === e.target.value);
+                const inv = allInvoices.find(i => i.id === e.target.value);
                 if (inv) setAmount(inv.totalAmount.toString());
               }}
               className={INPUT}
@@ -294,7 +284,6 @@ const CreateCreditPage: React.FC = () => {
         <QuickAddClientModal
           onClose={() => setShowAddClient(false)}
           onCreated={(newClient) => {
-            setClientRefresh(r => r + 1);
             setClientId(newClient.id);
             setShowAddClient(false);
           }}

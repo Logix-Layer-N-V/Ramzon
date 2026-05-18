@@ -6,16 +6,23 @@ export interface ClientRow {
   name: string;
   company: string;
   email: string;
-  vat_number: string;
+  vatNumber: string;
   address: string;
   phone: string;
-  preferred_currency: string;
-  total_spent: number;
+  preferredCurrency: string;
+  totalSpent: number;
   status: 'Active' | 'Inactive';
 }
 
 export const useClients = () =>
   useQuery<ClientRow[]>({ queryKey: ['clients'], queryFn: () => api.get('/clients').then(r => r.data) });
+
+export const useClient = (id: string) =>
+  useQuery<ClientRow>({
+    queryKey: ['clients', id],
+    queryFn: () => api.get(`/clients/${id}`).then(r => r.data),
+    enabled: !!id,
+  });
 
 export const useCreateClient = () => {
   const qc = useQueryClient();

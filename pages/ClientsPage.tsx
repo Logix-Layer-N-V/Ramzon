@@ -16,10 +16,9 @@ import {
   ArrowUpRight,
   ExternalLink
 } from 'lucide-react';
-import { mockClients } from '../lib/mock-data';
-import { storage } from '../lib/storage';
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
+import { useClients } from '../lib/hooks/useClients';
 
 const ClientsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -28,12 +27,7 @@ const ClientsPage: React.FC = () => {
   const [sortKey, setSortKey] = useState<string>('company');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  const allClients = useMemo(() => {
-    const stored = storage.clients.get();
-    if (stored.length === 0) return mockClients;
-    const ids = new Set(stored.map(c => c.id));
-    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
-  }, []);
+  const { data: allClients = [], isLoading } = useClients();
 
   const handleSort = (key: string) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -72,6 +66,8 @@ const ClientsPage: React.FC = () => {
       </span>
     </th>
   );
+
+  if (isLoading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin"/></div>;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">

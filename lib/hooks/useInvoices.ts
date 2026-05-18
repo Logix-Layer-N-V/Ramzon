@@ -3,27 +3,36 @@ import { api } from '../api';
 
 export interface InvoiceRow {
   id: string;
-  invoice_number: string;
-  client_id: string;
-  client_name: string;
+  invoiceNumber: string;
+  clientId: string;
+  clientName: string;
   date: string;
-  due_date: string;
+  dueDate: string;
   currency: string;
   subtotal: number;
-  tax_amount: number;
-  total_amount: number;
+  taxAmount: number;
+  totalAmount: number;
   status: string;
   notes: string;
   rep: string;
-  paid_amount: number;
-  created_at: string;
+  paidAmount: number;
+  createdAt: string;
+}
+
+export interface InvoiceItemRow {
+  id: string;
+  invoiceId: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
 }
 
 export const useInvoices = () =>
   useQuery<InvoiceRow[]>({ queryKey: ['invoices'], queryFn: () => api.get('/invoices').then(r => r.data) });
 
 export const useInvoice = (id: string) =>
-  useQuery<InvoiceRow & { items: unknown[] }>({
+  useQuery<InvoiceRow & { items: InvoiceItemRow[] }>({
     queryKey: ['invoices', id],
     queryFn: () => api.get(`/invoices/${id}`).then(r => r.data),
     enabled: !!id,
@@ -32,7 +41,7 @@ export const useInvoice = (id: string) =>
 export const useCreateInvoice = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: Partial<InvoiceRow> & { items?: unknown[] }) =>
+    mutationFn: (data: Partial<InvoiceRow> & { items?: Partial<InvoiceItemRow>[] }) =>
       api.post('/invoices', data).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['invoices'] }),
   });

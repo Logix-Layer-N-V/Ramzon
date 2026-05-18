@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { ArrowLeft, Save, Check, Wallet, Users, Calendar, FileText, CreditCard, Landmark, TrendingUp, Building2, Banknote, UserPlus } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { mockClients, mockInvoices } from '../lib/mock-data';
 import { LanguageContext } from '../lib/context';
-import { storage, getLatestExchangeRate, toSRD, getInvoicePaidTotal } from '../lib/storage';
+import { getLatestExchangeRate, storage } from '../lib/storage';
 import { commitDocNumber } from '../lib/docNumbering';
-import type { Payment, BankAccount, ExchangeRate } from '../types';
+import type { BankAccount, ExchangeRate } from '../types';
+import { useClients } from '../lib/hooks/useClients';
+import { useInvoices, useUpdateInvoice } from '../lib/hooks/useInvoices';
+import { usePayment, useCreatePayment, useUpdatePayment } from '../lib/hooks/usePayments';
 import QuickAddClientModal from '../components/QuickAddClientModal';
 
 const BANK_ACCOUNTS_DEFAULT: BankAccount[] = [
@@ -34,23 +36,18 @@ const CreatePaymentPage: React.FC = () => {
   const location = useLocation();
   const isEdit = !!editId;
 
-  // State passed from "Record Payment" button on Edit Invoice page
   const fromInvoiceState = (location.state as { fromInvoice?: { invoiceId: string; clientId: string; total: number } } | null)?.fromInvoice;
 
-  const [clientRefresh, setClientRefresh] = useState(0);
+  const { data: allClients = [] } = useClients();
+  const { data: allInvoices = [] } = useInvoices();
+  const { data: existingPayment } = usePayment(editId || '');
+  const createPayment = useCreatePayment();
+  const updatePayment = useUpdatePayment();
+  const updateInvoice = useUpdateInvoice();
 
-  const allClients = useMemo(() => {
-    const stored = storage.clients.get();
-    if (stored.length === 0) return mockClients;
-    const ids = new Set(stored.map(c => c.id));
-    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
-  }, [clientRefresh]);
-
-  // Load bank accounts and exchange rates from storage (or defaults)
   const bankAccounts = useMemo(() => {
     const saved = storage.bankAccounts.get();
     if (saved.length === 0) { storage.bankAccounts.save(BANK_ACCOUNTS_DEFAULT); return BANK_ACCOUNTS_DEFAULT; }
-    // Migrate: rename old "Petty Cash" → "Cash"
     return saved.map(a => a.bank === 'Petty Cash' ? { ...a, bank: 'Cash' } : a);
   }, []);
 
@@ -62,10 +59,9 @@ const CreatePaymentPage: React.FC = () => {
 
   const latestRate: ExchangeRate | null = useMemo(() => {
     if (!exchangeRates.length) return null;
-    return exchangeRates.sort((a, b) => b.date.localeCompare(a.date))[0];
+    return [...exchangeRates].sort((a, b) => b.date.localeCompare(a.date))[0];
   }, [exchangeRates]);
 
-  // Form state
   const [showAddClient, setShowAddClient] = useState(false);
   const [clientId, setClientId] = useState('');
   const [invoiceId, setInvoiceId] = useState('');
@@ -74,18 +70,21 @@ const CreatePaymentPage: React.FC = () => {
   const [bankAccountId, setBankAccountId] = useState('');
   const [rateOverride, setRateOverride] = useState<number | null>(null);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [methodType, setMethodType] = useState<'bank' | 'cash'>('bank'); // Bank or Cash
+  const [methodType, setMethodType] = useState<'bank' | 'cash'>('bank');
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const [saved, setSaved] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Derived: filter accounts by methodType (bank = DSB/HKB, cash = Cash) + currency
   const filteredBanks = bankAccounts.filter(b =>
     b.currency === currency &&
     (methodType === 'bank' ? b.bank !== 'Cash' : b.bank === 'Cash')
   );
-  const clientInvoices = useMemo(() => mockInvoices.filter(inv => inv.clientId === clientId && inv.status !== 'Paid'), [clientId]);
+
+  const clientInvoices = useMemo(
+    () => allInvoices.filter(inv => inv.clientId === clientId && inv.status !== 'Paid'),
+    [allInvoices, clientId]
+  );
 
   const getRate = (cur: string): number => {
     const r = latestRate;
@@ -104,16 +103,13 @@ const CreatePaymentPage: React.FC = () => {
   const selectedInvoice = useMemo(() => clientInvoices.find(i => i.id === invoiceId), [clientInvoices, invoiceId]);
   const invoiceBalance = useMemo(() => {
     if (!selectedInvoice) return 0;
-    const paid = getInvoicePaidTotal(selectedInvoice.id);
-    return selectedInvoice.totalAmount - paid;
+    return selectedInvoice.totalAmount - (selectedInvoice.paidAmount ?? 0);
   }, [selectedInvoice]);
 
-  // Reset USDT currency if crypto is disabled
   useEffect(() => {
     if (!enableCrypto && currency === 'USDT') setCurrency('SRD');
   }, [enableCrypto]);
 
-  // Auto-select first bank account when currency or methodType changes
   useEffect(() => {
     const banks = bankAccounts.filter(b =>
       b.currency === currency &&
@@ -124,7 +120,6 @@ const CreatePaymentPage: React.FC = () => {
     setRateOverride(null);
   }, [currency, methodType, bankAccounts]);
 
-  // Pre-fill amount from invoice balance
   useEffect(() => {
     if (selectedInvoice && invoiceBalance > 0) {
       const inDocCurrency = currency === 'SRD' ? invoiceBalance : invoiceBalance / activeRate;
@@ -132,7 +127,6 @@ const CreatePaymentPage: React.FC = () => {
     }
   }, [invoiceId]);
 
-  // Pre-fill from "Record Payment" on invoice edit page
   useEffect(() => {
     if (!editId && fromInvoiceState) {
       setClientId(fromInvoiceState.clientId);
@@ -141,24 +135,18 @@ const CreatePaymentPage: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load existing payment for edit
   useEffect(() => {
-    if (editId) {
-      const existing = storage.payments.get().find(p => p.id === editId);
-      if (existing) {
-        setClientId(existing.clientId);
-        setInvoiceId(existing.invoiceId || '');
-        setAmount(existing.amount.toString());
-        setCurrency(existing.currency);
-        setBankAccountId(existing.bankAccountId);
-        setDate(existing.date);
-        setMethodType(existing.method === 'Cash' ? 'cash' : 'bank');
-        setReference(existing.reference || '');
-        setNotes(existing.notes || '');
-        if (existing.exchangeRate) setRateOverride(existing.exchangeRate);
-      }
+    if (existingPayment) {
+      setClientId(existingPayment.clientId);
+      setInvoiceId(existingPayment.invoiceId || '');
+      setAmount(existingPayment.amount.toString());
+      setCurrency(existingPayment.currency);
+      setDate(existingPayment.date);
+      setMethodType(existingPayment.method === 'Cash' ? 'cash' : 'bank');
+      setReference(existingPayment.reference || '');
+      setNotes(existingPayment.notes || '');
     }
-  }, [editId]);
+  }, [existingPayment]);
 
   const handleSave = () => {
     const amt = parseFloat(amount || '0');
@@ -170,11 +158,9 @@ const CreatePaymentPage: React.FC = () => {
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
-    const paymentId = editId || `pay_${Date.now()}`;
     const paymentNumber = isEdit ? reference : commitDocNumber('pay');
 
-    const payment: Payment = {
-      id: paymentId,
+    const paymentData = {
       clientId,
       invoiceId: invoiceId || undefined,
       amount: amt,
@@ -188,40 +174,29 @@ const CreatePaymentPage: React.FC = () => {
       status: 'Completed',
     };
 
-    // Persist payment
-    const payments = storage.payments.get();
-    if (isEdit) {
-      const idx = payments.findIndex(p => p.id === paymentId);
-      if (idx >= 0) payments[idx] = payment; else payments.push(payment);
-    } else {
-      payments.push(payment);
-    }
-    storage.payments.save(payments);
-
-    // Update bank account balance
-    const accounts = storage.bankAccounts.get();
-    if (!accounts.length) storage.bankAccounts.save(BANK_ACCOUNTS_DEFAULT);
-    const accts = accounts.length ? accounts : [...BANK_ACCOUNTS_DEFAULT];
-    const acctIdx = accts.findIndex(a => a.id === bankAccountId);
-    if (acctIdx >= 0) { accts[acctIdx] = { ...accts[acctIdx], balance: accts[acctIdx].balance + amt }; }
-    storage.bankAccounts.save(accts);
-
-    // Update invoice status if fully paid
-    if (invoiceId) {
-      const invoices = storage.invoices.get();
-      const savedInv = invoices.find(i => i.id === invoiceId);
-      if (savedInv) {
-        const totalPaid = getInvoicePaidTotal(invoiceId);
-        if (totalPaid >= savedInv.totalAmount) {
-          const idx = invoices.findIndex(i => i.id === invoiceId);
-          invoices[idx] = { ...savedInv, status: 'Paid' };
-          storage.invoices.save(invoices);
-        }
+    const onSuccess = () => {
+      // Update bank account balance in localStorage
+      const accts = storage.bankAccounts.get().length ? storage.bankAccounts.get() : [...BANK_ACCOUNTS_DEFAULT];
+      const acctIdx = accts.findIndex(a => a.id === (bankAccountId || 'cash_srd'));
+      if (acctIdx >= 0) {
+        accts[acctIdx] = { ...accts[acctIdx], balance: accts[acctIdx].balance + amt };
+        storage.bankAccounts.save(accts);
       }
-    }
 
-    setSaved(true);
-    setTimeout(() => navigate('/payments'), 1200);
+      // Update invoice status if payment covers remaining balance
+      if (invoiceId && selectedInvoice && amt >= invoiceBalance) {
+        updateInvoice.mutate({ id: invoiceId, status: 'Paid' });
+      }
+
+      setSaved(true);
+      setTimeout(() => navigate('/payments'), 1200);
+    };
+
+    if (isEdit && editId) {
+      updatePayment.mutate({ id: editId, ...paymentData }, { onSuccess });
+    } else {
+      createPayment.mutate(paymentData, { onSuccess });
+    }
   };
 
   const rateLabel = latestRate ? `Rate: 1 ${currency} = ${activeRate.toFixed(2)} SRD (${latestRate.date})` : '';
@@ -229,12 +204,11 @@ const CreatePaymentPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate('/payments')} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold text-xs uppercase tracking-widest">
+        <button type="button" onClick={() => navigate('/payments')} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold text-xs uppercase tracking-widest">
           <ArrowLeft size={16}/> Back to Payments
         </button>
       </div>
 
-      {/* Banner: pre-filled from invoice */}
       {fromInvoiceState && !editId && (
         <div className="bg-brand-accent-light border border-brand-primary/20 p-4 rounded-2xl flex items-center gap-4">
           <div className="w-9 h-9 bg-brand-primary/10 rounded-xl flex items-center justify-center shrink-0">
@@ -262,7 +236,7 @@ const CreatePaymentPage: React.FC = () => {
             <div className="space-y-1.5 lg:col-span-3">
               <label className={`${LABEL} flex items-center gap-2`}><Users size={10}/> Client</label>
               <div className="flex gap-2">
-                <select value={clientId} onChange={e => { setClientId(e.target.value); setInvoiceId(''); if (errors.clientId) setErrors(prev => ({ ...prev, clientId: '' })); }} className={`flex-1 px-4 py-3 bg-slate-50 border rounded-xl text-sm font-bold outline-none ${errors.clientId ? 'border-red-400' : 'border-slate-200'}`}>
+                <select aria-label="Client" value={clientId} onChange={e => { setClientId(e.target.value); setInvoiceId(''); if (errors.clientId) setErrors(prev => ({ ...prev, clientId: '' })); }} className={`flex-1 px-4 py-3 bg-slate-50 border rounded-xl text-sm font-bold outline-none ${errors.clientId ? 'border-red-400' : 'border-slate-200'}`}>
                   <option value="">-- Select client --</option>
                   {allClients.map(c => <option key={c.id} value={c.id}>{c.company} ({c.name})</option>)}
                 </select>
@@ -281,10 +255,10 @@ const CreatePaymentPage: React.FC = () => {
             {/* Invoice link */}
             <div className="space-y-1.5 lg:col-span-2">
               <label className={`${LABEL} flex items-center gap-2`}><FileText size={10}/> Link to Invoice (optional)</label>
-              <select value={invoiceId} onChange={e => setInvoiceId(e.target.value)} className={INPUT}>
+              <select aria-label="Link to invoice" value={invoiceId} onChange={e => setInvoiceId(e.target.value)} className={INPUT}>
                 <option value="">-- No specific invoice --</option>
                 {clientInvoices.map(inv => {
-                  const bal = inv.totalAmount - getInvoicePaidTotal(inv.id);
+                  const bal = inv.totalAmount - (inv.paidAmount ?? 0);
                   return <option key={inv.id} value={inv.id}>{inv.invoiceNumber} — Balance: SRD {bal.toFixed(2)}</option>;
                 })}
               </select>
@@ -298,14 +272,14 @@ const CreatePaymentPage: React.FC = () => {
             {/* Date */}
             <div className="space-y-1.5">
               <label className={`${LABEL} flex items-center gap-2`}><Calendar size={10}/> Date</label>
-              <input type="date" value={date} onChange={e => { setDate(e.target.value); if (errors.date) setErrors(prev => ({ ...prev, date: '' })); }} className={`${INPUT} ${errors.date ? 'border-red-400' : ''}`}/>
+              <input aria-label="Date" type="date" value={date} onChange={e => { setDate(e.target.value); if (errors.date) setErrors(prev => ({ ...prev, date: '' })); }} className={`${INPUT} ${errors.date ? 'border-red-400' : ''}`}/>
               {errors.date && <p className="text-red-500 text-xs mt-1">{errors.date}</p>}
             </div>
 
             {/* Currency */}
             <div className="space-y-1.5">
               <label className={`${LABEL} flex items-center gap-2`}><TrendingUp size={10}/> Currency</label>
-              <select value={currency} onChange={e => setCurrency(e.target.value)} className={INPUT}>
+              <select aria-label="Currency" value={currency} onChange={e => setCurrency(e.target.value)} className={INPUT}>
                 {['SRD', 'USD', 'EUR', ...(enableCrypto ? ['USDT'] : [])].map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
@@ -313,7 +287,7 @@ const CreatePaymentPage: React.FC = () => {
             {/* Amount */}
             <div className="space-y-1.5">
               <label className={LABEL}>Amount ({currency})</label>
-              <input type="number" value={amount} onChange={e => { setAmount(e.target.value); if (errors.amount) setErrors(prev => ({ ...prev, amount: '' })); }} placeholder="0.00" className={`${INPUT} ${errors.amount ? 'border-red-400' : ''}`}/>
+              <input aria-label="Amount" type="number" value={amount} onChange={e => { setAmount(e.target.value); if (errors.amount) setErrors(prev => ({ ...prev, amount: '' })); }} placeholder="0.00" className={`${INPUT} ${errors.amount ? 'border-red-400' : ''}`}/>
               {errors.amount && <p className="text-red-500 text-xs mt-1">{errors.amount}</p>}
               {currency !== 'SRD' && (
                 <p className="text-xs text-slate-500 font-bold">≈ SRD {amountSRD.toFixed(2)}</p>
@@ -330,7 +304,7 @@ const CreatePaymentPage: React.FC = () => {
                   className={INPUT}/>
                 {latestRate && <p className="text-[10px] text-slate-400 font-medium">{rateLabel}</p>}
                 {rateOverride !== null && (
-                  <button onClick={() => setRateOverride(null)} className="text-[10px] text-slate-400 hover:text-slate-700 font-bold">↺ Use latest rate</button>
+                  <button type="button" onClick={() => setRateOverride(null)} className="text-[10px] text-slate-400 hover:text-slate-700 font-bold">↺ Use latest rate</button>
                 )}
               </div>
             )}
@@ -368,7 +342,7 @@ const CreatePaymentPage: React.FC = () => {
             {/* Bank Account */}
             <div className="space-y-1.5 lg:col-span-3">
               <label className={`${LABEL} flex items-center gap-2`}><Landmark size={10}/> {methodType === 'cash' ? 'Cash Account' : 'Bank Account'} ({currency})</label>
-              <select value={bankAccountId} onChange={e => setBankAccountId(e.target.value)} className={INPUT}>
+              <select aria-label="Bank account" value={bankAccountId} onChange={e => setBankAccountId(e.target.value)} className={INPUT}>
                 {filteredBanks.length === 0 && <option value="">No {currency} {methodType === 'cash' ? 'cash' : 'bank'} accounts</option>}
                 {filteredBanks.map(b => (
                   <option key={b.id} value={b.id}>{b.bank} — {b.currency} {b.balance.toLocaleString()} ({b.iban !== '—' ? b.iban : 'Cash'})</option>
@@ -414,7 +388,7 @@ const CreatePaymentPage: React.FC = () => {
                 </p>
               </div>
             </div>
-            <button onClick={handleSave}
+            <button type="button" onClick={handleSave}
               className="flex items-center gap-2 px-6 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:opacity-90 transition-all active:scale-95">
               {saved ? <Check size={14}/> : <Save size={14}/>}
               {saved ? 'Saved...' : isEdit ? 'Save Payment' : 'Register Payment'}
@@ -426,7 +400,6 @@ const CreatePaymentPage: React.FC = () => {
         <QuickAddClientModal
           onClose={() => setShowAddClient(false)}
           onCreated={(newClient) => {
-            setClientRefresh(r => r + 1);
             setClientId(newClient.id);
             setShowAddClient(false);
           }}

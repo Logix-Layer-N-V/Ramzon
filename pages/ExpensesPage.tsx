@@ -4,10 +4,9 @@ import {
   Wrench, BarChart2, Tag, X, CheckCircle2, AlertCircle,
   ChevronUp, ChevronDown
 } from 'lucide-react';
-import { mockExpenses } from '../lib/mock-data';
-import { storage } from '../lib/storage';
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
+import { useExpenses } from '../lib/hooks/useExpenses';
 
 const STATUS_OPTIONS = ['Paid', 'Unpaid'] as const;
 const CATEGORY_OPTIONS = ['Logistics', 'Inventory', 'Rent & Utilities', 'Marketing', 'Tools & Machinery'] as const;
@@ -48,12 +47,7 @@ const ExpensesPage: React.FC = () => {
   const [customTo, setCustomTo] = useState('');
   const [customToTime, setCustomToTime] = useState('23:59');
 
-  const allExpenses = useMemo(() => {
-    const stored = storage.expenses.get();
-    if (stored.length === 0) return mockExpenses;
-    const ids = new Set(stored.map(e => e.id));
-    return [...mockExpenses.filter(e => !ids.has(e.id)), ...stored];
-  }, []);
+  const { data: allExpenses = [], isLoading } = useExpenses();
 
   const filtered = allExpenses.filter(ex => {
     const matchSearch = ex.description.toLowerCase().includes(search.toLowerCase()) ||
@@ -96,6 +90,8 @@ const ExpensesPage: React.FC = () => {
       </span>
     </th>
   );
+
+  if (isLoading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin"/></div>;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10">

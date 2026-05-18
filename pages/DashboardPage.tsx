@@ -1,5 +1,5 @@
 
-import React, { useContext, useMemo } from 'react';
+import React, { useContext } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -10,29 +10,26 @@ import {
   ArrowUpRight,
   ChevronRight
 } from 'lucide-react';
-import { mockInvoices, mockPayments, mockEstimates, mockExpenses, mockCredits, mockClients } from '../lib/mock-data';
-import { storage } from '../lib/storage';
+import { useInvoices } from '../lib/hooks/useInvoices';
+import { usePayments } from '../lib/hooks/usePayments';
+import { useEstimates } from '../lib/hooks/useEstimates';
+import { useExpenses } from '../lib/hooks/useExpenses';
+import { useCredits } from '../lib/hooks/useCredits';
+import { useClients } from '../lib/hooks/useClients';
 import { LanguageContext } from '../lib/context';
-import type { Invoice, Payment, Estimate, Expense, Credit, Client } from '../types';
-
-const merge = <T extends { id: string }>(stored: T[], mock: T[]): T[] => {
-  if (stored.length === 0) return mock;
-  const ids = new Set(stored.map(x => x.id));
-  return [...mock.filter(x => !ids.has(x.id)), ...stored];
-};
 
 const DashboardPage: React.FC = () => {
   const { currencySymbol } = useContext(LanguageContext);
 
-  const invoices  = useMemo(() => merge(storage.invoices.get(),  mockInvoices),  []);
-  const payments  = useMemo(() => merge(storage.payments.get(),  mockPayments),  []);
-  const estimates = useMemo(() => merge(storage.estimates.get(), mockEstimates), []);
-  const expenses  = useMemo(() => merge(storage.expenses.get(),  mockExpenses),  []);
-  const credits   = useMemo(() => merge(storage.credits.get(),   mockCredits),   []);
-  const clients   = useMemo(() => merge(storage.clients.get(),   mockClients),   []);
+  const { data: invoices = [], isLoading } = useInvoices();
+  const { data: payments = [] } = usePayments();
+  const { data: estimates = [] } = useEstimates();
+  const { data: expenses = [] } = useExpenses();
+  const { data: credits = [] } = useCredits();
+  const { data: clients = [] } = useClients();
 
   // KPI computations
-  const totalRevenue   = payments.filter(p => p.status !== 'Refunded').reduce((sum, p) => sum + p.amount, 0);
+  const totalRevenue   = payments.reduce((sum, p) => sum + p.amount, 0);
   const totalExpenses  = expenses.reduce((sum, e) => sum + e.amount, 0);
   const creditNotes    = credits.reduce((sum, c) => sum + c.amount, 0);
   const netProfit      = totalRevenue - totalExpenses - creditNotes;
@@ -63,6 +60,8 @@ const DashboardPage: React.FC = () => {
       </div>
     </div>
   );
+
+  if (isLoading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin"/></div>;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">

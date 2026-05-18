@@ -10,7 +10,7 @@ export interface ExpenseRow {
   date: string;
   description: string;
   status: string;
-  created_at: string;
+  createdAt: string;
 }
 
 export const useExpenses = () =>
@@ -36,6 +36,14 @@ export const useUpdateExpense = () => {
   return useMutation({
     mutationFn: ({ id, ...data }: Partial<ExpenseRow> & { id: string }) =>
       api.put(`/expenses/${id}`, data).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['expenses'] }),
+  });
+};
+
+export const useDeleteExpense = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/expenses/${id}`).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['expenses'] }),
   });
 };

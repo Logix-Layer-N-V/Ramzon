@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS clients (
   total_spent        NUMERIC(12,2) DEFAULT 0,
   status             TEXT DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive')),
   phone              TEXT DEFAULT '',
-  preferred_currency TEXT DEFAULT 'USD'
+  preferred_currency TEXT DEFAULT 'USD',
+  created_at         TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS invoices (
@@ -52,8 +53,12 @@ CREATE TABLE IF NOT EXISTS invoice_items (
   invoice_id  UUID REFERENCES invoices(id) ON DELETE CASCADE,
   product_id  TEXT DEFAULT '',
   description TEXT NOT NULL,
+  houtsoort   TEXT DEFAULT '',
+  spec        TEXT DEFAULT '',
   quantity    NUMERIC(10,3) NOT NULL,
+  unit        TEXT DEFAULT 'pcs',
   unit_price  NUMERIC(12,2) NOT NULL,
+  tax_rate    NUMERIC(5,2) DEFAULT 21,
   total       NUMERIC(12,2) NOT NULL
 );
 
@@ -82,8 +87,12 @@ CREATE TABLE IF NOT EXISTS estimate_items (
   estimate_id UUID REFERENCES estimates(id) ON DELETE CASCADE,
   product_id  TEXT DEFAULT '',
   description TEXT NOT NULL,
+  houtsoort   TEXT DEFAULT '',
+  spec        TEXT DEFAULT '',
   quantity    NUMERIC(10,3) NOT NULL,
+  unit        TEXT DEFAULT 'pcs',
   unit_price  NUMERIC(12,2) NOT NULL,
+  tax_rate    NUMERIC(5,2) DEFAULT 21,
   total       NUMERIC(12,2) NOT NULL
 );
 
@@ -99,17 +108,20 @@ CREATE TABLE IF NOT EXISTS payments (
   method          TEXT DEFAULT '',
   reference       TEXT DEFAULT '',
   notes           TEXT DEFAULT '',
-  status          TEXT DEFAULT 'Completed' CHECK (status IN ('Completed','Refunded'))
+  status          TEXT DEFAULT 'Completed' CHECK (status IN ('Completed','Refunded')),
+  created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS credits (
-  id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  client_id UUID REFERENCES clients(id),
-  amount    NUMERIC(12,2) NOT NULL,
-  currency  TEXT DEFAULT 'USD',
-  date      DATE NOT NULL,
-  reason    TEXT DEFAULT '',
-  status    TEXT DEFAULT 'Available' CHECK (status IN ('Available','Used'))
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id  UUID REFERENCES clients(id),
+  amount     NUMERIC(12,2) NOT NULL,
+  currency   TEXT DEFAULT 'USD',
+  date       DATE NOT NULL,
+  reason     TEXT DEFAULT '',
+  notes      TEXT DEFAULT '',
+  status     TEXT DEFAULT 'Available' CHECK (status IN ('Available','Used')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS expenses (
@@ -120,7 +132,8 @@ CREATE TABLE IF NOT EXISTS expenses (
   currency    TEXT DEFAULT 'USD',
   date        DATE NOT NULL,
   description TEXT DEFAULT '',
-  status      TEXT DEFAULT 'Unpaid' CHECK (status IN ('Paid','Unpaid'))
+  status      TEXT DEFAULT 'Unpaid' CHECK (status IN ('Paid','Unpaid')),
+  created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS products (
@@ -135,8 +148,25 @@ CREATE TABLE IF NOT EXISTS products (
   stock            NUMERIC(10,2) DEFAULT 0,
   category         TEXT DEFAULT '',
   sku              TEXT DEFAULT '',
-  calculation_type TEXT DEFAULT 'pcs'
+  calculation_type TEXT DEFAULT 'pcs',
+  created_at       TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration: add columns to existing tables (safe to re-run, IF NOT EXISTS guards)
+ALTER TABLE clients      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE payments     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE credits      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE credits      ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT '';
+ALTER TABLE expenses     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE products     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS houtsoort TEXT DEFAULT '';
+ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS spec      TEXT DEFAULT '';
+ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS unit      TEXT DEFAULT 'pcs';
+ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS tax_rate  NUMERIC(5,2) DEFAULT 21;
+ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS houtsoort TEXT DEFAULT '';
+ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS spec      TEXT DEFAULT '';
+ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS unit      TEXT DEFAULT 'pcs';
+ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS tax_rate  NUMERIC(5,2) DEFAULT 21;
 
 -- Seed users (password for all: admin123)
 INSERT INTO users (name, email, password, role) VALUES

@@ -3,12 +3,13 @@ import { api } from '../api';
 
 export interface CreditRow {
   id: string;
-  client_id: string;
+  clientId: string;
   amount: number;
   currency: string;
   date: string;
   reason: string;
-  created_at: string;
+  status?: string;
+  createdAt: string;
 }
 
 export const useCredits = () =>
@@ -25,6 +26,23 @@ export const useCreateCredit = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: Partial<CreditRow>) => api.post('/credits', data).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['credits'] }),
+  });
+};
+
+export const useUpdateCredit = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: Partial<CreditRow> & { id: string }) =>
+      api.put(`/credits/${id}`, data).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['credits'] }),
+  });
+};
+
+export const useDeleteCredit = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/credits/${id}`).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['credits'] }),
   });
 };

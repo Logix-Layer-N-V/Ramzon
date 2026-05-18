@@ -3,26 +3,35 @@ import { api } from '../api';
 
 export interface EstimateRow {
   id: string;
-  estimate_number: string;
-  client_id: string;
-  client_name: string;
+  estimateNumber: string;
+  clientId: string;
+  clientName: string;
   date: string;
-  valid_until: string;
+  validUntil: string;
   currency: string;
   subtotal: number;
-  tax_amount: number;
+  taxAmount: number;
   total: number;
   status: string;
   notes: string;
   rep: string;
-  created_at: string;
+  createdAt: string;
+}
+
+export interface EstimateItemRow {
+  id: string;
+  estimateId: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
 }
 
 export const useEstimates = () =>
   useQuery<EstimateRow[]>({ queryKey: ['estimates'], queryFn: () => api.get('/estimates').then(r => r.data) });
 
 export const useEstimate = (id: string) =>
-  useQuery<EstimateRow & { items: unknown[] }>({
+  useQuery<EstimateRow & { items: EstimateItemRow[] }>({
     queryKey: ['estimates', id],
     queryFn: () => api.get(`/estimates/${id}`).then(r => r.data),
     enabled: !!id,
@@ -31,7 +40,7 @@ export const useEstimate = (id: string) =>
 export const useCreateEstimate = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: Partial<EstimateRow> & { items?: unknown[] }) =>
+    mutationFn: (data: Partial<EstimateRow> & { items?: Partial<EstimateItemRow>[] }) =>
       api.post('/estimates', data).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['estimates'] }),
   });

@@ -1,9 +1,8 @@
 import React, { useState, useContext, useMemo } from 'react';
 import { LanguageContext } from '../lib/context';
 import { Search, Plus, Package, Ruler, Pencil, Trash2, Settings2, ChevronUp, ChevronDown } from 'lucide-react';
-import { storage } from '../lib/storage';
 import { useNavigate } from 'react-router-dom';
-import type { WoodProduct } from '../types';
+import { useProducts, useDeleteProduct, ProductRow } from '../lib/hooks/useProducts';
 
 const CATEGORIES = ['All', 'Doors', 'Mouldings', 'Frames', 'Window Frames', 'Crating'];
 
@@ -12,7 +11,7 @@ const ProductsPage: React.FC = () => {
   const { t, currencySymbol } = useContext(LanguageContext);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
-  const [products, setProducts] = useState<WoodProduct[]>(() => storage.products.get());
+  const { data: products = [], isLoading } = useProducts();
 
   const [sortKey, setSortKey] = useState<string>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -22,11 +21,10 @@ const ProductsPage: React.FC = () => {
     else { setSortKey(key); setSortDir('asc'); }
   };
 
+  const deleteProduct = useDeleteProduct();
   const handleDelete = (id: string) => {
     if (!window.confirm('Delete this product?')) return;
-    const updated = products.filter(p => p.id !== id);
-    storage.products.save(updated);
-    setProducts(updated);
+    deleteProduct.mutate(id);
   };
 
   const filtered = products.filter(p => {
@@ -63,6 +61,8 @@ const ProductsPage: React.FC = () => {
       </span>
     </th>
   );
+
+  if (isLoading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin"/></div>;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">

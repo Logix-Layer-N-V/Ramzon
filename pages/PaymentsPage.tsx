@@ -2,10 +2,10 @@
 import React, { useState, useContext, useMemo } from 'react';
 import { Search, Filter, ArrowDownCircle, Download, ExternalLink, Plus, Pencil, X, CheckCircle2, Banknote, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { mockPayments, mockClients } from '../lib/mock-data';
 import { LanguageContext } from '../lib/context';
 import { exportCSV } from '../lib/csvExport';
-import { storage } from '../lib/storage';
+import { usePayments, useDeletePayment } from '../lib/hooks/usePayments';
+import { useClients } from '../lib/hooks/useClients';
 
 const METHOD_OPTIONS = ['Bank Transfer', 'Cash', 'Credit Card'] as const;
 
@@ -17,7 +17,6 @@ const PaymentsPage: React.FC = () => {
   const [filterMethod, setFilterMethod] = useState<string>('All');
   const [sortKey, setSortKey] = useState<string>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [refresh, setRefresh] = useState(0);
 
   const handleSort = (key: string) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -29,25 +28,14 @@ const PaymentsPage: React.FC = () => {
   const [customTo, setCustomTo] = useState('');
   const [customToTime, setCustomToTime] = useState('23:59');
 
-  const allPayments = useMemo(() => {
-    const stored = storage.payments.get();
-    if (stored.length === 0) return mockPayments;
-    const storedIds = new Set(stored.map(p => p.id));
-    return [...mockPayments.filter(p => !storedIds.has(p.id)), ...stored];
-  }, [refresh]);
+  const { data: allPayments = [], isLoading } = usePayments();
+  const { data: allClients = [] } = useClients();
 
+  const deletePayment = useDeletePayment();
   const handleDeletePayment = (id: string) => {
     if (!window.confirm('Betaling verwijderen?')) return;
-    const updated = allPayments.filter(p => p.id !== id);
-    storage.payments.save(updated.filter(p => !mockPayments.find(m => m.id === p.id)));
-    setRefresh(r => r + 1);
+    deletePayment.mutate(id);
   };
-
-  const allClients = useMemo(() => {
-    const stored = storage.clients.get();
-    const ids = new Set(stored.map(c => c.id));
-    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
-  }, []);
 
   const filteredPayments = allPayments.filter(p => {
     const client = allClients.find(c => c.id === p.clientId);
@@ -87,6 +75,8 @@ const PaymentsPage: React.FC = () => {
     </th>
   );
 
+  if (isLoading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin"/></div>;
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10">
       <div className="flex justify-between items-end">
@@ -95,11 +85,11 @@ const PaymentsPage: React.FC = () => {
           <p className="text-sm font-medium text-slate-500 italic">History of all incoming transactions and settlements</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => exportCSV(`payments-${new Date().toISOString().slice(0,10)}.csv`, filteredPayments.map(p => { const c = allClients.find(cl => cl.id === p.clientId); return { Date: p.date, Reference: p.reference, Client: c?.company || '', Amount: p.amount, Method: p.method, Status: p.status }; }))}
+          <button type="button" onClick={() => exportCSV(`payments-${new Date().toISOString().slice(0,10)}.csv`, filteredPayments.map(p => { const c = allClients.find(cl => cl.id === p.clientId); return { Date: p.date, Reference: p.reference, Client: c?.company || '', Amount: p.amount, Method: p.method }; }))}
             className="border border-slate-200 bg-white text-slate-600 px-5 py-2.5 rounded-xl text-sm font-black hover:bg-slate-50 transition-all flex items-center gap-2">
             <Download size={16}/> Export CSV
           </button>
-          <button onClick={() => navigate('/payments/new')} className="bg-brand-primary text-white px-5 py-2.5 rounded-xl text-sm font-black hover:opacity-90 transition-all flex items-center gap-2 shadow-xl active:scale-95">
+          <button type="button" onClick={() => navigate('/payments/new')} className="bg-brand-primary text-white px-5 py-2.5 rounded-xl text-sm font-black hover:opacity-90 transition-all flex items-center gap-2 shadow-xl active:scale-95">
             <Plus size={16}/> {t('newPaymentBtn')}
           </button>
         </div>
@@ -137,6 +127,7 @@ const PaymentsPage: React.FC = () => {
             />
           </div>
           <button
+            type="button"
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
               showFilters || filterMethod !== 'All' || filterPeriod !== 'all'
@@ -160,7 +151,7 @@ const PaymentsPage: React.FC = () => {
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Method</label>
               <div className="flex gap-2 flex-wrap">
                 {(['All', ...METHOD_OPTIONS] as const).map(m => (
-                  <button key={m} onClick={() => setFilterMethod(m)}
+                  <button type="button" key={m} onClick={() => setFilterMethod(m)}
                     className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${
                       filterMethod === m ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
                     }`}>{m}</button>
@@ -171,7 +162,7 @@ const PaymentsPage: React.FC = () => {
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('period')}</label>
               <div className="flex gap-2 flex-wrap">
                 {(['all', 'today', 'week', 'month', 'quarter', 'custom'] as const).map(p => (
-                  <button key={p} onClick={() => setFilterPeriod(p)}
+                  <button type="button" key={p} onClick={() => setFilterPeriod(p)}
                     className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${
                       filterPeriod === p ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
                     }`}>
@@ -185,18 +176,18 @@ const PaymentsPage: React.FC = () => {
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('customPeriod')}</label>
                 <div className="flex gap-3 items-center flex-wrap">
                   <div className="flex flex-col gap-1"><span className="text-[9px] font-bold text-slate-400 uppercase">{t('fromDate')}</span>
-                    <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none" /></div>
+                    <input type="date" aria-label="From date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none" /></div>
                   <div className="flex flex-col gap-1"><span className="text-[9px] font-bold text-slate-400 uppercase">{t('time')}</span>
-                    <input type="time" value={customFromTime} onChange={e => setCustomFromTime(e.target.value)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none" /></div>
+                    <input type="time" aria-label="From time" value={customFromTime} onChange={e => setCustomFromTime(e.target.value)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none" /></div>
                   <span className="text-slate-300 font-black mt-4">→</span>
                   <div className="flex flex-col gap-1"><span className="text-[9px] font-bold text-slate-400 uppercase">{t('toDate')}</span>
-                    <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none" /></div>
+                    <input type="date" aria-label="To date" value={customTo} onChange={e => setCustomTo(e.target.value)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none" /></div>
                   <div className="flex flex-col gap-1"><span className="text-[9px] font-bold text-slate-400 uppercase">{t('time')}</span>
-                    <input type="time" value={customToTime} onChange={e => setCustomToTime(e.target.value)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none" /></div>
+                    <input type="time" aria-label="To time" value={customToTime} onChange={e => setCustomToTime(e.target.value)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none" /></div>
                 </div>
               </div>
             )}
-            <button onClick={() => { setFilterMethod('All'); setFilterPeriod('all'); setCustomFrom(''); setCustomTo(''); }}
+            <button type="button" onClick={() => { setFilterMethod('All'); setFilterPeriod('all'); setCustomFrom(''); setCustomTo(''); }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-red-500 transition-colors">
               <X size={12} /> {t('reset')}
             </button>
@@ -218,8 +209,8 @@ const PaymentsPage: React.FC = () => {
               {sorted.map((p) => {
                 const client = allClients.find(c => c.id === p.clientId);
                 return (
-                  <tr 
-                    key={p.id} 
+                  <tr
+                    key={p.id}
                     onClick={() => navigate(`/payments/${p.id}`)}
                     className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
                   >
@@ -241,19 +232,19 @@ const PaymentsPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        <button title="Edit"
+                        <button type="button" title="Edit"
                           onClick={(e) => { e.stopPropagation(); navigate(`/payments/edit/${p.id}`); }}
                           className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         ><Pencil size={15}/></button>
-                        <button title="Download"
+                        <button type="button" title="Download"
                           onClick={(e) => { e.stopPropagation(); }}
                           className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
                         ><Download size={15}/></button>
-                        <button title="Bekijk detail"
+                        <button type="button" title="Bekijk detail"
                           onClick={(e) => { e.stopPropagation(); navigate(`/payments/${p.id}`); }}
                           className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
                         ><ExternalLink size={15}/></button>
-                        <button title="Delete"
+                        <button type="button" title="Delete"
                           onClick={(e) => { e.stopPropagation(); handleDeletePayment(p.id); }}
                           className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         ><Trash2 size={15}/></button>

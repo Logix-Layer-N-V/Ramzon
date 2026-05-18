@@ -5,11 +5,12 @@ import {
   CheckCircle2, AlertCircle, ChevronUp, ChevronDown, Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { mockEstimates, mockClients } from '../lib/mock-data';
 import { Estimate, EstimateStatus } from '../types';
 import { LanguageContext } from '../lib/context';
-import { storage } from '../lib/storage';
 import { sendDocumentEmail } from '../lib/sendDocument';
+import { useEstimates, useUpdateEstimate, useDeleteEstimate } from '../lib/hooks/useEstimates';
+import { useClients } from '../lib/hooks/useClients';
+import { useCreateInvoice } from '../lib/hooks/useInvoices';
 
 const STATUS_OPTIONS: EstimateStatus[] = ['Accepted', 'Sent', 'Draft', 'Expired'];
 
@@ -26,13 +27,9 @@ const getStatusStyle = (status: EstimateStatus) => {
 const QuotesPage: React.FC = () => {
   const navigate = useNavigate();
   const { t, currencySymbol } = useContext(LanguageContext);
-  const [refresh, setRefresh] = useState(0);
-  const estimates = useMemo(() => {
-    const stored = storage.estimates.get();
-    if (stored.length === 0) return mockEstimates;
-    const ids = new Set(stored.map(e => e.id));
-    return [...mockEstimates.filter(e => !ids.has(e.id)), ...stored];
-  }, [refresh]);
+  const { data: estimates = [], isLoading } = useEstimates();
+  const updateEstimate = useUpdateEstimate();
+  const createInvoice = useCreateInvoice();
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState<EstimateStatus | 'All'>('All');
@@ -53,11 +50,7 @@ const QuotesPage: React.FC = () => {
   const [sendingId, setSendingId] = useState<string | null>(null);
   const { companyName, companyAddress, companyPhone, companyEmail, companyLogo } = useContext(LanguageContext);
 
-  const allClients = useMemo(() => {
-    const stored = storage.clients.get();
-    const ids = new Set(stored.map(c => c.id));
-    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
-  }, []);
+  const { data: allClients = [] } = useClients();
 
   const handleSendEmail = async (e: React.MouseEvent, q: Estimate) => {
     e.stopPropagation();
@@ -91,7 +84,7 @@ const QuotesPage: React.FC = () => {
           clientVAT: client?.vatNumber,
           companyName, companyAddress, companyPhone, companyEmail, companyLogo,
           rep: q.rep,
-          paidAmount: q.paidAmount,
+          paidAmount: (q as any).paidAmount ?? 0,
           currency: q.currency || 'SRD',
           currencySymbol,
           items: (q.items || []).map(it => ({
@@ -116,44 +109,32 @@ const QuotesPage: React.FC = () => {
 
   const handleApprove = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    const updated = estimates.map(est => est.id === id ? { ...est, status: 'Accepted' as const } : est);
-    storage.estimates.save(updated);
-    setRefresh(r => r + 1);
+    updateEstimate.mutate({ id, status: 'Accepted' });
   };
 
-  const handleConvert = (e: React.MouseEvent, estimate: Estimate) => {
+  const handleConvert = async (e: React.MouseEvent, estimate: any) => {
     e.stopPropagation();
-    // Build invoice data from estimate
-    const newInvoice = {
-      id: `inv-${Date.now()}`,
-      invoiceNumber: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`,
-      clientId: estimate.clientId,
-      clientName: estimate.clientName,
-      date: new Date().toISOString().split('T')[0],
-      dueDate: (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0]; })(),
-      currency: estimate.currency ?? 'SRD',
-      exchangeRate: estimate.exchangeRate ?? 1,
-      items: estimate.items ?? [],
-      subtotal: estimate.subtotal ?? 0,
-      taxRate: estimate.taxRate ?? 21,
-      taxAmount: estimate.taxAmount ?? 0,
-      totalAmount: estimate.total ?? 0,
-      status: 'Pending' as const,
-      rep: estimate.rep ?? '',
-      paidAmount: 0,
-      estimateId: estimate.id,
-    };
-    // Save to storage
-    const existing = storage.invoices.get();
-    storage.invoices.save([...existing, newInvoice]);
-    // Mark estimate as accepted
-    const allEstimates = estimates;
-    const updatedEstimates = allEstimates.map(est =>
-      est.id === estimate.id ? { ...est, status: 'Accepted' as const } : est
-    );
-    storage.estimates.save(updatedEstimates.filter(est => !mockEstimates.find(m => m.id === est.id) || est.status !== mockEstimates.find(m => m.id === est.id)?.status));
-    // Navigate to the new invoice
-    navigate(`/invoices/${newInvoice.id}`);
+    const invoiceNumber = `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`;
+    const dueDate = (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0]; })();
+    try {
+      await createInvoice.mutateAsync({
+        invoiceNumber,
+        clientId: estimate.clientId,
+        clientName: estimate.clientName,
+        date: new Date().toISOString().split('T')[0],
+        dueDate,
+        currency: estimate.currency ?? 'SRD',
+        subtotal: estimate.subtotal ?? 0,
+        taxAmount: estimate.taxAmount ?? 0,
+        totalAmount: estimate.total ?? 0,
+        status: 'Pending',
+        rep: estimate.rep ?? '',
+        paidAmount: 0,
+        items: (estimate as any).items ?? [],
+      });
+      updateEstimate.mutate({ id: estimate.id, status: 'Accepted' });
+      navigate('/invoices');
+    } catch { alert('Failed to convert estimate'); }
   };
 
   const handleEdit = (e: React.MouseEvent, id: string) => {
@@ -199,6 +180,8 @@ const QuotesPage: React.FC = () => {
       </span>
     </th>
   );
+
+  if (isLoading) return <div className="flex items-center justify-center h-64 text-slate-400 font-bold">Loading estimates…</div>;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10">
@@ -408,7 +391,7 @@ const QuotesPage: React.FC = () => {
                   <td className="px-6 py-4 font-black text-slate-900 italic">{q.estimateNumber}</td>
                   <td className="px-6 py-4">
                     {(() => {
-                      const c = mockClients.find(cl => cl.id === q.clientId);
+                      const c = allClients.find(cl => cl.id === q.clientId);
                       return (
                         <>
                           <div className="font-bold text-slate-900">{c?.name || q.clientName}</div>

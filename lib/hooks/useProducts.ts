@@ -4,13 +4,13 @@ import { api } from '../api';
 export interface ProductRow {
   id: string;
   name: string;
-  wood_type: string;
+  woodType: string;
   unit: string;
-  price_per_unit: number;
+  pricePerUnit: number;
   stock: number;
   category: string;
   sku: string;
-  created_at: string;
+  createdAt: string;
 }
 
 export const useProducts = () =>

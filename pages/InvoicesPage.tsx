@@ -5,12 +5,12 @@ import {
   MoreHorizontal, CheckCircle2, Clock, AlertCircle, X,
   ChevronUp, ChevronDown, Trash2, Loader2
 } from 'lucide-react';
-import { mockInvoices, mockClients } from '../lib/mock-data';
-import { InvoiceStatus, Invoice } from '../types';
+import { InvoiceStatus } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { exportCSV } from '../lib/csvExport';
-import { storage } from '../lib/storage';
 import { sendDocumentEmail } from '../lib/sendDocument';
+import { useInvoices, useDeleteInvoice } from '../lib/hooks/useInvoices';
+import { useClients } from '../lib/hooks/useClients';
 
 const STATUS_OPTIONS: InvoiceStatus[] = ['Paid', 'Pending', 'Overdue', 'Draft'];
 
@@ -26,18 +26,14 @@ const getStatusStyle = (status: InvoiceStatus) => {
 const InvoicesPage: React.FC = () => {
   const navigate = useNavigate();
   const { t, currencySymbol } = useContext(LanguageContext);
-  const [refresh, setRefresh] = useState(0);
 
-  const allInvoices = useMemo(() => {
-    const stored = storage.invoices.get();
-    const storedIds = new Set(stored.map((e: Invoice) => e.id));
-    return [...stored, ...mockInvoices.filter((e: Invoice) => !storedIds.has(e.id))];
-  }, [refresh]);
+  const { data: allInvoices = [], isLoading } = useInvoices();
+  const { data: allClients = [] } = useClients();
 
   const [sendingId, setSendingId] = useState<string | null>(null);
   const { companyName, companyAddress, companyPhone, companyEmail, companyLogo } = useContext(LanguageContext);
 
-  const handleSendEmail = async (e: React.MouseEvent, inv: Invoice) => {
+  const handleSendEmail = async (e: React.MouseEvent, inv: any) => {
     e.stopPropagation();
     const client = allClients.find(c => c.id === inv.clientId);
     const email = client?.email;
@@ -73,7 +69,7 @@ const InvoicesPage: React.FC = () => {
           paidAmount: inv.paidAmount,
           currency: inv.currency || 'SRD',
           currencySymbol,
-          items: inv.items.map(it => ({
+          items: ((inv as any).items || []).map((it: any) => ({
             description: it.description,
             qty: it.quantity,
             unit: 'pcs',
@@ -93,18 +89,12 @@ const InvoicesPage: React.FC = () => {
     }
   };
 
+  const deleteInvoice = useDeleteInvoice();
   const handleDeleteInvoice = (id: string) => {
     if (!window.confirm('Factuur verwijderen?')) return;
-    const updated = allInvoices.filter(inv => inv.id !== id);
-    storage.invoices.save(updated.filter(inv => !mockInvoices.find(m => m.id === inv.id)));
-    setRefresh(r => r + 1);
+    deleteInvoice.mutate(id);
   };
 
-  const allClients = useMemo(() => {
-    const stored = storage.clients.get();
-    const ids = new Set(stored.map(c => c.id));
-    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
-  }, []);
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState<InvoiceStatus | 'All'>('All');
@@ -161,6 +151,8 @@ const InvoicesPage: React.FC = () => {
       </span>
     </th>
   );
+
+  if (isLoading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin"/></div>;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10">

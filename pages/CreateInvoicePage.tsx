@@ -4,12 +4,15 @@ import { ArrowLeft, Save, Plus, Trash2, Receipt, Users, Search, Send, Check, Spa
 import { LanguageContext } from '../lib/context';
 import { InvoiceSchema } from '../lib/schemas';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { mockClients, mockInvoices, mockUsers, RAMZON_SERVICES, RAMZON_PRODUCT_CATALOG, RAMZON_HOUTSOORTEN } from '../lib/mock-data';
-import { Estimate, Invoice, WoodSpecies } from '../types';
+import { RAMZON_SERVICES, RAMZON_PRODUCT_CATALOG, RAMZON_HOUTSOORTEN } from '../lib/mock-data';
+import { Estimate, WoodSpecies } from '../types';
 import { previewDocNumber, commitDocNumber } from '../lib/docNumbering';
 import { getLatestExchangeRate, storage } from '../lib/storage';
 import DocPDFModal from '../components/DocPDFModal';
 import QuickAddClientModal from '../components/QuickAddClientModal';
+import { useClients } from '../lib/hooks/useClients';
+import { useInvoice, useCreateInvoice, useUpdateInvoice } from '../lib/hooks/useInvoices';
+import { useProducts } from '../lib/hooks/useProducts';
 
 type ItemType = 'product' | 'service' | 'item';
 interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; qty: number; unit: string; price: number; discount: number; taxRate: number; mmW?: number; mmH?: number; }
@@ -40,7 +43,6 @@ const CreateInvoicePage: React.FC = () => {
   const isEdit = !!editId;
   const [selectedClient, setSelectedClient] = useState('');
   const [showAddClient, setShowAddClient] = useState(false);
-  const [clientRefresh, setClientRefresh] = useState(0);
   const [currency, setCurrency] = useState('SRD');
   const [exchangeRate, setExchangeRate] = useState<number>(1);
   const [docTaxRate] = useState(21);
@@ -64,15 +66,12 @@ const CreateInvoicePage: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const searchRef = useRef<HTMLDivElement>(null);
 
-  const allClients = useMemo(() => {
-    const stored = storage.clients.get();
-    if (stored.length === 0) return mockClients;
-    const ids = new Set(stored.map(c => c.id));
-    return [...mockClients.filter(c => !ids.has(c.id)), ...stored];
-  }, [clientRefresh]);
+  const { data: allClients = [] } = useClients();
+  const { data: existingInvoice } = useInvoice(editId || '');
+  const { data: dbProducts = [] } = useProducts();
+  const createInvoice = useCreateInvoice();
+  const updateInvoice = useUpdateInvoice();
 
-  // Dynamic catalog: merge services + storage products (fallback to static if empty)
-  const [storedProducts] = useState(() => storage.products.get());
   const [woodSpeciesList] = useState<WoodSpecies[]>(() => {
     const s = storage.woodSpecies.get();
     return s.length > 0 ? s : [];
@@ -80,7 +79,7 @@ const CreateInvoicePage: React.FC = () => {
   const getMarkup = (name: string) => woodSpeciesList.find(sp => sp.name === name)?.markup ?? 0;
 
   const catalogItems = useMemo<CatalogItem[]>(() => {
-    const storedMapped: CatalogItem[] = storedProducts.map(p => ({
+    const storedMapped: CatalogItem[] = dbProducts.map(p => ({
       id: p.id, type: 'product' as ItemType,
       name: p.name, desc: catToDescInv(p.category ?? ''),
       price: p.pricePerUnit,
@@ -88,9 +87,8 @@ const CreateInvoicePage: React.FC = () => {
     }));
     const products: CatalogItem[] = storedMapped.length > 0 ? storedMapped : STATIC_PRODUCT_ITEMS_INV;
     return [...SERVICE_ITEMS_INV, ...products] as CatalogItem[];
-  }, [storedProducts]);
+  }, [dbProducts]);
 
-  // Category chips derived from catalog
   const CATALOG_CATEGORIES = [
     { id: 'all',     label: 'All',      icon: '✦',  count: catalogItems.length },
     { id: 'service', label: 'Services', icon: '⚙️', count: catalogItems.filter(i => i.type === 'service').length },
@@ -113,16 +111,24 @@ const CreateInvoicePage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (editId) {
-      const existing = storage.invoices.get().find(i => i.id === editId) ?? mockInvoices.find(i => i.id === editId);
-      if (existing) {
-        setSelectedClient(existing.clientId);
-        if (existing.items?.length > 0) {
-          setItems(existing.items.map(i => ({ id: (i as any).id || Math.random().toString(36).slice(2), type: 'item' as ItemType, description: (i as any).description || '', houtsoort: '', qty: (i as any).quantity || 1, unit: 'PCS', price: (i as any).unitPrice || 0, discount: 0, taxRate: (i as any).taxRate ?? 21 })));
-        }
+    if (existingInvoice) {
+      setSelectedClient(existingInvoice.clientId);
+      if (existingInvoice.currency) setCurrency(existingInvoice.currency);
+      if (existingInvoice.items?.length > 0) {
+        setItems(existingInvoice.items.map(i => ({
+          id: (i as any).id || Math.random().toString(36).slice(2),
+          type: 'item' as ItemType,
+          description: (i as any).description || '',
+          houtsoort: '',
+          qty: (i as any).quantity || 1,
+          unit: 'PCS',
+          price: (i as any).unitPrice || 0,
+          discount: 0,
+          taxRate: (i as any).taxRate ?? 21,
+        })));
       }
     }
-  }, [editId]);
+  }, [existingInvoice]);
 
   useEffect(() => {
     const state = location.state as { fromEstimate?: Estimate; fromDuplicate?: any };
@@ -155,7 +161,6 @@ const CreateInvoicePage: React.FC = () => {
     }
   }, [location.state]);
 
-  // Auto-fill preferred currency when client changes
   useEffect(() => {
     if (selectedClient) {
       const c = allClients.find(cl => cl.id === selectedClient);
@@ -163,12 +168,10 @@ const CreateInvoicePage: React.FC = () => {
     }
   }, [selectedClient]);
 
-  // Reset USDT currency if crypto is disabled
   useEffect(() => {
     if (!enableCrypto && currency === 'USDT') setCurrency('SRD');
   }, [enableCrypto]);
 
-  // Auto-fill exchange rate whenever currency changes (including on mount from conversion state)
   useEffect(() => {
     const latest = getLatestExchangeRate();
     if (!latest) return;
@@ -220,6 +223,15 @@ const CreateInvoicePage: React.FC = () => {
 
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
   const updateItem = (id: string, field: keyof LineItem, val: any) => setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
+
+  const itemArea = (i: LineItem) => (i.mmW && i.mmH) ? (i.mmW / 1000) * (i.mmH / 1000) : 1;
+  const itemSubtotal = (i: LineItem) => i.price * (1 + getMarkup(i.houtsoort) / 100) * i.qty * (1 - i.discount / 100) * itemArea(i);
+  const itemTotal = (i: LineItem) => itemSubtotal(i) * (1 + i.taxRate / 100);
+  const fmt = (n: number) => n.toLocaleString(currency === 'USD' ? 'en-US' : 'nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const subtotal = items.reduce((acc, item) => acc + itemSubtotal(item), 0);
+  const tax = items.reduce((acc, item) => acc + itemSubtotal(item) * item.taxRate / 100, 0);
+  const total = subtotal + tax;
+
   const handleSave = () => {
     const newErrors: Record<string, string> = {};
     if (!selectedClient) newErrors.clientId = 'Please select a client';
@@ -228,11 +240,12 @@ const CreateInvoicePage: React.FC = () => {
     if (invalidItems.length > 0) newErrors.itemValues = 'Alle artikelen moeten een geldige hoeveelheid en prijs hebben';
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
-    const num = isEdit ? docNumber : commitDocNumber('inv');
+
+    const num = isEdit ? (existingInvoice?.invoiceNumber || docNumber) : commitDocNumber('inv');
     setCommittedDocNumber(num);
     const clientObj = allClients.find(c => c.id === selectedClient);
-    const inv: Invoice = {
-      id: isEdit && editId ? editId : Math.random().toString(36).slice(2, 10),
+
+    const invoiceData = {
       invoiceNumber: num,
       clientId: selectedClient,
       clientName: clientObj?.name ?? selectedClient,
@@ -240,45 +253,39 @@ const CreateInvoicePage: React.FC = () => {
       dueDate,
       currency,
       exchangeRate,
+      subtotal,
+      taxRate: docTaxRate,
+      taxAmount: tax,
+      totalAmount: total,
+      status: 'Pending',
+      rep: selectedRep,
+      paidAmount: paidAmount > 0 ? paidAmount : 0,
       items: items.map(i => ({
         id: i.id,
-        productId: '',
         description: i.description,
         quantity: i.qty,
         unitPrice: i.price,
         total: itemTotal(i),
         taxRate: i.taxRate,
       })),
-      subtotal,
-      taxRate: docTaxRate,
-      taxAmount: tax,
-      totalAmount: total,
-      status: 'Pending',
     };
-    const existing = storage.invoices.get();
-    if (isEdit && editId) {
-      storage.invoices.save(existing.map(e => e.id === editId ? inv : e));
-    } else {
-      storage.invoices.save([...existing, inv]);
-    }
-    setSaved(true);
-    setShowPdfModal(true);
-  };
 
-  const itemArea = (i: LineItem) => (i.mmW && i.mmH) ? (i.mmW / 1000) * (i.mmH / 1000) : 1;
-  const itemSubtotal = (i: LineItem) => i.price * (1 + getMarkup(i.houtsoort) / 100) * i.qty * (1 - i.discount / 100) * itemArea(i);
-  const itemTotal = (i: LineItem) => itemSubtotal(i) * (1 + i.taxRate / 100);
-  // Locale-aware number formatter: USD → 1,234,567.89 · SRD/EUR → 1.234.567,89
-  const fmt = (n: number) => n.toLocaleString(currency === 'USD' ? 'en-US' : 'nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const subtotal = items.reduce((acc, item) => acc + itemSubtotal(item), 0);
-  const tax = items.reduce((acc, item) => acc + itemSubtotal(item) * item.taxRate / 100, 0);
-  const total = subtotal + tax;
+    if (isEdit && editId) {
+      updateInvoice.mutate({ id: editId, ...invoiceData }, {
+        onSuccess: () => { setSaved(true); setShowPdfModal(true); },
+      });
+    } else {
+      createInvoice.mutate(invoiceData, {
+        onSuccess: () => { setSaved(true); setShowPdfModal(true); },
+      });
+    }
+  };
 
   return (
     <>
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate('/invoices')} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold transition-all">
+        <button type="button" onClick={() => navigate('/invoices')} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold transition-all">
           <ArrowLeft size={18} /> Back to Invoices
         </button>
       </div>
@@ -333,6 +340,7 @@ const CreateInvoicePage: React.FC = () => {
             <div className="space-y-2">
               <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">Due Date</label>
               <input
+                aria-label="Due date"
                 type="date"
                 value={dueDate}
                 onChange={e => setDueDate(e.target.value)}
@@ -356,7 +364,7 @@ const CreateInvoicePage: React.FC = () => {
             {currency !== 'SRD' && (
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Exchange Rate (to SRD)</label>
-                <input type="number" step="0.01" value={exchangeRate}
+                <input aria-label="Exchange rate" type="number" step="0.01" value={exchangeRate}
                   onChange={e => setExchangeRate(parseFloat(e.target.value) || 1)}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none"/>
                 <p className="text-[10px] text-slate-400 font-medium">1 {currency} = SRD {(exchangeRate).toFixed(2)}</p>
@@ -375,6 +383,7 @@ const CreateInvoicePage: React.FC = () => {
                 <Banknote size={12} /> Partial Payment ({currencySymbol})
               </label>
               <input
+                aria-label="Partial payment amount"
                 type="number"
                 min={0}
                 step="0.01"
@@ -408,13 +417,13 @@ const CreateInvoicePage: React.FC = () => {
             <div className={`flex items-center gap-3 px-4 py-3 border rounded-2xl transition-all duration-200 ${showItemSearch ? 'border-blue-400 bg-white shadow-lg shadow-blue-50 ring-2 ring-blue-100' : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white'}`}>
               <Search size={15} className={`shrink-0 transition-colors ${showItemSearch ? 'text-blue-500' : 'text-slate-400'}`} />
               <input
+                aria-label="Search products and services"
                 type="text"
                 value={itemSearch}
                 onChange={e => {
                   const val = e.target.value;
                   setItemSearch(val);
                   setShowItemSearch(true);
-                  // Slash shortcut: exact match applies category
                   if (val.startsWith('/') && SLASH_MAP[val.slice(1).toLowerCase()]) {
                     setActiveCategory(SLASH_MAP[val.slice(1).toLowerCase()]);
                     setItemSearch('');
@@ -424,16 +433,15 @@ const CreateInvoicePage: React.FC = () => {
                 placeholder={activeCategory !== 'all' ? `Search in ${CATALOG_CATEGORIES.find(c=>c.id===activeCategory)?.label ?? activeCategory}…` : 'Search products & services…  or type  /  to filter by category'}
                 className="flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-slate-400 placeholder:font-normal"
               />
-              {/* Active category pill */}
               {activeCategory !== 'all' && (
                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full shrink-0">
                   <span className="text-xs">{CATALOG_CATEGORIES.find(c => c.id === activeCategory)?.icon}</span>
                   <span className="text-[10px] font-black">{CATALOG_CATEGORIES.find(c => c.id === activeCategory)?.label}</span>
-                  <button onClick={() => setActiveCategory('all')} className="hover:text-blue-900 transition-colors ml-0.5"><X size={10}/></button>
+                  <button type="button" aria-label="Clear category filter" onClick={() => setActiveCategory('all')} className="hover:text-blue-900 transition-colors ml-0.5"><X size={10}/></button>
                 </div>
               )}
               {itemSearch && (
-                <button onClick={() => setItemSearch('')} className="text-slate-300 hover:text-slate-600 transition-colors p-0.5 shrink-0"><X size={13}/></button>
+                <button type="button" aria-label="Clear search" onClick={() => setItemSearch('')} className="text-slate-300 hover:text-slate-600 transition-colors p-0.5 shrink-0"><X size={13}/></button>
               )}
               {!showItemSearch && (
                 <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 border border-slate-200 rounded text-[9px] font-black text-slate-400 bg-slate-100 shrink-0">/</kbd>
@@ -444,7 +452,6 @@ const CreateInvoicePage: React.FC = () => {
             {showItemSearch && (
               <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-2xl shadow-2xl mt-2 overflow-hidden animate-in fade-in zoom-in-[0.98] duration-150">
 
-                {/* ── Slash Command Mode ────────────────────────────────── */}
                 {isSlashMode ? (
                   <div className="p-3">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2">Filter by category</p>
@@ -453,7 +460,7 @@ const CreateInvoicePage: React.FC = () => {
                         const match = slashCmd === '' || cat.label.toLowerCase().startsWith(slashCmd) || cat.id.toLowerCase().startsWith(slashCmd);
                         if (!match) return null;
                         return (
-                          <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setItemSearch(''); }}
+                          <button type="button" key={cat.id} onClick={() => { setActiveCategory(cat.id); setItemSearch(''); }}
                             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-left group">
                             <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center text-lg group-hover:scale-110 transition-transform shrink-0">{cat.icon}</div>
                             <div className="flex-1">
@@ -468,10 +475,9 @@ const CreateInvoicePage: React.FC = () => {
                   </div>
                 ) : (
                   <>
-                    {/* ── Category Chips ────────────────────────────────── */}
                     <div className="flex gap-1.5 px-3 py-2.5 border-b border-slate-100 overflow-x-auto no-scrollbar">
                       {CATALOG_CATEGORIES.map(cat => (
-                        <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
+                        <button type="button" key={cat.id} onClick={() => setActiveCategory(cat.id)}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black whitespace-nowrap transition-all ${activeCategory === cat.id ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                           <span>{cat.icon}</span>
                           <span>{cat.label}</span>
@@ -482,7 +488,6 @@ const CreateInvoicePage: React.FC = () => {
                       ))}
                     </div>
 
-                    {/* ── Results (grouped) ─────────────────────────────── */}
                     <div className="max-h-72 overflow-y-auto no-scrollbar">
                       {filteredCatalog.length === 0 ? (
                         <div className="py-10 text-center">
@@ -502,7 +507,7 @@ const CreateInvoicePage: React.FC = () => {
                                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">⚙️ Services</p>
                                 </div>
                                 {services.map(item => (
-                                  <button key={item.id} onClick={() => addFromCatalog(item)}
+                                  <button type="button" key={item.id} onClick={() => addFromCatalog(item)}
                                     className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left group border-b border-slate-50 last:border-0">
                                     <div className="w-8 h-8 rounded-xl bg-purple-100 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
                                       <span className="text-base">⚙️</span>
@@ -526,7 +531,7 @@ const CreateInvoicePage: React.FC = () => {
                                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">📦 {cat}</p>
                                 </div>
                                 {catItems.map(item => (
-                                  <button key={item.id} onClick={() => addFromCatalog(item)}
+                                  <button type="button" key={item.id} onClick={() => addFromCatalog(item)}
                                     className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left group border-b border-slate-50 last:border-0">
                                     <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
                                       <span className="text-base">📦</span>
@@ -551,9 +556,8 @@ const CreateInvoicePage: React.FC = () => {
                   </>
                 )}
 
-                {/* Footer */}
                 <div className="border-t border-slate-100 bg-slate-50/50">
-                  <button onClick={addItem}
+                  <button type="button" onClick={addItem}
                     className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-slate-100 transition-colors text-sm font-black text-slate-600 text-left">
                     <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
                       <Plus size={12} className="text-emerald-600"/>
@@ -584,7 +588,6 @@ const CreateInvoicePage: React.FC = () => {
           {/* Line items table */}
           {items.length > 0 && (
             <div className="border border-slate-200 rounded-2xl overflow-hidden">
-              {/* Column header */}
               <div className="hidden md:grid md:grid-cols-[64px_76px_1fr_38px_64px_84px_110px_48px_110px] gap-1.5 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
                 {[
                   { label: 'Qty',       align: 'text-center' },
@@ -600,14 +603,12 @@ const CreateInvoicePage: React.FC = () => {
                   <p key={i} className={`text-[7px] font-black text-slate-400 uppercase tracking-widest ${align}`}>{label}</p>
                 ))}
               </div>
-              {items.map((item, idx) => (
+              {items.map((item) => (
                 <React.Fragment key={item.id}>
                 <div
                   className="relative flex flex-wrap md:grid md:grid-cols-[64px_76px_1fr_38px_64px_84px_110px_48px_110px] gap-1.5 items-center px-3 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
-                  {/* Qty */}
                   <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
                     className="w-full px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-xs font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
-                  {/* Wood type */}
                   {item.type === 'product' ? (
                     <div className="flex flex-row items-center gap-0.5 w-full">
                       <select value={item.houtsoort} onChange={e => updateItem(item.id,'houtsoort',e.target.value)} aria-label="Wood type"
@@ -619,47 +620,38 @@ const CreateInvoicePage: React.FC = () => {
                       )}
                     </div>
                   ) : <div className="hidden md:block"/>}
-                  {/* Description */}
                   <input value={item.description} onChange={e => updateItem(item.id,'description',e.target.value)}
                     placeholder="Description…"
                     className="flex-1 md:flex-none min-w-0 px-2 py-1 bg-transparent border border-transparent hover:border-slate-200 focus:border-blue-300 focus:bg-white rounded-lg text-xs font-medium outline-none transition-all placeholder:text-slate-300"/>
-                  {/* Unit */}
                   <input value={item.unit} onChange={e => updateItem(item.id,'unit',e.target.value)} aria-label="Unit" placeholder="PCS"
                     className="w-full px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-[10px] font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
-                  {/* BTW% — before Price */}
                   <select value={item.taxRate} onChange={e => updateItem(item.id,'taxRate',+e.target.value)} aria-label="BTW rate"
                     className="w-full px-1.5 py-1 border border-slate-200 bg-white rounded-lg text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 transition-all text-center">
                     <option value={0}>0%</option>
                     <option value={10}>10%</option>
                     <option value={21}>Std 21%</option>
                   </select>
-                  {/* Price */}
                   <div className="flex items-center gap-0.5 border border-slate-200 rounded-lg px-2 py-1 hover:border-slate-300 focus-within:border-blue-300 focus-within:bg-white transition-all">
                     <span className="text-[10px] text-slate-400 font-bold shrink-0">{currencySymbol}</span>
                     <input type="number" value={item.price} min={0} onChange={e => updateItem(item.id,'price',+e.target.value)} aria-label="Price"
                       className="flex-1 bg-transparent text-xs font-bold outline-none min-w-0 text-right"/>
                   </div>
-                  {/* Subtotaal (pre-tax) */}
                   <div className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-[10px] font-black text-right w-full">
                     {currencySymbol}{fmt(itemSubtotal(item))}
                   </div>
-                  {/* Discount */}
                   <div className="flex items-center gap-0.5 border border-slate-200 rounded-lg px-1.5 py-1 hover:border-slate-300 focus-within:border-blue-300 focus-within:bg-white transition-all">
                     <input type="number" value={item.discount} min={0} max={100} onChange={e => updateItem(item.id,'discount',+e.target.value)} aria-label="Discount"
                       className="flex-1 bg-transparent text-xs font-bold outline-none min-w-0 text-right"/>
                     <span className="text-[10px] text-slate-400 shrink-0">%</span>
                   </div>
-                  {/* Total (incl. markup + discount + tax) */}
                   <div className="px-2 py-1 bg-slate-900 text-white rounded-lg text-xs font-black text-right w-full">
                     {currencySymbol}{fmt(itemTotal(item))}
                   </div>
-                  {/* Delete — absolute overlay on hover */}
-                  <button onClick={() => removeItem(item.id)} title="Remove line"
+                  <button type="button" onClick={() => removeItem(item.id)} title="Remove line"
                     className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 bg-white/90 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all shadow-sm">
                     <Trash2 size={11}/>
                   </button>
                 </div>
-                {/* Measurement sub-row — only for m² product items */}
                 {item.unit === 'm²' && item.type === 'product' && (
                   <div className="flex items-center gap-2 flex-wrap pl-[188px] pr-4 pb-2.5 -mt-1 border-b border-slate-100 bg-slate-50/40">
                     <Ruler size={11} className="text-slate-400 shrink-0"/>
@@ -667,11 +659,13 @@ const CreateInvoicePage: React.FC = () => {
                     <input type="number" value={item.mmW ?? ''} min={0}
                       onChange={e => updateItem(item.id, 'mmW', +e.target.value)}
                       placeholder="Breedte"
+                      aria-label="Width in mm"
                       className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-center bg-white outline-none focus:border-blue-300"/>
                     <span className="text-slate-300 font-bold text-sm">×</span>
                     <input type="number" value={item.mmH ?? ''} min={0}
                       onChange={e => updateItem(item.id, 'mmH', +e.target.value)}
                       placeholder="Hoogte"
+                      aria-label="Height in mm"
                       className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-center bg-white outline-none focus:border-blue-300"/>
                     <span className="text-[10px] text-slate-400 font-bold">mm</span>
                     {item.mmW && item.mmH ? (
@@ -688,7 +682,7 @@ const CreateInvoicePage: React.FC = () => {
           )}
         </div>
 
-        {/* Bottom Summary Bar — Full Width */}
+        {/* Bottom Summary Bar */}
         <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl">
           <div className="flex flex-wrap items-center gap-6 justify-between">
             <div className="flex flex-wrap gap-8">
@@ -706,18 +700,19 @@ const CreateInvoicePage: React.FC = () => {
               </div>
             </div>
             <div className="flex flex-wrap gap-3">
-              <button className="flex items-center gap-2 px-5 py-2.5 bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/20 transition-all">
+              <button type="button" className="flex items-center gap-2 px-5 py-2.5 bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/20 transition-all">
                 <Send size={14} /> Send via Email
               </button>
               {isEdit && (
                 <button
+                  type="button"
                   onClick={() => navigate('/payments/new', { state: { fromInvoice: { invoiceId: editId, clientId: selectedClient, total } } })}
                   className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:opacity-90 transition-all active:scale-95 shadow-lg"
                 >
                   <Banknote size={14} /> Record Payment
                 </button>
               )}
-              <button onClick={handleSave} className="flex items-center gap-2 px-6 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:opacity-90 transition-all active:scale-95">
+              <button type="button" onClick={handleSave} className="flex items-center gap-2 px-6 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:opacity-90 transition-all active:scale-95">
                 {saved ? <Check size={14} /> : <Save size={14} />}
                 {saved ? 'Processing...' : 'Finalize Invoice'}
               </button>
@@ -765,7 +760,6 @@ const CreateInvoicePage: React.FC = () => {
       <QuickAddClientModal
         onClose={() => setShowAddClient(false)}
         onCreated={(client) => {
-          setClientRefresh(r => r + 1);
           setSelectedClient(client.id);
           setShowAddClient(false);
         }}
