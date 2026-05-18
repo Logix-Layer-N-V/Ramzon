@@ -225,7 +225,7 @@ const CreditsPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-400 tracking-tight">{c.date}</td>
                     <td className="px-6 py-4 text-right font-black text-blue-600 italic">
-                      {currencySymbol}{c.amount.toLocaleString()}
+                      {currencySymbol}{(c.amount ?? 0).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">

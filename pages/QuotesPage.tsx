@@ -400,7 +400,7 @@ const QuotesPage: React.FC = () => {
                       );
                     })()}
                   </td>
-                  <td className="px-6 py-4 font-black text-slate-900">{currencySymbol}{q.total.toLocaleString()}</td>
+                  <td className="px-6 py-4 font-black text-slate-900">{currencySymbol}{(q.total ?? 0).toLocaleString()}</td>
                   <td className="px-6 py-4 text-slate-500 font-bold">{q.date}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-widest ${getStatusStyle(q.status)}`}>

@@ -283,7 +283,7 @@ const ExpensesPage: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right font-black text-slate-900 italic">
-                    {currencySymbol}{ex.amount.toLocaleString()}
+                    {currencySymbol}{(ex.amount ?? 0).toLocaleString()}
                   </td>
                 </tr>
               ))}

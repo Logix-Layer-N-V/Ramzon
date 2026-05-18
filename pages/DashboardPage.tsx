@@ -29,13 +29,13 @@ const DashboardPage: React.FC = () => {
   const { data: clients = [] } = useClients();
 
   // KPI computations
-  const totalRevenue   = payments.reduce((sum, p) => sum + p.amount, 0);
-  const totalExpenses  = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const creditNotes    = credits.reduce((sum, c) => sum + c.amount, 0);
+  const totalRevenue   = payments.reduce((sum, p) => sum + (p.amount ?? 0), 0);
+  const totalExpenses  = expenses.reduce((sum, e) => sum + (e.amount ?? 0), 0);
+  const creditNotes    = credits.reduce((sum, c) => sum + (c.amount ?? 0), 0);
   const netProfit      = totalRevenue - totalExpenses - creditNotes;
 
   const openInvoices   = invoices.filter(i => i.status !== 'Paid' && i.status !== 'Cancelled');
-  const openInvoiceTotal = openInvoices.reduce((sum, i) => sum + i.totalAmount, 0);
+  const openInvoiceTotal = openInvoices.reduce((sum, i) => sum + (i.totalAmount ?? 0), 0);
 
   const openEstimates  = estimates.filter(e => e.status === 'Sent' || e.status === 'Draft');
 
@@ -126,7 +126,7 @@ const DashboardPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-6">
                     <div className="text-right">
-                      <p className="text-sm font-black text-slate-900">{currencySymbol}{inv.totalAmount.toLocaleString()}</p>
+                      <p className="text-sm font-black text-slate-900">{currencySymbol}{(inv.totalAmount ?? 0).toLocaleString()}</p>
                       <p className="text-[9px] text-orange-500 font-black uppercase tracking-widest italic">Action Required</p>
                     </div>
                     <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-950 transition-all" />
@@ -154,7 +154,7 @@ const DashboardPage: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-500 font-bold italic">Open Estimates Pipeline</span>
-                <span className="text-slate-900 font-black">{currencySymbol}{openEstimates.reduce((s, e) => s + e.total, 0).toLocaleString()}</span>
+                <span className="text-slate-900 font-black">{currencySymbol}{openEstimates.reduce((s, e) => s + (e.total ?? 0), 0).toLocaleString()}</span>
               </div>
               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                 <div className="h-full bg-brand-accent w-3/4" />
