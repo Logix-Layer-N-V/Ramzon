@@ -1,70 +1,86 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Building, Mail, Phone, MapPin, Save, Hash, Info, FileText, AlertCircle } from 'lucide-react';
+import { ArrowLeft, User, Building, Mail, Phone, MapPin, Save, Hash, Info, FileText } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
-import { mockClients } from '../lib/mock-data';
-import { storage } from '../lib/storage';
+import { useClient, useUpdateClient } from '../lib/hooks/useClients';
 
 const EditClientPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { enableCrypto } = useContext(LanguageContext);
-  const client = mockClients.find(c => c.id === id);
 
-  const [contactName, setContactName] = useState(client?.name || '');
-  const [company, setCompany] = useState(client?.company || '');
-  const [phone, setPhone] = useState(client?.phone || '');
-  const [email, setEmail] = useState(client?.email || '');
-  const [emailError, setEmailError] = useState(false);
-  const [btw, setBtw] = useState(client?.vatNumber || '');
-  const [address, setAddress] = useState(client?.address || '');
+  const { data: client, isLoading } = useClient(id ?? '');
+  const updateClient = useUpdateClient();
+
+  const [contactName, setContactName] = useState('');
+  const [company, setCompany] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [btw, setBtw] = useState('');
+  const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
-  const [preferredCurrency, setPreferredCurrency] = useState(client?.preferredCurrency || 'SRD');
+  const [preferredCurrency, setPreferredCurrency] = useState('SRD');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (client) {
+      setContactName(client.name);
+      setCompany(client.company || '');
+      setPhone(client.phone || '');
+      setEmail(client.email || '');
+      setBtw(client.vatNumber || '');
+      setAddress(client.address || '');
+      setPreferredCurrency(client.preferredCurrency || 'SRD');
+    }
+  }, [client]);
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-[60vh] text-slate-400 text-sm font-bold">Loading...</div>;
+  }
 
   if (!client) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400">
         <User size={48} className="mb-4 opacity-20" />
         <h2 className="text-xl font-bold">Client not found</h2>
-        <button onClick={() => navigate('/clients')} className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm">
+        <button type="button" onClick={() => navigate('/clients')} className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm">
           Back to CRM
         </button>
       </div>
     );
   }
 
-  const handleEmailChange = (val: string) => {
-    setEmail(val);
-    const exists = mockClients.some(c => c.email.toLowerCase() === val.toLowerCase() && c.id !== id);
-    setEmailError(exists);
-  };
-
-  const canSave = contactName.trim().length > 0 && !emailError;
+  const canSave = contactName.trim().length > 0 && !updateClient.isPending;
 
   const handleSave = () => {
-    if (!canSave) return;
-    // Persist updated client to storage
-    const existing = storage.clients.get();
-    const updated = existing.map(c =>
-      c.id === id
-        ? { ...c, name: contactName.trim(), company: company.trim(), phone: phone.trim(), email: email.trim(), vatNumber: btw.trim(), address: address.trim(), preferredCurrency }
-        : c
-    );
-    // If client was from mock data and not yet in storage, add it
-    if (!updated.find(c => c.id === id)) {
-      updated.push({ ...client, name: contactName.trim(), company: company.trim(), phone, email, vatNumber: btw, address, preferredCurrency });
-    }
-    storage.clients.save(updated);
-    navigate(`/clients/${id}`);
+    const newErrors: Record<string, string> = {};
+    if (!contactName.trim()) newErrors.name = 'Naam is verplicht';
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Ongeldig emailadres';
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
+
+    updateClient.mutate({
+      id: id!,
+      name: contactName.trim(),
+      company: company.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
+      vatNumber: btw.trim(),
+      address: address.trim(),
+      preferredCurrency,
+    }, {
+      onSuccess: () => navigate(`/clients/${id}`),
+    });
   };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate(`/clients/${id}`)} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-semibold text-sm transition-all">
+        <button type="button" onClick={() => navigate(`/clients/${id}`)} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-semibold text-sm transition-all">
           <ArrowLeft size={16} /> Cancel
         </button>
         <button
+          type="button"
           onClick={handleSave}
           disabled={!canSave}
           className={`px-8 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-2 ${
@@ -73,7 +89,7 @@ const EditClientPage: React.FC = () => {
             : 'bg-brand-primary text-white active:scale-95 hover:bg-red-800'
           }`}
         >
-          <Save size={18} /> Save Changes
+          <Save size={18} /> {updateClient.isPending ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
 
@@ -101,11 +117,12 @@ const EditClientPage: React.FC = () => {
                 type="text"
                 placeholder="Full name of contact person..."
                 value={contactName}
-                onChange={e => setContactName(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-brand-primary/20 focus:bg-white transition-all"
+                onChange={e => { setContactName(e.target.value); if (errors.name) setErrors(p => ({ ...p, name: '' })); }}
+                className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-brand-primary/20 focus:bg-white transition-all ${errors.name ? 'border-red-400' : 'border-slate-200'}`}
                 autoFocus
               />
-              {!contactName.trim() && (
+              {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+              {!contactName.trim() && !errors.name && (
                 <p className="text-[10px] text-slate-400 font-semibold">Required – name of the contact person</p>
               )}
             </div>
@@ -140,28 +157,21 @@ const EditClientPage: React.FC = () => {
 
             {/* 4. Email Address */}
             <div className="space-y-1.5">
-              <label className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 ${emailError ? 'text-red-500' : 'text-slate-500'}`}>
-                <Mail size={12} /> Email Address <span className="text-slate-300 text-[9px] normal-case font-normal">(unique key)</span>
+              <label className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 ${errors.email ? 'text-red-500' : 'text-slate-500'}`}>
+                <Mail size={12} /> Email Address <span className="text-slate-300 text-[9px] normal-case font-normal">(optional)</span>
               </label>
-              <div className="relative">
-                <input
-                  type="email"
-                  placeholder="client@company.sr"
-                  value={email}
-                  onChange={e => handleEmailChange(e.target.value)}
-                  className={`w-full px-4 py-2.5 border rounded-xl text-sm font-semibold outline-none transition-all ${
-                    emailError
-                    ? 'bg-red-50 border-red-200 focus:ring-2 focus:ring-red-100'
-                    : 'bg-slate-50 border-slate-200 focus:ring-2 focus:ring-brand-primary/20 focus:bg-white'
-                  }`}
-                />
-                {emailError && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500 flex items-center gap-1.5 animate-in fade-in zoom-in-95">
-                    <AlertCircle size={16} />
-                    <span className="text-[10px] font-black uppercase tracking-tight">Already used by another client</span>
-                  </div>
-                )}
-              </div>
+              <input
+                type="email"
+                placeholder="client@company.sr"
+                value={email}
+                onChange={e => { setEmail(e.target.value); if (errors.email) setErrors(p => ({ ...p, email: '' })); }}
+                className={`w-full px-4 py-2.5 border rounded-xl text-sm font-semibold outline-none transition-all ${
+                  errors.email
+                  ? 'bg-red-50 border-red-200 focus:ring-2 focus:ring-red-100'
+                  : 'bg-slate-50 border-slate-200 focus:ring-2 focus:ring-brand-primary/20 focus:bg-white'
+                }`}
+              />
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
             </div>
 
             {/* 5. Default Currency */}

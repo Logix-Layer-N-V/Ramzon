@@ -2,8 +2,7 @@ import React, { useState, useContext } from 'react';
 import { ArrowLeft, User, Building, Mail, Phone, MapPin, Save, Hash, Info, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
-import { storage } from '../lib/storage';
-import { ClientSchema } from '../lib/schemas';
+import { useCreateClient } from '../lib/hooks/useClients';
 
 const CreateClientPage: React.FC = () => {
   const navigate = useNavigate();
@@ -20,6 +19,7 @@ const CreateClientPage: React.FC = () => {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const canSave = contactName.trim().length > 0;
+  const createClient = useCreateClient();
 
   const handleSave = () => {
     const newErrors: Record<string, string> = {};
@@ -27,22 +27,19 @@ const CreateClientPage: React.FC = () => {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Ongeldig emailadres';
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
-    const existing = storage.clients.get();
-    const newClient = {
-      id: `c${Date.now()}`,
+    createClient.mutate({
       name: contactName.trim(),
       company: company.trim(),
       phone: phone.trim(),
       email: email.trim(),
       vatNumber: btw.trim(),
       address: address.trim(),
-      notes,
       totalSpent: 0,
-      status: 'Active' as const,
+      status: 'Active',
       preferredCurrency,
-    };
-    storage.clients.save([...existing, newClient]);
-    navigate('/clients');
+    }, {
+      onSuccess: () => navigate('/clients'),
+    });
   };
 
   return (

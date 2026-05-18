@@ -19,9 +19,13 @@ import {
   Pencil,
   FileText
 } from 'lucide-react';
-import { mockClients, mockInvoices, mockEstimates, mockPayments, mockCredits } from '../lib/mock-data';
 import { LanguageContext } from '../lib/context';
 import { Search, BarChart3 } from 'lucide-react';
+import { useClient } from '../lib/hooks/useClients';
+import { useInvoices } from '../lib/hooks/useInvoices';
+import { useEstimates } from '../lib/hooks/useEstimates';
+import { usePayments } from '../lib/hooks/usePayments';
+import { useCredits } from '../lib/hooks/useCredits';
 
 type ClientTab = 'overview' | 'estimates' | 'invoices' | 'payments' | 'credits';
 
@@ -37,24 +41,32 @@ const ClientDetailPage: React.FC = () => {
   const [currencyFilter, setCurrencyFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const client = mockClients.find(c => c.id === id);
+  const { data: client, isLoading } = useClient(id ?? '');
+  const { data: allInvoices = [] } = useInvoices();
+  const { data: allEstimates = [] } = useEstimates();
+  const { data: allPayments = [] } = usePayments();
+  const { data: allCredits = [] } = useCredits();
+
+  const clientInvoices = allInvoices.filter(i => i.clientId === id);
+  const clientEstimates = allEstimates.filter(e => e.clientId === id);
+  const clientPayments = allPayments.filter(p => p.clientId === id);
+  const clientCredits = allCredits.filter(c => c.clientId === id);
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-[60vh] text-slate-400 text-sm font-bold">Loading...</div>;
+  }
 
   if (!client) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400">
         <User size={48} className="mb-4 opacity-20" />
         <h2 className="text-xl font-bold">Client not found</h2>
-        <button onClick={() => navigate('/clients')} className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm">
+        <button type="button" onClick={() => navigate('/clients')} className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm">
           Back to CRM
         </button>
       </div>
     );
   }
-
-  const clientInvoices = mockInvoices.filter(i => i.clientId === id);
-  const clientEstimates = mockEstimates.filter(e => e.clientId === id);
-  const clientPayments = mockPayments.filter(p => p.clientId === id);
-  const clientCredits = mockCredits.filter(c => c.clientId === id);
 
 
   return (
@@ -164,7 +176,7 @@ const ClientDetailPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-12">
                     <div className="text-right">
-                      <p className="text-lg font-black text-slate-900 italic">{currencySymbol}{est.total.toLocaleString()}</p>
+                      <p className="text-lg font-black text-slate-900 italic">{currencySymbol}{est.totalAmount.toLocaleString()}</p>
                       <span className={`text-[8px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded-full border ${est.status === 'Accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>{est.status}</span>
                     </div>
                     <ArrowRight size={20} className="text-slate-200 group-hover:text-slate-900 group-hover:translate-x-1 transition-all" />

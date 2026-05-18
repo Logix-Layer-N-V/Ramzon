@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { X, UserPlus, Check } from 'lucide-react';
-import { storage } from '../lib/storage';
-import type { Client } from '../types';
+import { useCreateClient } from '../lib/hooks/useClients';
+import type { ClientRow } from '../lib/hooks/useClients';
 
 interface Props {
   onClose: () => void;
-  onCreated: (client: Client) => void;
+  onCreated: (client: ClientRow) => void;
 }
 
 const QuickAddClientModal: React.FC<Props> = ({ onClose, onCreated }) => {
@@ -16,6 +16,8 @@ const QuickAddClientModal: React.FC<Props> = ({ onClose, onCreated }) => {
   const [address, setAddress] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const createClient = useCreateClient();
+
   const handleSave = () => {
     const newErrors: Record<string, string> = {};
     if (!name.trim()) newErrors.name = 'Naam is verplicht';
@@ -23,23 +25,22 @@ const QuickAddClientModal: React.FC<Props> = ({ onClose, onCreated }) => {
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
-    const newClient: Client = {
-      id: `client-${Date.now()}`,
+    createClient.mutate({
       name: name.trim(),
       company: company.trim(),
       email: email.trim(),
-      phone: phone.trim() || undefined,
+      phone: phone.trim(),
       address: address.trim(),
       vatNumber: '',
       totalSpent: 0,
       status: 'Active',
       preferredCurrency: 'SRD',
-    };
-
-    const existing = storage.clients.get();
-    storage.clients.save([...existing, newClient]);
-    onCreated(newClient);
-    onClose();
+    }, {
+      onSuccess: (newClient) => {
+        onCreated(newClient);
+        onClose();
+      },
+    });
   };
 
   return (
@@ -122,14 +123,16 @@ const QuickAddClientModal: React.FC<Props> = ({ onClose, onCreated }) => {
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
-          <button onClick={onClose} className="px-4 py-2.5 text-slate-500 hover:text-slate-700 text-sm font-black uppercase tracking-widest transition-colors">
+          <button type="button" onClick={onClose} className="px-4 py-2.5 text-slate-500 hover:text-slate-700 text-sm font-black uppercase tracking-widest transition-colors">
             Annuleer
           </button>
           <button
+            type="button"
             onClick={handleSave}
-            className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-black uppercase tracking-widest hover:opacity-90 transition-all active:scale-95 shadow-lg"
+            disabled={createClient.isPending}
+            className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-black uppercase tracking-widest hover:opacity-90 transition-all active:scale-95 shadow-lg disabled:opacity-50"
           >
-            <Check size={14} /> Save & Select
+            <Check size={14} /> {createClient.isPending ? 'Saving...' : 'Save & Select'}
           </button>
         </div>
       </div>
