@@ -102,7 +102,7 @@ const ClientDetailPage: React.FC = () => {
               </span>
             </div>
             <div className="flex flex-wrap gap-4 items-center">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Client ID: <span className="text-slate-900">{client.id.toUpperCase()}</span></span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Client ID: <span className="text-slate-900">{(client.id ?? '').toUpperCase()}</span></span>
               <div className="w-1 h-1 bg-slate-200 rounded-full"></div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Type: <span className="text-slate-900">Professional Buyer</span></span>
             </div>
@@ -236,6 +236,7 @@ const ClientDetailPage: React.FC = () => {
             )}
 
             {activeTab === 'overview' && (() => {
+              try {
               const allTx = [
                 ...clientEstimates.map(e => ({ id: e.id, path: `/estimates/${e.id}`, type: 'Quote', number: e.estimateNumber, date: e.date, amount: e.total, status: e.status, currency: 'EUR', icon: ClipboardList, color: 'blue' })),
                 ...clientInvoices.map(i => ({ id: i.id, path: `/invoices/${i.id}`, type: 'Invoice', number: i.invoiceNumber, date: i.date, amount: i.totalAmount, status: i.status, currency: 'EUR', icon: Receipt, color: 'emerald' })),
@@ -299,6 +300,7 @@ const ClientDetailPage: React.FC = () => {
                   })}
                 </div>
               );
+              } catch { return <EmptyState icon={BarChart3} label="Could not load overview" />; }
             })()}
 
             {activeTab === 'credits' && (

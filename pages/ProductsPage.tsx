@@ -41,9 +41,9 @@ const ProductsPage: React.FC = () => {
 
   // Merge: DB products + any localStorage-only products not yet in DB
   const mergedProducts = useMemo(() => {
-    const dbNames = new Set(products.map(p => p.name.toLowerCase()));
+    const dbNames = new Set(products.map(p => (p.name ?? '').toLowerCase()));
     const localOnly = localProducts
-      .filter(p => !dbNames.has(p.name.toLowerCase()))
+      .filter(p => !dbNames.has((p.name ?? '').toLowerCase()))
       .map(p => ({
         id: p.id,
         name: p.name,
@@ -73,8 +73,8 @@ const ProductsPage: React.FC = () => {
   };
 
   const filtered = mergedProducts.filter(p => {
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.woodType.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = (p.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.woodType ?? '').toLowerCase().includes(search.toLowerCase());
     const matchCat = activeCategory === 'All' || (p as any).category === activeCategory;
     return matchSearch && matchCat;
   });
