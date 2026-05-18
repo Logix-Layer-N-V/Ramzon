@@ -47,6 +47,7 @@ const itemArea = (item: ModalLineItem) =>
 const PRINT_CSS = [
   '@media print {',
   '  .no-print { display: none !important; }',
+  '  .print-invisible { visibility: hidden !important; }',
   '  body > * { display: none !important; }',
   '  #pdf-document {',
   '    display: block !important;',
@@ -324,8 +325,8 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
           {(() => {
             type ColDef = { label: string; align: 'left' | 'center' | 'right'; width?: string; cell: (item: ModalLineItem, idx: number, area: number, lineTotal: number) => React.ReactNode };
             const allCols: Record<string, ColDef> = {
-              omschrijving: { label: 'Omschrijving', align: 'left',   cell: (item) => <span className="font-medium">{item.description || '—'}</span> },
-              afmeting:     { label: 'Afmeting',     align: 'center', width: '90px', cell: (item) => item.mmW && item.mmH ? `${item.mmW}×${item.mmH}` : '—' },
+              omschrijving: { label: 'Description',  align: 'left',   cell: (item) => <span className="font-medium">{item.description || '—'}</span> },
+              afmeting:     { label: 'Dimensions',   align: 'center', width: '90px', cell: (item) => item.mmW && item.mmH ? `${item.mmW}×${item.mmH}` : '—' },
               qty:          { label: 'Qty',          align: 'right',  width: '48px', cell: (item) => <span className="font-bold">{item.qty}</span> },
               eenheid:      { label: 'U/M',          align: 'center', width: '44px', cell: (item) => <span className="text-slate-500">{item.unit}</span> },
               houtsoort:    { label: 'Wood',         align: 'left',   width: '80px', cell: (item) => <span className="text-slate-600">{item.houtsoort || '—'}</span> },
@@ -343,7 +344,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                     {visCols.map(key => (
                       <th
                         key={key}
-                        className={`text-${allCols[key].align} py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white${key === 'subtotaal' || key === 'btw' ? ' no-print' : ''}`}
+                        className={`text-${allCols[key].align} py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white${key === 'subtotaal' || key === 'btw' ? ' no-print' : ''}${key === 'afmeting' ? ' print-invisible' : ''}`}
                         style={{ backgroundColor: accentColor, ...(allCols[key].width ? { width: allCols[key].width } : {}) }}
                       >
                         {allCols[key].label}
@@ -360,7 +361,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                       <React.Fragment key={item.id}>
                         <tr className={tblRowCls}>
                           {visCols.map(key => (
-                            <td key={key} className={`py-2.5 px-3 text-${allCols[key].align}${key === 'subtotaal' || key === 'btw' ? ' no-print' : ''}`}>
+                            <td key={key} className={`py-2.5 px-3 text-${allCols[key].align}${key === 'subtotaal' || key === 'btw' ? ' no-print' : ''}${key === 'afmeting' ? ' print-invisible' : ''}`}>
                               {allCols[key].cell(item, idx, area, lineTotal)}
                             </td>
                           ))}
