@@ -7,9 +7,13 @@ import {
   RotateCcw, ChevronDown, Calendar, Check, ArrowRight,
   CalendarDays, Target, Settings2, Receipt,
 } from 'lucide-react';
-import { storage } from '../lib/storage';
 import { LanguageContext } from '../lib/context';
-import { mockInvoices, mockEstimates, mockPayments, mockCredits, mockClients, mockExpenses } from '../lib/mock-data';
+import { useInvoices } from '../lib/hooks/useInvoices';
+import { useEstimates } from '../lib/hooks/useEstimates';
+import { usePayments } from '../lib/hooks/usePayments';
+import { useCredits } from '../lib/hooks/useCredits';
+import { useClients } from '../lib/hooks/useClients';
+import { useExpenses } from '../lib/hooks/useExpenses';
 
 type Period = 'month' | 'year' | 'all';
 type ReportType = 'sales' | 'estimates' | 'invoices' | 'payments' | 'credits' | 'profit_loss';
@@ -47,18 +51,13 @@ const FinanceReportsPage: React.FC = () => {
   const [isRunning, setIsRunning]             = useState(false);
   const [, setAppliedReportType]              = useState<ReportType>('sales');
 
-  // ── Raw data — merge localStorage + mock fallback ────────────────────────
-  const merge = <T extends { id: string }>(stored: T[], mock: T[]) => {
-    if (stored.length === 0) return mock;
-    const ids = new Set(stored.map(x => x.id));
-    return [...mock.filter(x => !ids.has(x.id)), ...stored];
-  };
-  const invoices  = useMemo(() => merge(storage.invoices.get(),  mockInvoices),  []);
-  const estimates = useMemo(() => merge(storage.estimates.get(), mockEstimates), []);
-  const payments  = useMemo(() => merge(storage.payments.get(),  mockPayments),  []);
-  const credits   = useMemo(() => merge(storage.credits.get(),   mockCredits),   []);
-  const clients   = useMemo(() => merge(storage.clients.get(),   mockClients),   []);
-  const expenses  = useMemo(() => merge(storage.expenses.get(),  mockExpenses),  []);
+  // ── Raw data from API ─────────────────────────────────────────────────────
+  const { data: invoices  = [] } = useInvoices();
+  const { data: estimates = [] } = useEstimates();
+  const { data: payments  = [] } = usePayments();
+  const { data: credits   = [] } = useCredits();
+  const { data: clients   = [] } = useClients();
+  const { data: expenses  = [] } = useExpenses();
 
   // ── Period filter ─────────────────────────────────────────────────────────
   const inPeriod = (dateStr: string) => {

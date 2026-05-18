@@ -2,8 +2,7 @@ import React, { useState, useRef, useContext } from 'react';
 import { ArrowLeft, Wallet, Tag, DollarSign, Calendar, Save, Check, Trash2, Paperclip, X, FileText, Image, Link2, ExternalLink, Store, AlertTriangle, PlusCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
-import { storage } from '../lib/storage';
-import type { Expense } from '../types';
+import { useCreateExpense } from '../lib/hooks/useExpenses';
 
 interface Attachment {
   name: string;
@@ -34,6 +33,7 @@ const CreateExpensePage: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [saved, setSaved] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const createExpense = useCreateExpense();
 
   // Vendors from localStorage (names only, saved by ExpenseVendorsPage)
   const [savedVendors] = useState<string[]>(() => {
@@ -65,21 +65,17 @@ const CreateExpensePage: React.FC = () => {
     if (!date) newErrors.date = 'Vul een datum in';
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
-    const newExpense: Expense = {
-      id: `exp-${Date.now()}`,
+    createExpense.mutate({
       category: category || 'Other',
-      vendor: selectedVendor || undefined,
+      vendor: selectedVendor || '',
       amount: parseFloat(amount) || 0,
       currency: 'SRD',
       date,
       description,
-      notes,
       status: 'Paid',
-    };
-    const existing = storage.expenses.get();
-    storage.expenses.save([...existing, newExpense]);
-    setSaved(true);
-    setTimeout(() => navigate('/expenses'), 1200);
+    }, {
+      onSuccess: () => { setSaved(true); setTimeout(() => navigate('/expenses'), 1200); },
+    });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

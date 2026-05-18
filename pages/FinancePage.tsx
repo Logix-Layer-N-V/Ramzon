@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Landmark, Globe2, Plus, Check, X, TrendingUp, TrendingDown, Wallet, DollarSign, Filter, Download, FileSpreadsheet, FileText, ChevronDown, ArrowDownLeft } from 'lucide-react';
 import { storage, toSRD } from '../lib/storage';
+import { usePayments } from '../lib/hooks/usePayments';
 import { exportCSV } from '../lib/csvExport';
 import type { BankAccount, ExchangeRate } from '../types';
 
@@ -55,7 +56,6 @@ const FinancePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<FinanceTab>('accounts');
   const [accounts, setAccounts] = useState<BankAccount[]>(getAccounts);
   const [rates, setRates] = useState<ExchangeRate[]>(getRates);
-  const [refresh, setRefresh] = useState(0);
 
   // Filter state (accounts tab)
   const [filterBank, setFilterBank] = useState('All');
@@ -72,7 +72,8 @@ const FinancePage: React.FC = () => {
   const uniqueBanks = ['All', ...Array.from(new Set(BANK_ACCOUNTS_DEFAULT.map(a => a.bank)))];
 
   // Load all payments for transactions tab
-  const allPayments = useMemo(() => storage.payments.get().sort((a, b) => b.date.localeCompare(a.date)), [refresh]);
+  const { data: rawPayments = [] } = usePayments();
+  const allPayments = useMemo(() => [...rawPayments].sort((a, b) => b.date.localeCompare(a.date)), [rawPayments]);
 
   const filteredAccounts = useMemo(() => accounts.filter(acc => {
     const bankOk = filterBank === 'All' || acc.bank === filterBank;

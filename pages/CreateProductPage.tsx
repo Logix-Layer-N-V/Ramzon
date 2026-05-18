@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Save, Check, Package, Ruler, Calculator, Box, Plus, Hash, ChevronRight, Pencil, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { storage } from '../lib/storage';
+import { useProduct, useCreateProduct, useUpdateProduct } from '../lib/hooks/useProducts';
 import type { DoorModel, DoorPriceEntry, WoodProduct } from '../types';
 
 // ─── Fallback lists (if localStorage is empty) ────────────────────────────────
@@ -60,6 +61,9 @@ const CreateProductPage: React.FC = () => {
   const { id } = useParams();
   const isEdit = !!id;
   const [saved, setSaved] = useState(false);
+  const { data: existingProduct } = useProduct(id ?? '');
+  const createProduct = useCreateProduct();
+  const updateProduct = useUpdateProduct();
 
   // ── Categories (from localStorage) ──────────────────────────────────────────
   const [categories] = useState<any[]>(() => {
@@ -131,20 +135,18 @@ const CreateProductPage: React.FC = () => {
 
   // ── Load existing product for edit ──────────────────────────────────────────
   useEffect(() => {
-    if (id) {
-      const p = storage.products.get().find((x: WoodProduct) => x.id === id);
-      if (p) {
-        setProductName(p.name); setHoutsoort(p.woodType);
-        setCategory(p.category || categories[0]?.name || 'Doors');
-        setPricePerUnit(p.pricePerUnit); setStock(p.stock);
-        setUnit(p.unit); setBreedte(p.width); setHoogte(p.length); setThickness(p.thickness);
-        if (p.sku) setSku(p.sku);
-        if (p.calculationType) setCalculationType(p.calculationType);
-        if ((p as any).description) setDescription((p as any).description);
-        if ((p as any).defaultTaxRate !== undefined) setDefaultTaxRate((p as any).defaultTaxRate);
-      }
+    if (existingProduct) {
+      const p = existingProduct as any;
+      setProductName(p.name); setHoutsoort(p.woodType || '');
+      setCategory(p.category || categories[0]?.name || 'Doors');
+      setPricePerUnit(p.pricePerUnit); setStock(p.stock);
+      setUnit(p.unit); setBreedte(p.width); setHoogte(p.length); setThickness(p.thickness);
+      if (p.sku) setSku(p.sku);
+      if (p.calculationType) setCalculationType(p.calculationType);
+      if (p.description) setDescription(p.description);
+      if (p.defaultTaxRate !== undefined) setDefaultTaxRate(p.defaultTaxRate);
     }
-  }, [id]);
+  }, [existingProduct]);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   const isDoor     = activeCat?.pricingType === 'm2';
@@ -190,13 +192,12 @@ const CreateProductPage: React.FC = () => {
       defaultTaxRate,
       ...(isDoor && { sku, modelId: selectedModel?.id }),
     };
-    const existing = storage.products.get();
+    const onSuccess = () => { setSaved(true); };
     if (id) {
-      storage.products.save(existing.map((p: WoodProduct) => p.id === id ? product : p));
+      updateProduct.mutate({ id, ...product }, { onSuccess });
     } else {
-      storage.products.save([...existing, product]);
+      createProduct.mutate(product, { onSuccess });
     }
-    setSaved(true);
     setTimeout(() => navigate('/products'), 1200);
   };
 

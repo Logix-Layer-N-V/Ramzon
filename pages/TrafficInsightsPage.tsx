@@ -6,8 +6,11 @@ import {
   CreditCard, Banknote, Smartphone, Coins, ArrowUpRight, ArrowDownRight,
   Minus, Package
 } from 'lucide-react';
-import { storage } from '../lib/storage';
 import { LanguageContext } from '../lib/context';
+import { useInvoices } from '../lib/hooks/useInvoices';
+import { usePayments } from '../lib/hooks/usePayments';
+import { useClients } from '../lib/hooks/useClients';
+import { useExpenses } from '../lib/hooks/useExpenses';
 
 type Period = 'month' | 'year' | 'all';
 
@@ -25,11 +28,11 @@ const TrafficInsightsPage: React.FC = () => {
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
 
-  // ── Raw data ──────────────────────────────────────────────────────────────
-  const invoices = useMemo(() => storage.invoices.get(), []);
-  const payments = useMemo(() => storage.payments.get(), []);
-  const clients  = useMemo(() => storage.clients.get(), []);
-  const expenses = useMemo(() => storage.expenses.get(), []);
+  // ── Raw data from API ─────────────────────────────────────────────────────
+  const { data: invoices = [] } = useInvoices();
+  const { data: payments = [] } = usePayments();
+  const { data: clients  = [] } = useClients();
+  const { data: expenses = [] } = useExpenses();
 
   // ── Period filter helper ──────────────────────────────────────────────────
   const inPeriod = (dateStr: string) => {

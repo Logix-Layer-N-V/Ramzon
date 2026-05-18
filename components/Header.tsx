@@ -25,8 +25,10 @@ import {
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
-import { storage } from '../lib/storage';
 import { useAuth } from '../lib/auth';
+import { useInvoices } from '../lib/hooks/useInvoices';
+import { useEstimates } from '../lib/hooks/useEstimates';
+import { useClients } from '../lib/hooks/useClients';
 
 interface HeaderProps {
   onLogout?: () => void;
@@ -44,6 +46,9 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const { data: allInvoices = [] } = useInvoices();
+  const { data: allEstimates = [] } = useEstimates();
+  const { data: allClients = [] } = useClients();
 
   // Ctrl+/ to toggle search overlay, Escape to close
   useEffect(() => {
@@ -129,13 +134,13 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
       {isSearchOpen && (() => {
         const q = searchQuery.toLowerCase();
         const invoiceResults = q.length >= 1
-          ? storage.invoices.get().filter(i => i.invoiceNumber.toLowerCase().includes(q) || i.clientName.toLowerCase().includes(q)).slice(0, 4)
+          ? allInvoices.filter(i => i.invoiceNumber.toLowerCase().includes(q) || i.clientName.toLowerCase().includes(q)).slice(0, 4)
           : [];
         const estimateResults = q.length >= 1
-          ? storage.estimates.get().filter(e => ((e as any).estimateNumber ?? '').toLowerCase().includes(q) || e.clientName.toLowerCase().includes(q)).slice(0, 4)
+          ? allEstimates.filter(e => ((e as any).estimateNumber ?? '').toLowerCase().includes(q) || e.clientName.toLowerCase().includes(q)).slice(0, 4)
           : [];
         const clientResults = q.length >= 1
-          ? storage.clients.get().filter(c => c.name.toLowerCase().includes(q) || c.company.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)).slice(0, 4)
+          ? allClients.filter(c => c.name.toLowerCase().includes(q) || c.company.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)).slice(0, 4)
           : [];
         const hasResults = invoiceResults.length + estimateResults.length + clientResults.length > 0;
 
