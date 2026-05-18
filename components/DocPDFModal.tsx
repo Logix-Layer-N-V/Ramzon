@@ -343,7 +343,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                     {visCols.map(key => (
                       <th
                         key={key}
-                        className={`text-${allCols[key].align} py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white`}
+                        className={`text-${allCols[key].align} py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white${key === 'subtotaal' || key === 'btw' ? ' no-print' : ''}`}
                         style={{ backgroundColor: accentColor, ...(allCols[key].width ? { width: allCols[key].width } : {}) }}
                       >
                         {allCols[key].label}
@@ -360,7 +360,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                       <React.Fragment key={item.id}>
                         <tr className={tblRowCls}>
                           {visCols.map(key => (
-                            <td key={key} className={`py-2.5 px-3 text-${allCols[key].align}`}>
+                            <td key={key} className={`py-2.5 px-3 text-${allCols[key].align}${key === 'subtotaal' || key === 'btw' ? ' no-print' : ''}`}>
                               {allCols[key].cell(item, idx, area, lineTotal)}
                             </td>
                           ))}
@@ -394,11 +394,11 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
             return (
               <div className="flex justify-end mb-8">
                 <div className="w-72">
-                  <div className="flex justify-between py-2 text-sm border-t border-slate-200">
+                  <div className="no-print flex justify-between py-2 text-sm border-t border-slate-200">
                     <span className="text-slate-500 font-medium">Subtotal</span>
                     <span className="font-bold">{currencySymbol}{subtotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between py-2 text-sm border-b border-slate-100">
+                  <div className="no-print flex justify-between py-2 text-sm border-b border-slate-100">
                     <span className="text-slate-500 font-medium">BTW</span>
                     <span className="font-bold">{currencySymbol}{tax.toFixed(2)}</span>
                   </div>

@@ -1,8 +1,9 @@
-import React, { useState, useContext, useMemo } from 'react';
+import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { LanguageContext } from '../lib/context';
 import { Search, Plus, Package, Ruler, Pencil, Trash2, Settings2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useProducts, useDeleteProduct, ProductRow } from '../lib/hooks/useProducts';
+import { useProducts, useDeleteProduct, useCreateProduct, ProductRow } from '../lib/hooks/useProducts';
+import { storage } from '../lib/storage';
 
 const CATEGORIES = ['All', 'Doors', 'Mouldings', 'Frames', 'Window Frames', 'Crating'];
 
@@ -12,9 +13,53 @@ const ProductsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const { data: products = [], isLoading } = useProducts();
+  const createProduct = useCreateProduct();
 
   const [sortKey, setSortKey] = useState<string>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const localProducts = useMemo(() => storage.products.get(), []);
+
+  // One-time migration: push localStorage products to DB
+  useEffect(() => {
+    if (isLoading || localStorage.getItem('erp_products_migrated')) return;
+    const local = storage.products.get();
+    if (local.length === 0) return;
+    localStorage.setItem('erp_products_migrated', '1');
+    local.forEach(p => {
+      createProduct.mutate({
+        name: p.name,
+        woodType: p.woodType || '',
+        unit: p.unit || 'pcs',
+        pricePerUnit: p.pricePerUnit || 0,
+        stock: p.stock || 0,
+        category: (p as any).category || '',
+        sku: (p as any).sku || '',
+      });
+    });
+  }, [isLoading]);
+
+  // Merge: DB products + any localStorage-only products not yet in DB
+  const mergedProducts = useMemo(() => {
+    const dbNames = new Set(products.map(p => p.name.toLowerCase()));
+    const localOnly = localProducts
+      .filter(p => !dbNames.has(p.name.toLowerCase()))
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        woodType: p.woodType || '',
+        unit: p.unit || 'pcs',
+        pricePerUnit: p.pricePerUnit || 0,
+        stock: p.stock || 0,
+        category: (p as any).category || '',
+        sku: (p as any).sku || '',
+        createdAt: '',
+        thickness: p.thickness,
+        width: p.width,
+        length: p.length,
+      } as ProductRow & { thickness?: number; width?: number; length?: number }));
+    return [...products, ...localOnly];
+  }, [products, localProducts]);
 
   const handleSort = (key: string) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -27,7 +72,7 @@ const ProductsPage: React.FC = () => {
     deleteProduct.mutate(id);
   };
 
-  const filtered = products.filter(p => {
+  const filtered = mergedProducts.filter(p => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.woodType.toLowerCase().includes(search.toLowerCase());
     const matchCat = activeCategory === 'All' || (p as any).category === activeCategory;
@@ -152,7 +197,7 @@ const ProductsPage: React.FC = () => {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1 rounded-lg w-fit">
                       <Ruler size={12} />
-                      {p.thickness > 0 ? `${p.thickness} × ` : ''}{p.width} × {p.length}
+                      {(p as any).thickness > 0 ? `${(p as any).thickness} × ` : ''}{(p as any).width ?? '—'} × {(p as any).length ?? '—'}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-center font-black text-slate-400 italic">{p.unit}</td>
@@ -190,9 +235,9 @@ const ProductsPage: React.FC = () => {
             <div className="py-16 text-center">
               <Package size={40} className="mx-auto mb-3 text-slate-200" />
               <p className="font-bold text-sm text-slate-400">
-                {products.length === 0 ? 'No products yet' : 'No products match your filter'}
+                {mergedProducts.length === 0 ? 'No products yet' : 'No products match your filter'}
               </p>
-              {products.length === 0 && (
+              {mergedProducts.length === 0 && (
                 <button
                   onClick={() => navigate('/products/new')}
                   className="mt-4 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black hover:bg-slate-800 transition-all"
