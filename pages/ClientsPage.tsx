@@ -38,8 +38,8 @@ const ClientsPage: React.FC = () => {
   };
 
   const filteredClients = allClients.filter(c =>
-    c.company.toLowerCase().includes(search.toLowerCase()) ||
-    c.name.toLowerCase().includes(search.toLowerCase())
+    (c.company ?? '').toLowerCase().includes(search.toLowerCase()) ||
+    (c.name ?? '').toLowerCase().includes(search.toLowerCase())
   );
 
   const sorted = useMemo(() => {
@@ -190,7 +190,7 @@ const ClientsPage: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-5 text-right">
-                    <p className="font-bold text-slate-900">{currencySymbol}{c.totalSpent.toLocaleString()}</p>
+                    <p className="font-bold text-slate-900">{currencySymbol}{(c.totalSpent ?? 0).toLocaleString()}</p>
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Verified</p>
                   </td>
                   <td className="px-6 py-5 text-right">

@@ -330,8 +330,8 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
               qty:          { label: 'Qty',          align: 'right',  width: '48px', cell: (item) => <span className="font-bold">{item.qty}</span> },
               eenheid:      { label: 'U/M',          align: 'center', width: '44px', cell: (item) => <span className="text-slate-500">{item.unit}</span> },
               houtsoort:    { label: 'Wood',         align: 'left',   width: '80px', cell: (item) => <span className="text-slate-600">{item.houtsoort || '—'}</span> },
-              prijs:        { label: 'Rate',         align: 'right',  width: '72px', cell: (item) => `${currencySymbol}${item.price.toFixed(2)}` },
-              subtotaal:    { label: 'Subtotal',     align: 'right',  width: '80px', cell: (_item, _idx, _area, lineTotal) => `${currencySymbol}${lineTotal.toFixed(2)}` },
+              prijs:        { label: 'Rate',         align: 'right',  width: '72px', cell: (item) => `${currencySymbol}${(item.price ?? 0).toFixed(2)}` },
+              subtotaal:    { label: 'Subtotal',     align: 'right',  width: '80px', cell: (_item, _idx, _area, lineTotal) => `${currencySymbol}${(lineTotal ?? 0).toFixed(2)}` },
               btw:          { label: 'BTW%',         align: 'center', width: '48px', cell: (item) => `${item.taxRate ?? 10}%` },
               totaal:       { label: 'Amount',       align: 'right',  width: '80px', cell: (item, _idx, _area, lineTotal) => <span className="font-black">{currencySymbol}{(lineTotal * (1 + (item.taxRate ?? 10) / 100)).toFixed(2)}</span> },
             };
@@ -397,15 +397,15 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                 <div className="w-72">
                   <div className="no-print flex justify-between py-2 text-sm border-t border-slate-200">
                     <span className="text-slate-500 font-medium">Subtotal</span>
-                    <span className="font-bold">{currencySymbol}{subtotal.toFixed(2)}</span>
+                    <span className="font-bold">{currencySymbol}{(subtotal ?? 0).toFixed(2)}</span>
                   </div>
                   <div className="no-print flex justify-between py-2 text-sm border-b border-slate-100">
                     <span className="text-slate-500 font-medium">BTW</span>
-                    <span className="font-bold">{currencySymbol}{tax.toFixed(2)}</span>
+                    <span className="font-bold">{currencySymbol}{(tax ?? 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between py-3 border-t-2" style={{ borderColor: accentColor }}>
                     <span className="font-black text-base" style={{ color: accentColor }}>TOTAL ({currency})</span>
-                    <span className="font-black text-base" style={{ color: accentColor }}>{currencySymbol}{total.toFixed(2)}</span>
+                    <span className="font-black text-base" style={{ color: accentColor }}>{currencySymbol}{(total ?? 0).toFixed(2)}</span>
                   </div>
 
                   {/* ── Multi-currency equivalents ── */}
