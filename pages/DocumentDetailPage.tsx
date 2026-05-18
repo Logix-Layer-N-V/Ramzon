@@ -22,6 +22,7 @@ import {
   Copy,
   Trash2,
   MessageSquareText,
+  Truck,
 } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
 import { storage, getLatestExchangeRate, toSRD, NoteTemplate } from '../lib/storage';
@@ -34,6 +35,7 @@ import { usePayments, usePayment, useCreatePayment, useDeletePayment } from '../
 import { useCredit, useDeleteCredit } from '../lib/hooks/useCredits';
 import { useExpense, useDeleteExpense } from '../lib/hooks/useExpenses';
 import DocPDFModal from '../components/DocPDFModal';
+import DeliveryNoteModal from '../components/DeliveryNoteModal';
 
 const BANK_ACCOUNTS_DEFAULT: BankAccount[] = [
   { id: 'dsb_srd', bank: 'DSB Bank', currency: 'SRD', iban: 'SR29DSB0000001234', balance: 45230 },
@@ -75,6 +77,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer');
   const [paymentBankId, setPaymentBankId] = useState('dsb_srd');
+  const [showDeliveryNote, setShowDeliveryNote] = useState(false);
 
   const { data: allClients = [] } = useClients();
   const { data: invoiceData } = useInvoice(type === 'invoices' ? (id ?? '') : '');
@@ -235,6 +238,9 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
           {/* Icon-only utility buttons — blue tinted */}
           <button title="Print"    onClick={() => setShowPdfModal(true)} className="w-9 h-9 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm active:scale-95"><Printer  size={15} /></button>
           <button title="Download" onClick={() => setShowPdfModal(true)} className="w-9 h-9 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm active:scale-95"><Download size={15} /></button>
+          {type === 'invoices' && (
+            <button title="Afleverbon" onClick={() => setShowDeliveryNote(true)} className="w-9 h-9 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm active:scale-95"><Truck size={15} /></button>
+          )}
           {type !== 'reports' && (<>
             <button
               title="Edit"
@@ -712,6 +718,26 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
               </button>
             </div>
           </div>
+        );
+      })()}
+
+      {/* ── Afleverbon Modal ── */}
+      {showDeliveryNote && type === 'invoices' && (() => {
+        const d = docData as any;
+        return (
+          <DeliveryNoteModal
+            invoiceNumber={d.invoiceNumber ?? d.id ?? '—'}
+            date={d.date ?? ''}
+            clientName={client?.name ?? ''}
+            clientCompany={client?.company}
+            clientAddress={(client as any)?.address}
+            items={(d.items ?? []).map((i: any) => ({
+              description: i.description ?? '',
+              qty: i.quantity ?? i.qty ?? 1,
+              unit: i.um ?? i.unit ?? 'st',
+            }))}
+            onClose={() => setShowDeliveryNote(false)}
+          />
         );
       })()}
 

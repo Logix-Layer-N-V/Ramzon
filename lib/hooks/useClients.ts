@@ -17,12 +17,18 @@ export interface ClientRow {
 export const useClients = () =>
   useQuery<ClientRow[]>({ queryKey: ['clients'], queryFn: () => api.get('/clients').then(r => r.data) });
 
-export const useClient = (id: string) =>
-  useQuery<ClientRow>({
+export const useClient = (id: string) => {
+  const qc = useQueryClient();
+  return useQuery<ClientRow>({
     queryKey: ['clients', id],
     queryFn: () => api.get(`/clients/${id}`).then(r => r.data),
     enabled: !!id,
+    // Serve immediately from list cache when available — avoids a round-trip and the
+    // "not found" flash that occurs when the individual-client query hasn't settled yet.
+    initialData: () => qc.getQueryData<ClientRow[]>(['clients'])?.find(c => c.id === id),
+    initialDataUpdatedAt: () => qc.getQueryState(['clients'])?.dataUpdatedAt,
   });
+};
 
 export const useCreateClient = () => {
   const qc = useQueryClient();

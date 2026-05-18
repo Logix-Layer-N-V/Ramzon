@@ -14,8 +14,10 @@ import {
   CheckCircle2,
   Users,
   ArrowUpRight,
-  ExternalLink
+  ExternalLink,
+  Upload,
 } from 'lucide-react';
+import ClientImportModal from '../components/ClientImportModal';
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
 import { useClients } from '../lib/hooks/useClients';
@@ -26,6 +28,7 @@ const ClientsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<string>('company');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [showImport, setShowImport] = useState(false);
 
   const { data: allClients = [], isLoading } = useClients();
 
@@ -77,12 +80,22 @@ const ClientsPage: React.FC = () => {
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Customer Relationship Management</h1>
           <p className="text-sm font-semibold text-slate-500">Manage your business relations and order history</p>
         </div>
-        <button 
-          onClick={() => navigate('/clients/new')}
-          className="bg-brand-primary text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-slate-800 transition-all flex items-center gap-2 shadow-md active:scale-95"
-        >
-          <Plus size={18} /> New Client
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all active:scale-95"
+          >
+            <Upload size={14} /> Import CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/clients/new')}
+            className="bg-brand-primary text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-slate-800 transition-all flex items-center gap-2 shadow-md active:scale-95"
+          >
+            <Plus size={18} /> New Client
+          </button>
+        </div>
       </div>
 
       {/* KPI Row */}
@@ -205,6 +218,12 @@ const ClientsPage: React.FC = () => {
           </div>
         </div>
       </div>
+      {showImport && (
+        <ClientImportModal
+          onClose={() => setShowImport(false)}
+          onImported={() => setShowImport(false)}
+        />
+      )}
     </div>
   );
 };

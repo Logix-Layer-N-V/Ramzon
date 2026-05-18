@@ -164,8 +164,8 @@ async function handleClients(req: VercelRequest, res: VercelResponse, id: string
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
-      const { name, company, email, vat_number, address, phone, status } = b;
-      const rows = await sql`UPDATE clients SET name=${name},company=${company},email=${email},vat_number=${vat_number},address=${address},phone=${phone},status=${status} WHERE id=${id} RETURNING *`;
+      const { name, company, email, vat_number, address, phone, preferred_currency, status } = b;
+      const rows = await sql`UPDATE clients SET name=${name},company=${company},email=${email},vat_number=${vat_number},address=${address},phone=${phone},preferred_currency=${preferred_currency ?? 'USD'},status=${status ?? 'Active'} WHERE id=${id} RETURNING *`;
       return res.json(toCamel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
