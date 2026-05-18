@@ -114,8 +114,8 @@ const InvoicesPage: React.FC = () => {
 
   const filtered = allInvoices.filter(inv => {
     const matchSearch =
-      inv.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
-      inv.clientName.toLowerCase().includes(search.toLowerCase());
+      (inv.invoiceNumber ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (inv.clientName ?? '').toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'All' || inv.status === filterStatus;
     return matchSearch && matchStatus;
   });
@@ -133,9 +133,9 @@ const InvoicesPage: React.FC = () => {
     });
   }, [filtered, sortKey, sortDir]);
 
-  const totalPaid    = filtered.filter(i => i.status === 'Paid').reduce((s, i) => s + i.totalAmount, 0);
-  const totalPending = filtered.filter(i => i.status === 'Pending').reduce((s, i) => s + i.totalAmount, 0);
-  const totalOverdue = filtered.filter(i => i.status === 'Overdue').reduce((s, i) => s + i.totalAmount, 0);
+  const totalPaid    = filtered.filter(i => i.status === 'Paid').reduce((s, i) => s + (i.totalAmount ?? 0), 0);
+  const totalPending = filtered.filter(i => i.status === 'Pending').reduce((s, i) => s + (i.totalAmount ?? 0), 0);
+  const totalOverdue = filtered.filter(i => i.status === 'Overdue').reduce((s, i) => s + (i.totalAmount ?? 0), 0);
 
   const SortTh = ({ col, label, className }: { col: string; label: string; className?: string }) => (
     <th
@@ -362,7 +362,7 @@ const InvoicesPage: React.FC = () => {
                       );
                     })()}
                   </td>
-                  <td className="px-6 py-4 font-black text-slate-900">{currencySymbol}{inv.totalAmount.toLocaleString()}</td>
+                  <td className="px-6 py-4 font-black text-slate-900">{currencySymbol}{(inv.totalAmount ?? 0).toLocaleString()}</td>
                   <td className="px-6 py-4 text-slate-500 font-bold">{inv.dueDate}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-widest ${getStatusStyle(inv.status)}`}>
@@ -414,7 +414,7 @@ const InvoicesPage: React.FC = () => {
             {filtered.length} invoice{filtered.length !== 1 ? 's' : ''} found
           </p>
           <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-            {t('total')}: {currencySymbol}{filtered.reduce((s, i) => s + i.totalAmount, 0).toLocaleString()}
+            {t('total')}: {currencySymbol}{filtered.reduce((s, i) => s + (i.totalAmount ?? 0), 0).toLocaleString()}
           </p>
         </div>
       </div>
