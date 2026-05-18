@@ -108,7 +108,7 @@ const ClientDetailPage: React.FC = () => {
             </div>
           </div>
           <div className="text-right bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 shadow-inner">
-            <p className="text-3xl font-black text-slate-900 italic">{currencySymbol}{client.totalSpent.toLocaleString()}</p>
+            <p className="text-3xl font-black text-slate-900 italic">{currencySymbol}{(client.totalSpent ?? 0).toLocaleString()}</p>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">{t('totalRevenue')}</p>
           </div>
         </div>
@@ -176,7 +176,7 @@ const ClientDetailPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-12">
                     <div className="text-right">
-                      <p className="text-lg font-black text-slate-900 italic">{currencySymbol}{est.totalAmount.toLocaleString()}</p>
+                      <p className="text-lg font-black text-slate-900 italic">{currencySymbol}{(est.total ?? 0).toLocaleString()}</p>
                       <span className={`text-[8px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded-full border ${est.status === 'Accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>{est.status}</span>
                     </div>
                     <ArrowRight size={20} className="text-slate-200 group-hover:text-slate-900 group-hover:translate-x-1 transition-all" />
@@ -201,7 +201,7 @@ const ClientDetailPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-12">
                     <div className="text-right">
-                      <p className="text-lg font-black text-slate-900 italic">{currencySymbol}{inv.totalAmount.toLocaleString()}</p>
+                      <p className="text-lg font-black text-slate-900 italic">{currencySymbol}{(inv.totalAmount ?? 0).toLocaleString()}</p>
                       <span className={`text-[8px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded-full border ${inv.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>{inv.status}</span>
                     </div>
                     <ArrowRight size={20} className="text-slate-200 group-hover:text-slate-900 group-hover:translate-x-1 transition-all" />
@@ -226,7 +226,7 @@ const ClientDetailPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-8">
                     <div className="text-right">
-                      <p className="text-xl font-black text-emerald-600 italic">+{currencySymbol}{pay.amount.toLocaleString()}</p>
+                      <p className="text-xl font-black text-emerald-600 italic">+{currencySymbol}{(pay.amount ?? 0).toLocaleString()}</p>
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">{pay.date}</p>
                     </div>
                     <ArrowRight size={20} className="text-slate-200 group-hover:text-slate-900 group-hover:translate-x-1 transition-all" />
@@ -292,7 +292,7 @@ const ClientDetailPage: React.FC = () => {
                         <div className="col-span-3 font-black text-slate-900 italic">{tx.number}</div>
                         <div className="col-span-2 text-slate-400 font-bold">{tx.date}</div>
                         <div className="col-span-2 font-bold text-slate-500">{tx.currency}</div>
-                        <div className="col-span-2 text-right font-black text-slate-900">{currencySymbol}{tx.amount.toLocaleString()}</div>
+                        <div className="col-span-2 text-right font-black text-slate-900">{currencySymbol}{(tx.amount ?? 0).toLocaleString()}</div>
                         <div className="col-span-1 text-center"><span className="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">{tx.status}</span></div>
                       </div>
                     );
@@ -317,7 +317,7 @@ const ClientDetailPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-8">
                     <div className="text-right">
-                      <p className="text-xl font-black text-blue-600 italic">{currencySymbol}{c.amount.toLocaleString()}</p>
+                      <p className="text-xl font-black text-blue-600 italic">{currencySymbol}{(c.amount ?? 0).toLocaleString()}</p>
                       <span className="text-[8px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">{c.status}</span>
                     </div>
                     <ArrowRight size={20} className="text-slate-200 group-hover:text-slate-900 group-hover:translate-x-1 transition-all" />
