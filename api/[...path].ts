@@ -63,8 +63,21 @@ function fromBody(body: unknown): Record<string, unknown> {
   return out;
 }
 
+const NUMERIC_KEYS = /^(total|subtotal|quantity|qty|price|stock|amount|tax|paid|spent|rate|balance|cost|pricePerUnit)$|(Amount|Total|Price|Stock|Qty|Tax|Paid|Spent|Rate|Balance|Cost|Quantity)$/;
+
+function sanitizeNulls(obj: Record<string, unknown>): Record<string, unknown> {
+  for (const k of Object.keys(obj)) {
+    if (obj[k] === null) obj[k] = NUMERIC_KEYS.test(k) ? 0 : '';
+  }
+  return obj;
+}
+
+function row2camel(r: unknown): Record<string, unknown> {
+  return sanitizeNulls(toCamel(r as Record<string, unknown>));
+}
+
 function rows2camel(rows: unknown[]): Record<string, unknown>[] {
-  return rows.map(r => toCamel(r as Record<string, unknown>));
+  return rows.map(row2camel);
 }
 
 /* ── Main handler ───────────────────────────────────────────────────────── */
@@ -154,19 +167,19 @@ async function handleClients(req: VercelRequest, res: VercelResponse, id: string
       const b = fromBody(req.body);
       const { name, company = '', email = '', vat_number = '', address = '', phone = '', preferred_currency = 'USD' } = b;
       const rows = await sql`INSERT INTO clients (name,company,email,vat_number,address,phone,preferred_currency) VALUES (${name},${company},${email},${vat_number},${address},${phone},${preferred_currency}) RETURNING *`;
-      return res.status(201).json(toCamel(rows[0] as Record<string, unknown>));
+      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
     }
   } else {
     if (m === 'GET') {
       const rows = await sql`SELECT * FROM clients WHERE id=${id}`;
-      return rows[0] ? res.json(toCamel(rows[0] as Record<string, unknown>)) : res.status(404).json({ error: 'Not found' });
+      return rows[0] ? res.json(row2camel(rows[0] as Record<string, unknown>)) : res.status(404).json({ error: 'Not found' });
     }
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
       const { name, company, email, vat_number, address, phone, preferred_currency, status } = b;
       const rows = await sql`UPDATE clients SET name=${name},company=${company},email=${email},vat_number=${vat_number},address=${address},phone=${phone},preferred_currency=${preferred_currency ?? 'USD'},status=${status ?? 'Active'} WHERE id=${id} RETURNING *`;
-      return res.json(toCamel(rows[0] as Record<string, unknown>));
+      return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
@@ -203,21 +216,21 @@ async function handleInvoices(req: VercelRequest, res: VercelResponse, id: strin
         const tot = item.total ?? 0;
         await sql`INSERT INTO invoice_items (invoice_id,description,quantity,unit_price,total) VALUES (${inv.id},${desc},${qty},${price},${tot})`;
       }
-      return res.status(201).json(toCamel(inv as Record<string, unknown>));
+      return res.status(201).json(row2camel(inv as Record<string, unknown>));
     }
   } else {
     if (m === 'GET') {
       const rows = await sql`SELECT * FROM invoices WHERE id=${id}`;
       if (!rows[0]) return res.status(404).json({ error: 'Not found' });
       const items = await sql`SELECT * FROM invoice_items WHERE invoice_id=${id}`;
-      return res.json(toCamel({ ...(rows[0] as Record<string, unknown>), items: rows2camel(items as unknown[]) }));
+      return res.json(row2camel({ ...(rows[0] as Record<string, unknown>), items: rows2camel(items as unknown[]) }));
     }
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
       const { status, paid_amount, notes } = b;
       const rows = await sql`UPDATE invoices SET status=${status},paid_amount=${paid_amount},notes=${notes} WHERE id=${id} RETURNING *`;
-      return res.json(toCamel(rows[0] as Record<string, unknown>));
+      return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
@@ -254,21 +267,21 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
         const tot = item.total ?? 0;
         await sql`INSERT INTO estimate_items (estimate_id,description,quantity,unit_price,total) VALUES (${est.id},${desc},${qty},${price},${tot})`;
       }
-      return res.status(201).json(toCamel(est as Record<string, unknown>));
+      return res.status(201).json(row2camel(est as Record<string, unknown>));
     }
   } else {
     if (m === 'GET') {
       const rows = await sql`SELECT * FROM estimates WHERE id=${id}`;
       if (!rows[0]) return res.status(404).json({ error: 'Not found' });
       const items = await sql`SELECT * FROM estimate_items WHERE estimate_id=${id}`;
-      return res.json(toCamel({ ...(rows[0] as Record<string, unknown>), items: rows2camel(items as unknown[]) }));
+      return res.json(row2camel({ ...(rows[0] as Record<string, unknown>), items: rows2camel(items as unknown[]) }));
     }
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
       const { status, notes } = b;
       const rows = await sql`UPDATE estimates SET status=${status},notes=${notes} WHERE id=${id} RETURNING *`;
-      return res.json(toCamel(rows[0] as Record<string, unknown>));
+      return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
@@ -292,19 +305,19 @@ async function handlePayments(req: VercelRequest, res: VercelResponse, id: strin
       const b = fromBody(req.body);
       const { client_id, invoice_id, amount, currency = 'USD', date, method = '', reference = '', notes = '' } = b;
       const rows = await sql`INSERT INTO payments (client_id,invoice_id,amount,currency,date,method,reference,notes) VALUES (${client_id},${invoice_id},${amount},${currency},${date},${method},${reference},${notes}) RETURNING *`;
-      return res.status(201).json(toCamel(rows[0] as Record<string, unknown>));
+      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
     }
   } else {
     if (m === 'GET') {
       const rows = await sql`SELECT * FROM payments WHERE id=${id}`;
-      return rows[0] ? res.json(toCamel(rows[0] as Record<string, unknown>)) : res.status(404).json({ error: 'Not found' });
+      return rows[0] ? res.json(row2camel(rows[0] as Record<string, unknown>)) : res.status(404).json({ error: 'Not found' });
     }
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin', 'Sales', 'Accountant'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
       const { method, reference, notes } = b;
       const rows = await sql`UPDATE payments SET method=${method},reference=${reference},notes=${notes} WHERE id=${id} RETURNING *`;
-      return res.json(toCamel(rows[0] as Record<string, unknown>));
+      return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
@@ -328,19 +341,19 @@ async function handleCredits(req: VercelRequest, res: VercelResponse, id: string
       const b = fromBody(req.body);
       const { client_id, amount, currency = 'USD', date, reason = '' } = b;
       const rows = await sql`INSERT INTO credits (client_id,amount,currency,date,reason) VALUES (${client_id},${amount},${currency},${date},${reason}) RETURNING *`;
-      return res.status(201).json(toCamel(rows[0] as Record<string, unknown>));
+      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
     }
   } else {
     if (m === 'GET') {
       const rows = await sql`SELECT * FROM credits WHERE id=${id}`;
-      return rows[0] ? res.json(toCamel(rows[0] as Record<string, unknown>)) : res.status(404).json({ error: 'Not found' });
+      return rows[0] ? res.json(row2camel(rows[0] as Record<string, unknown>)) : res.status(404).json({ error: 'Not found' });
     }
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin', 'Accountant'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
       const { amount, reason, status } = b;
       const rows = await sql`UPDATE credits SET amount=${amount},reason=${reason},status=${status} WHERE id=${id} RETURNING *`;
-      return res.json(toCamel(rows[0] as Record<string, unknown>));
+      return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
@@ -364,19 +377,19 @@ async function handleExpenses(req: VercelRequest, res: VercelResponse, id: strin
       const b = fromBody(req.body);
       const { category, vendor = '', amount, currency = 'USD', date, description = '' } = b;
       const rows = await sql`INSERT INTO expenses (category,vendor,amount,currency,date,description) VALUES (${category},${vendor},${amount},${currency},${date},${description}) RETURNING *`;
-      return res.status(201).json(toCamel(rows[0] as Record<string, unknown>));
+      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
     }
   } else {
     if (m === 'GET') {
       const rows = await sql`SELECT * FROM expenses WHERE id=${id}`;
-      return rows[0] ? res.json(toCamel(rows[0] as Record<string, unknown>)) : res.status(404).json({ error: 'Not found' });
+      return rows[0] ? res.json(row2camel(rows[0] as Record<string, unknown>)) : res.status(404).json({ error: 'Not found' });
     }
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin', 'Accountant'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
       const { status } = b;
       const rows = await sql`UPDATE expenses SET status=${status} WHERE id=${id} RETURNING *`;
-      return res.json(toCamel(rows[0] as Record<string, unknown>));
+      return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
   }
   return res.status(405).json({ error: 'Method not allowed' });
@@ -395,19 +408,19 @@ async function handleProducts(req: VercelRequest, res: VercelResponse, id: strin
       const b = fromBody(req.body);
       const { name, wood_type = '', unit = 'pcs', price_per_unit, stock = 0, category = '', sku = '' } = b;
       const rows = await sql`INSERT INTO products (name,wood_type,unit,price_per_unit,stock,category,sku) VALUES (${name},${wood_type},${unit},${price_per_unit},${stock},${category},${sku}) RETURNING *`;
-      return res.status(201).json(toCamel(rows[0] as Record<string, unknown>));
+      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
     }
   } else {
     if (m === 'GET') {
       const rows = await sql`SELECT * FROM products WHERE id=${id}`;
-      return rows[0] ? res.json(toCamel(rows[0] as Record<string, unknown>)) : res.status(404).json({ error: 'Not found' });
+      return rows[0] ? res.json(row2camel(rows[0] as Record<string, unknown>)) : res.status(404).json({ error: 'Not found' });
     }
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
       const { name, wood_type, unit, price_per_unit, stock, category, sku } = b;
       const rows = await sql`UPDATE products SET name=${name},wood_type=${wood_type},unit=${unit},price_per_unit=${price_per_unit},stock=${stock},category=${category},sku=${sku} WHERE id=${id} RETURNING *`;
-      return res.json(toCamel(rows[0] as Record<string, unknown>));
+      return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
