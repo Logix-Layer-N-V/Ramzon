@@ -85,8 +85,14 @@ const CreateInvoicePage: React.FC = () => {
       price: p.pricePerUnit,
       unit: (p.unit === 'pcs' || p.unit === 'PCS') ? 'PCS' : p.unit,
     }));
-    const products: CatalogItem[] = storedMapped.length > 0 ? storedMapped : STATIC_PRODUCT_ITEMS_INV;
-    return [...SERVICE_ITEMS_INV, ...products] as CatalogItem[];
+    // Always include DB products first, then fall back to static catalog for any gaps
+    const dbIds = new Set(storedMapped.map(p => p.name.toLowerCase()));
+    const staticFallback = STATIC_PRODUCT_ITEMS_INV.filter(p => !dbIds.has(p.name.toLowerCase()));
+    const products: CatalogItem[] = storedMapped.length > 0
+      ? [...storedMapped, ...staticFallback]
+      : STATIC_PRODUCT_ITEMS_INV;
+    // Products first so they're visible in the default (no-search) view
+    return [...products, ...SERVICE_ITEMS_INV] as CatalogItem[];
   }, [dbProducts]);
 
   const CATALOG_CATEGORIES = [
@@ -198,7 +204,7 @@ const CreateInvoicePage: React.FC = () => {
       const q = itemSearch.toLowerCase();
       list = list.filter(i => i.name.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q));
     }
-    return (itemSearch.trim() || activeCategory !== 'all') ? list : list.slice(0, 15);
+    return list;
   })();
 
   const addFromCatalog = (item: typeof catalogItems[0]) => {
@@ -270,13 +276,20 @@ const CreateInvoicePage: React.FC = () => {
       })),
     };
 
+    const onError = (err: any) => {
+      const msg = err?.response?.data?.error || err?.message || 'Er is een fout opgetreden. Probeer opnieuw.';
+      alert(`Opslaan mislukt: ${msg}`);
+    };
+
     if (isEdit && editId) {
       updateInvoice.mutate({ id: editId, ...invoiceData }, {
         onSuccess: () => { setSaved(true); setShowPdfModal(true); },
+        onError,
       });
     } else {
       createInvoice.mutate(invoiceData, {
         onSuccess: () => { setSaved(true); setShowPdfModal(true); },
+        onError,
       });
     }
   };
@@ -712,9 +725,17 @@ const CreateInvoicePage: React.FC = () => {
                   <Banknote size={14} /> Record Payment
                 </button>
               )}
-              <button type="button" onClick={handleSave} className="flex items-center gap-2 px-6 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:opacity-90 transition-all active:scale-95">
-                {saved ? <Check size={14} /> : <Save size={14} />}
-                {saved ? 'Processing...' : 'Finalize Invoice'}
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={createInvoice.isPending || updateInvoice.isPending}
+                className="flex items-center gap-2 px-6 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:opacity-90 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {(createInvoice.isPending || updateInvoice.isPending)
+                  ? <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving…</>
+                  : saved
+                    ? <><Check size={14} /> Saved!</>
+                    : <><Save size={14} /> Finalize Invoice</>}
               </button>
             </div>
           </div>
