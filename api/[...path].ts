@@ -225,10 +225,14 @@ async function handleInvoices(req: VercelRequest, res: VercelResponse, id: strin
       const inv = rows[0] as any;
       for (const item of items) {
         const desc = item.description ?? '';
+        const houtsoort = item.houtsoort ?? '';
+        const spec = item.spec ?? '';
         const qty = item.quantity ?? 0;
+        const unit = item.unit ?? 'PCS';
         const price = item.unitPrice ?? item.unit_price ?? 0;
         const tot = item.total ?? 0;
-        await sql`INSERT INTO invoice_items (invoice_id,description,quantity,unit_price,total) VALUES (${inv.id},${desc},${qty},${price},${tot})`;
+        const taxRate = item.taxRate ?? item.tax_rate ?? 21;
+        await sql`INSERT INTO invoice_items (invoice_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total) VALUES (${inv.id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot})`;
       }
       return res.status(201).json(row2camel(inv as Record<string, unknown>));
     }
@@ -276,10 +280,14 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
       const est = rows[0] as any;
       for (const item of items) {
         const desc = item.description ?? '';
+        const houtsoort = item.houtsoort ?? '';
+        const spec = item.spec ?? '';
         const qty = item.quantity ?? 0;
+        const unit = item.unit ?? 'PCS';
         const price = item.unitPrice ?? item.unit_price ?? 0;
         const tot = item.total ?? 0;
-        await sql`INSERT INTO estimate_items (estimate_id,description,quantity,unit_price,total) VALUES (${est.id},${desc},${qty},${price},${tot})`;
+        const taxRate = item.taxRate ?? item.tax_rate ?? 21;
+        await sql`INSERT INTO estimate_items (estimate_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total) VALUES (${est.id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot})`;
       }
       return res.status(201).json(row2camel(est as Record<string, unknown>));
     }

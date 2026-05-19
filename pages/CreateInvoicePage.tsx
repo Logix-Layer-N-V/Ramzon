@@ -125,9 +125,9 @@ const CreateInvoicePage: React.FC = () => {
           id: (i as any).id || Math.random().toString(36).slice(2),
           type: 'item' as ItemType,
           description: (i as any).description || '',
-          houtsoort: '',
+          houtsoort: (i as any).houtsoort || '',
           qty: (i as any).quantity || 1,
-          unit: 'PCS',
+          unit: (i as any).unit || 'PCS',
           price: (i as any).unitPrice || 0,
           discount: 0,
           taxRate: (i as any).taxRate ?? 21,
@@ -269,10 +269,13 @@ const CreateInvoicePage: React.FC = () => {
       items: items.map(i => ({
         id: i.id,
         description: i.description,
+        houtsoort: i.houtsoort,
         quantity: i.qty,
+        unit: i.unit,
         unitPrice: i.price,
         total: itemTotal(i),
         taxRate: i.taxRate,
+        spec: i.mmW && i.mmH ? `${i.mmW}x${i.mmH}` : '',
       })),
     };
 

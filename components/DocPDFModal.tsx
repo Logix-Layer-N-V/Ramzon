@@ -344,7 +344,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                     {visCols.map(key => (
                       <th
                         key={key}
-                        className={`text-${allCols[key].align} py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white${key === 'subtotaal' || key === 'btw' ? ' no-print' : ''}${key === 'afmeting' ? ' print-invisible' : ''}`}
+                        className={`text-${allCols[key].align} py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white${key === 'subtotaal' || key === 'btw' ? ' hidden' : ''}${key === 'afmeting' ? ' print-invisible' : ''}`}
                         style={{ backgroundColor: accentColor, ...(allCols[key].width ? { width: allCols[key].width } : {}) }}
                       >
                         {allCols[key].label}
@@ -361,7 +361,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                       <React.Fragment key={item.id}>
                         <tr className={tblRowCls}>
                           {visCols.map(key => (
-                            <td key={key} className={`py-2.5 px-3 text-${allCols[key].align}${key === 'subtotaal' || key === 'btw' ? ' no-print' : ''}${key === 'afmeting' ? ' print-invisible' : ''}`}>
+                            <td key={key} className={`py-2.5 px-3 text-${allCols[key].align}${key === 'subtotaal' || key === 'btw' ? ' hidden' : ''}${key === 'afmeting' ? ' print-invisible' : ''}`}>
                               {allCols[key].cell(item, idx, area, lineTotal)}
                             </td>
                           ))}
