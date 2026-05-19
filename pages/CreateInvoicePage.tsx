@@ -64,7 +64,9 @@ const CreateInvoicePage: React.FC = () => {
   const [itemSearch, setItemSearch] = useState('');
   const [showItemSearch, setShowItemSearch] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [highlightedIdx, setHighlightedIdx] = useState(-1);
   const searchRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { data: allClients = [] } = useClients();
   const { data: existingInvoice } = useInvoice(editId || '');
@@ -215,6 +217,21 @@ const CreateInvoicePage: React.FC = () => {
     }
     return list;
   })();
+
+  // Flat ordered list matching render order (services first, then products) for keyboard nav
+  const flatForNav = (() => {
+    const s = filteredCatalog.filter(i => i.type === 'service');
+    const p = filteredCatalog.filter(i => i.type === 'product');
+    return [...s, ...p];
+  })();
+
+  // Scroll highlighted item into view
+  React.useEffect(() => {
+    if (highlightedIdx >= 0 && dropdownRef.current) {
+      const el = dropdownRef.current.querySelector(`[data-nav-idx="${highlightedIdx}"]`) as HTMLElement | null;
+      el?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [highlightedIdx]);
 
   const addFromCatalog = (item: typeof catalogItems[0]) => {
     setItems(prev => [...prev, {
@@ -451,12 +468,32 @@ const CreateInvoicePage: React.FC = () => {
                   const val = e.target.value;
                   setItemSearch(val);
                   setShowItemSearch(true);
+                  setHighlightedIdx(-1);
                   if (val.startsWith('/') && SLASH_MAP[val.slice(1).toLowerCase()]) {
                     setActiveCategory(SLASH_MAP[val.slice(1).toLowerCase()]);
                     setItemSearch('');
                   }
                 }}
                 onFocus={() => setShowItemSearch(true)}
+                onKeyDown={e => {
+                  if (!showItemSearch) return;
+                  const total = flatForNav.length + 1; // +1 for blank custom item
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setHighlightedIdx(h => Math.min(h + 1, total - 1));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setHighlightedIdx(h => Math.max(h - 1, 0));
+                  } else if (e.key === 'Enter' && highlightedIdx >= 0) {
+                    e.preventDefault();
+                    if (highlightedIdx < flatForNav.length) addFromCatalog(flatForNav[highlightedIdx]);
+                    else addItem();
+                    setHighlightedIdx(-1);
+                  } else if (e.key === 'Escape') {
+                    setShowItemSearch(false);
+                    setHighlightedIdx(-1);
+                  }
+                }}
                 placeholder={activeCategory !== 'all' ? `Search in ${CATALOG_CATEGORIES.find(c=>c.id===activeCategory)?.label ?? activeCategory}…` : 'Search products & services…  or type  /  to filter by category'}
                 className="flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-slate-400 placeholder:font-normal"
               />
@@ -477,7 +514,7 @@ const CreateInvoicePage: React.FC = () => {
 
             {/* Dropdown */}
             {showItemSearch && (
-              <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-2xl shadow-2xl mt-2 overflow-hidden animate-in fade-in zoom-in-[0.98] duration-150">
+              <div ref={dropdownRef} className="absolute z-50 w-full bg-white border border-slate-200 rounded-2xl shadow-2xl mt-2 overflow-hidden animate-in fade-in zoom-in-[0.98] duration-150">
 
                 {isSlashMode ? (
                   <div className="p-3">
@@ -533,9 +570,9 @@ const CreateInvoicePage: React.FC = () => {
                                 <div className="px-4 py-1.5 sticky top-0 bg-white/95 backdrop-blur-sm border-b border-slate-50">
                                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">⚙️ Services</p>
                                 </div>
-                                {services.map(item => (
-                                  <button type="button" key={item.id} onClick={() => addFromCatalog(item)}
-                                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left group border-b border-slate-50 last:border-0">
+                                {services.map(item => { const idx = flatForNav.indexOf(item); return (
+                                  <button type="button" key={item.id} data-nav-idx={idx} onClick={() => addFromCatalog(item)}
+                                    className={`w-full flex items-center gap-3 px-4 py-2.5 active:bg-slate-100 transition-colors text-left group border-b border-slate-50 last:border-0 ${highlightedIdx === idx ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : 'hover:bg-slate-50'}`}>
                                     <div className="w-8 h-8 rounded-xl bg-purple-100 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
                                       <span className="text-base">⚙️</span>
                                     </div>
@@ -549,7 +586,7 @@ const CreateInvoicePage: React.FC = () => {
                                     </div>
                                     <span className="text-[8px] font-black px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full shrink-0 ml-1">SERVICE</span>
                                   </button>
-                                ))}
+                                );})}
                               </div>
                             )}
                             {Object.entries(grouped).map(([cat, catItems]) => (
@@ -557,9 +594,9 @@ const CreateInvoicePage: React.FC = () => {
                                 <div className="px-4 py-1.5 sticky top-0 bg-white/95 backdrop-blur-sm border-b border-slate-50">
                                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">📦 {cat}</p>
                                 </div>
-                                {catItems.map(item => (
-                                  <button type="button" key={item.id} onClick={() => addFromCatalog(item)}
-                                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left group border-b border-slate-50 last:border-0">
+                                {catItems.map(item => { const idx = flatForNav.indexOf(item); return (
+                                  <button type="button" key={item.id} data-nav-idx={idx} onClick={() => addFromCatalog(item)}
+                                    className={`w-full flex items-center gap-3 px-4 py-2.5 active:bg-slate-100 transition-colors text-left group border-b border-slate-50 last:border-0 ${highlightedIdx === idx ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : 'hover:bg-slate-50'}`}>
                                     <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
                                       <span className="text-base">📦</span>
                                     </div>
@@ -573,7 +610,7 @@ const CreateInvoicePage: React.FC = () => {
                                     </div>
                                     <span className="text-[8px] font-black px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full shrink-0 ml-1">PRODUCT</span>
                                   </button>
-                                ))}
+                                );})}
                               </div>
                             ))}
                           </>
@@ -584,8 +621,8 @@ const CreateInvoicePage: React.FC = () => {
                 )}
 
                 <div className="border-t border-slate-100 bg-slate-50/50">
-                  <button type="button" onClick={addItem}
-                    className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-slate-100 transition-colors text-sm font-black text-slate-600 text-left">
+                  <button type="button" data-nav-idx={flatForNav.length} onClick={addItem}
+                    className={`w-full flex items-center gap-2.5 px-4 py-3 transition-colors text-sm font-black text-slate-600 text-left ${highlightedIdx === flatForNav.length ? 'bg-slate-200' : 'hover:bg-slate-100'}`}>
                     <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
                       <Plus size={12} className="text-emerald-600"/>
                     </div>
