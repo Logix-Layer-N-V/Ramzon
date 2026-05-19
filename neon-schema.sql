@@ -170,6 +170,16 @@ ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS tax_rate      NUMERIC(5,2) D
 ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS price_by_area BOOLEAN DEFAULT false;
 ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS price_by_area BOOLEAN DEFAULT false;
 
+CREATE TABLE IF NOT EXISTS error_logs (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ts         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  level      TEXT DEFAULT 'error',
+  source     TEXT DEFAULT 'api',
+  message    TEXT NOT NULL,
+  meta       JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Seed users (password for all: admin123)
 INSERT INTO users (name, email, password, role) VALUES
   ('Admin User', 'admin@ramzon.sr', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL548sd2', 'Admin'),

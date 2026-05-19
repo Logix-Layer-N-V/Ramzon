@@ -119,13 +119,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'products':      return handleProducts(req, res, id, m);
       case 'users':         return handleUsers(req, res, id, m);
       case 'send-document': return handleSendDocument(req, res, m);
+      case 'error-logs':    return handleErrorLog(req, res, m);
       case 'health':        return res.json({ status: 'ok' });
       default:              return res.status(404).json({ error: 'Not found' });
     }
   } catch (e: any) {
-    console.error('API Error:', e);
+    const errPayload = {
+      ts: new Date().toISOString(),
+      method: m,
+      path: req.url ?? '',
+      message: e?.message ?? String(e),
+      stack: e?.stack?.split('\n').slice(0, 5).join(' | '),
+    };
+    console.error('[API_ERROR]', JSON.stringify(errPayload));
     return res.status(500).json({ error: 'Server error', message: e.message });
   }
+}
+
+/* ── Error log endpoint ─────────────────────────────────────────────────── */
+
+async function handleErrorLog(req: VercelRequest, res: VercelResponse, m: string) {
+  if (m !== 'GET') return res.status(405).end();
+  const user = getAuthUser(req);
+  if (!user || !hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+  const sql = getSql();
+  const rows = await sql`SELECT id, ts, level, source, message, meta, created_at FROM error_logs ORDER BY created_at DESC LIMIT 200`;
+  return res.json(rows2camel(rows as unknown[]));
 }
 
 /* ── AUTH ────────────────────────────────────────────────────────────────── */
