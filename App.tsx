@@ -234,7 +234,7 @@ const App: React.FC = () => {
   const [taxRates, setTaxRates] = useState<TaxRate[]>(() => {
     const saved = localStorage.getItem('taxRates');
     return saved ? JSON.parse(saved) : [
-      { id: 't1', name: 'BTW standard', percentage: 21, isDefault: true },
+      { id: 't1', name: 'BTW standard', percentage: 10, isDefault: true },
       { id: 't2', name: 'BTW export', percentage: 0, isDefault: false },
     ];
   });

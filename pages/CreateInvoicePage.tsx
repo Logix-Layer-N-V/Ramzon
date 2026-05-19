@@ -135,7 +135,7 @@ const CreateInvoicePage: React.FC = () => {
             unit: anyI.unit || 'PCS',
             price: anyI.unitPrice || 0,
             discount: 0,
-            taxRate: anyI.taxRate ?? 21,
+            taxRate: anyI.taxRate ?? 10,
             mmW,
             mmH,
             priceByArea: anyI.priceByArea ?? false,
@@ -154,7 +154,7 @@ const CreateInvoicePage: React.FC = () => {
       if (est.currency) setCurrency(est.currency);
       if (est.exchangeRate) setExchangeRate(est.exchangeRate);
       if (est.items?.length > 0) {
-        setItems(est.items.map(i => ({ id: i.id, type: 'item' as ItemType, description: i.description, houtsoort: '', qty: i.quantity, unit: 'PCS', price: i.unitPrice, discount: 0, taxRate: (i as any).taxRate ?? 21 })));
+        setItems(est.items.map(i => ({ id: i.id, type: 'item' as ItemType, description: i.description, houtsoort: '', qty: i.quantity, unit: 'PCS', price: i.unitPrice, discount: 0, taxRate: (i as any).taxRate ?? 10 })));
       }
     } else if (state?.fromDuplicate) {
       const dup = state.fromDuplicate;
@@ -170,7 +170,7 @@ const CreateInvoicePage: React.FC = () => {
           unit: i.unit || 'PCS',
           price: i.unitPrice || i.price || 0,
           discount: 0,
-          taxRate: i.taxRate ?? 21,
+          taxRate: i.taxRate ?? 10,
         })));
       }
     }
@@ -222,7 +222,7 @@ const CreateInvoicePage: React.FC = () => {
       type: item.type,
       description: item.type === 'product' ? `${item.desc} — ${item.name}` : item.name,
       houtsoort: item.type === 'product' ? RAMZON_HOUTSOORTEN[0] : '',
-      qty: 1, unit: item.unit, price: item.price, discount: 0, taxRate: 21,
+      qty: 1, unit: item.unit, price: item.price, discount: 0, taxRate: 10,
       mmW: undefined,
       mmH: undefined,
       priceByArea: item.unit === 'm²',
@@ -232,7 +232,7 @@ const CreateInvoicePage: React.FC = () => {
   };
 
   const addItem = () => {
-    setItems(prev => [...prev, { id: Math.random().toString(36).slice(2), type: 'item', description: '', houtsoort: '', qty: 1, unit: 'PCS', price: 0, discount: 0, taxRate: 21 }]);
+    setItems(prev => [...prev, { id: Math.random().toString(36).slice(2), type: 'item', description: '', houtsoort: '', qty: 1, unit: 'PCS', price: 0, discount: 0, taxRate: 10 }]);
     setShowItemSearch(false);
     setItemSearch('');
   };
@@ -656,7 +656,7 @@ const CreateInvoicePage: React.FC = () => {
                     className="w-full px-1.5 py-1 border border-slate-200 bg-white rounded-lg text-xs font-bold outline-none hover:border-slate-300 focus:border-blue-300 transition-all text-center">
                     <option value={0}>0%</option>
                     <option value={10}>10%</option>
-                    <option value={21}>Std 21%</option>
+                    <option value={21}>21%</option>
                   </select>
                   <div className="flex items-center gap-0.5 border border-slate-200 rounded-lg px-2 py-1 hover:border-slate-300 focus-within:border-blue-300 focus-within:bg-white transition-all">
                     <span className="text-[10px] text-slate-400 font-bold shrink-0">{currencySymbol}</span>

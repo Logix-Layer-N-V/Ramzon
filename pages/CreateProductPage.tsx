@@ -79,7 +79,7 @@ const CreateProductPage: React.FC = () => {
   // ── Shared product fields (all categories) ──────────────────────────────────
   const [productName, setProductName]   = useState('');
   const [description, setDescription]   = useState('');
-  const [defaultTaxRate, setDefaultTaxRate] = useState<0 | 10 | 21>(21);
+  const [defaultTaxRate, setDefaultTaxRate] = useState<0 | 10 | 21>(10);
 
   // ── Door wizard state (2 steps: SKU + Model) ─────────────────────────────────
   const [doorStep, setDoorStep] = useState(1);

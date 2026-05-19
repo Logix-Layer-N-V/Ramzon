@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS invoice_items (
   quantity    NUMERIC(10,3) NOT NULL,
   unit        TEXT DEFAULT 'pcs',
   unit_price  NUMERIC(12,2) NOT NULL,
-  tax_rate    NUMERIC(5,2) DEFAULT 21,
+  tax_rate    NUMERIC(5,2) DEFAULT 10,
   total       NUMERIC(12,2) NOT NULL
 );
 
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS estimate_items (
   quantity    NUMERIC(10,3) NOT NULL,
   unit        TEXT DEFAULT 'pcs',
   unit_price  NUMERIC(12,2) NOT NULL,
-  tax_rate    NUMERIC(5,2) DEFAULT 21,
+  tax_rate    NUMERIC(5,2) DEFAULT 10,
   total       NUMERIC(12,2) NOT NULL
 );
 

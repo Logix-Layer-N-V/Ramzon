@@ -231,7 +231,7 @@ async function handleInvoices(req: VercelRequest, res: VercelResponse, id: strin
         const unit = item.unit ?? 'PCS';
         const price = item.unitPrice ?? item.unit_price ?? 0;
         const tot = item.total ?? 0;
-        const taxRate = item.taxRate ?? item.tax_rate ?? 21;
+        const taxRate = item.taxRate ?? item.tax_rate ?? 10;
         const priceByArea = item.priceByArea ?? item.price_by_area ?? false;
         await sql`INSERT INTO invoice_items (invoice_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area) VALUES (${inv.id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea})`;
       }
@@ -287,7 +287,7 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
         const unit = item.unit ?? 'PCS';
         const price = item.unitPrice ?? item.unit_price ?? 0;
         const tot = item.total ?? 0;
-        const taxRate = item.taxRate ?? item.tax_rate ?? 21;
+        const taxRate = item.taxRate ?? item.tax_rate ?? 10;
         const priceByArea = item.priceByArea ?? item.price_by_area ?? false;
         await sql`INSERT INTO estimate_items (estimate_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area) VALUES (${est.id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea})`;
       }
