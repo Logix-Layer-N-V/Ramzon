@@ -47,9 +47,18 @@ function toCamel(obj: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
     const key = k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
-    out[key] = Array.isArray(v)
-      ? v.map(i => (typeof i === 'object' && i !== null ? toCamel(i as Record<string, unknown>) : i))
-      : (typeof v === 'object' && v !== null ? toCamel(v as Record<string, unknown>) : v);
+    if (Array.isArray(v)) {
+      out[key] = v.map(i =>
+        i instanceof Date ? i.toISOString().slice(0, 10)
+        : (typeof i === 'object' && i !== null ? toCamel(i as Record<string, unknown>) : i)
+      );
+    } else if (v instanceof Date) {
+      out[key] = v.toISOString().slice(0, 10);
+    } else if (typeof v === 'object' && v !== null) {
+      out[key] = toCamel(v as Record<string, unknown>);
+    } else {
+      out[key] = v;
+    }
   }
   return out;
 }
@@ -67,7 +76,12 @@ const NUMERIC_KEYS = /^(total|subtotal|quantity|qty|price|stock|amount|tax|paid|
 
 function sanitizeNulls(obj: Record<string, unknown>): Record<string, unknown> {
   for (const k of Object.keys(obj)) {
-    if (obj[k] === null) obj[k] = NUMERIC_KEYS.test(k) ? 0 : '';
+    if (obj[k] === null) {
+      obj[k] = NUMERIC_KEYS.test(k) ? 0 : '';
+    } else if (NUMERIC_KEYS.test(k) && typeof obj[k] === 'string' && (obj[k] as string) !== '') {
+      const n = parseFloat(obj[k] as string);
+      if (!isNaN(n)) obj[k] = n;
+    }
   }
   return obj;
 }
