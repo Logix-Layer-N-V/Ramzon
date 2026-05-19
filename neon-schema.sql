@@ -163,10 +163,12 @@ ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS houtsoort TEXT DEFAULT '';
 ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS spec      TEXT DEFAULT '';
 ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS unit      TEXT DEFAULT 'pcs';
 ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS tax_rate  NUMERIC(5,2) DEFAULT 21;
-ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS houtsoort TEXT DEFAULT '';
-ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS spec      TEXT DEFAULT '';
-ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS unit      TEXT DEFAULT 'pcs';
-ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS tax_rate  NUMERIC(5,2) DEFAULT 21;
+ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS houtsoort     TEXT DEFAULT '';
+ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS spec          TEXT DEFAULT '';
+ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS unit          TEXT DEFAULT 'pcs';
+ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS tax_rate      NUMERIC(5,2) DEFAULT 21;
+ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS price_by_area BOOLEAN DEFAULT false;
+ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS price_by_area BOOLEAN DEFAULT false;
 
 -- Seed users (password for all: admin123)
 INSERT INTO users (name, email, password, role) VALUES

@@ -15,7 +15,7 @@ import { useInvoice, useCreateInvoice, useUpdateInvoice } from '../lib/hooks/use
 import { useProducts } from '../lib/hooks/useProducts';
 
 type ItemType = 'product' | 'service' | 'item';
-interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; qty: number; unit: string; price: number; discount: number; taxRate: number; mmW?: number; mmH?: number; }
+interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; qty: number; unit: string; price: number; discount: number; taxRate: number; mmW?: number; mmH?: number; priceByArea?: boolean; }
 interface CatalogItem { id: string; type: ItemType; name: string; desc: string; price: number; unit: string; }
 
 const SERVICE_ITEMS_INV = RAMZON_SERVICES.map(s => ({
@@ -121,17 +121,26 @@ const CreateInvoicePage: React.FC = () => {
       setSelectedClient(existingInvoice.clientId);
       if (existingInvoice.currency) setCurrency(existingInvoice.currency);
       if (existingInvoice.items?.length > 0) {
-        setItems(existingInvoice.items.map(i => ({
-          id: (i as any).id || Math.random().toString(36).slice(2),
-          type: 'item' as ItemType,
-          description: (i as any).description || '',
-          houtsoort: (i as any).houtsoort || '',
-          qty: (i as any).quantity || 1,
-          unit: (i as any).unit || 'PCS',
-          price: (i as any).unitPrice || 0,
-          discount: 0,
-          taxRate: (i as any).taxRate ?? 21,
-        })));
+        setItems(existingInvoice.items.map(i => {
+          const anyI = i as any;
+          const specParts = (anyI.spec || '').split('x').map(Number);
+          const mmW = specParts[0] > 0 ? specParts[0] : undefined;
+          const mmH = specParts[1] > 0 ? specParts[1] : undefined;
+          return {
+            id: anyI.id || Math.random().toString(36).slice(2),
+            type: 'item' as ItemType,
+            description: anyI.description || '',
+            houtsoort: anyI.houtsoort || '',
+            qty: anyI.quantity || 1,
+            unit: anyI.unit || 'PCS',
+            price: anyI.unitPrice || 0,
+            discount: 0,
+            taxRate: anyI.taxRate ?? 21,
+            mmW,
+            mmH,
+            priceByArea: anyI.priceByArea ?? false,
+          };
+        }));
       }
     }
   }, [existingInvoice]);
@@ -214,8 +223,9 @@ const CreateInvoicePage: React.FC = () => {
       description: item.type === 'product' ? `${item.desc} — ${item.name}` : item.name,
       houtsoort: item.type === 'product' ? RAMZON_HOUTSOORTEN[0] : '',
       qty: 1, unit: item.unit, price: item.price, discount: 0, taxRate: 21,
-      mmW: item.unit === 'm²' ? 800 : undefined,
-      mmH: item.unit === 'm²' ? 2100 : undefined,
+      mmW: undefined,
+      mmH: undefined,
+      priceByArea: item.unit === 'm²',
     }]);
     setItemSearch('');
     setShowItemSearch(false);
@@ -230,7 +240,7 @@ const CreateInvoicePage: React.FC = () => {
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
   const updateItem = (id: string, field: keyof LineItem, val: any) => setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
 
-  const itemArea = (i: LineItem) => (i.mmW && i.mmH) ? (i.mmW / 1000) * (i.mmH / 1000) : 1;
+  const itemArea = (i: LineItem) => (i.mmW && i.mmH && i.priceByArea !== false) ? (i.mmW / 1000) * (i.mmH / 1000) : 1;
   const itemSubtotal = (i: LineItem) => i.price * (1 + getMarkup(i.houtsoort) / 100) * i.qty * (1 - i.discount / 100) * itemArea(i);
   const itemTotal = (i: LineItem) => itemSubtotal(i) * (1 + i.taxRate / 100);
   const fmt = (n: number) => n.toLocaleString(currency === 'USD' ? 'en-US' : 'nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -276,6 +286,7 @@ const CreateInvoicePage: React.FC = () => {
         total: itemTotal(i),
         taxRate: i.taxRate,
         spec: i.mmW && i.mmH ? `${i.mmW}x${i.mmH}` : '',
+        priceByArea: i.priceByArea ?? false,
       })),
     };
 
@@ -668,30 +679,36 @@ const CreateInvoicePage: React.FC = () => {
                     <Trash2 size={11}/>
                   </button>
                 </div>
-                {item.unit === 'm²' && item.type === 'product' && (
-                  <div className="flex items-center gap-2 flex-wrap pl-[188px] pr-4 pb-2.5 -mt-1 border-b border-slate-100 bg-slate-50/40">
-                    <Ruler size={11} className="text-slate-400 shrink-0"/>
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Afmeting:</span>
-                    <input type="number" value={item.mmW ?? ''} min={0}
-                      onChange={e => updateItem(item.id, 'mmW', +e.target.value)}
-                      placeholder="Breedte"
-                      aria-label="Width in mm"
-                      className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-center bg-white outline-none focus:border-blue-300"/>
-                    <span className="text-slate-300 font-bold text-sm">×</span>
-                    <input type="number" value={item.mmH ?? ''} min={0}
-                      onChange={e => updateItem(item.id, 'mmH', +e.target.value)}
-                      placeholder="Hoogte"
-                      aria-label="Height in mm"
-                      className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-center bg-white outline-none focus:border-blue-300"/>
-                    <span className="text-[10px] text-slate-400 font-bold">mm</span>
-                    {item.mmW && item.mmH ? (
-                      <span className="px-2 py-0.5 bg-blue-50 border border-blue-100 text-blue-700 rounded-lg text-[10px] font-black">
-                        = {((item.mmW / 1000) * (item.mmH / 1000)).toFixed(4)} m²
-                      </span>
-                    ) : null}
-                    <span className="ml-auto text-[9px] text-slate-400 font-bold italic">prijs is per m²</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 flex-wrap pl-[188px] pr-4 pb-2.5 -mt-1 border-b border-slate-100 bg-slate-50/40">
+                  <Ruler size={11} className="text-slate-400 shrink-0"/>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Afmeting:</span>
+                  <input type="number" value={item.mmW ?? ''} min={0}
+                    onChange={e => updateItem(item.id, 'mmW', +e.target.value)}
+                    placeholder="Breedte"
+                    aria-label="Width in mm"
+                    className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-center bg-white outline-none focus:border-blue-300"/>
+                  <span className="text-slate-300 font-bold text-sm">×</span>
+                  <input type="number" value={item.mmH ?? ''} min={0}
+                    onChange={e => updateItem(item.id, 'mmH', +e.target.value)}
+                    placeholder="Hoogte"
+                    aria-label="Height in mm"
+                    className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-center bg-white outline-none focus:border-blue-300"/>
+                  <span className="text-[10px] text-slate-400 font-bold">mm</span>
+                  {item.mmW && item.mmH ? (
+                    <span className="px-2 py-0.5 bg-blue-50 border border-blue-100 text-blue-700 rounded-lg text-[10px] font-black">
+                      = {((item.mmW / 1000) * (item.mmH / 1000)).toFixed(4)} m²
+                    </span>
+                  ) : null}
+                  <label className="ml-auto flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={item.priceByArea === true}
+                      onChange={e => updateItem(item.id, 'priceByArea', e.target.checked)}
+                      className="w-3 h-3 accent-blue-600"
+                    />
+                    <span className="text-[9px] text-slate-500 font-bold">prijs per m²</span>
+                  </label>
+                </div>
                 </React.Fragment>
               ))}
             </div>
