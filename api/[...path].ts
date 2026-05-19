@@ -457,14 +457,32 @@ async function handleProducts(req: VercelRequest, res: VercelResponse, id: strin
 
 /* ── USERS ──────────────────────────────────────────────────────────────── */
 
-async function handleUsers(req: VercelRequest, res: VercelResponse, _id: string | undefined, m: string) {
+async function handleUsers(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string) {
   const user = getAuthUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
   if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
-  if (m === 'GET') {
-    const sql = getSql();
+  const sql = getSql();
+  if (m === 'GET' && !id) {
     const rows = await sql`SELECT id,name,email,role,status,avatar,joined_date FROM users ORDER BY name`;
     return res.json(rows2camel(rows as unknown[]));
+  }
+  if (m === 'POST' && !id) {
+    const { name, email, role = 'Sales', status = 'Active', password = 'ramzon123' } = req.body ?? {};
+    if (!name || !email) return res.status(400).json({ error: 'Name and email required' });
+    const hashed = await bcrypt.hash(password, 10);
+    const rows = await sql`INSERT INTO users (name,email,password,role,status) VALUES (${name},${email},${hashed},${role},${status}) RETURNING id,name,email,role,status,avatar,joined_date`;
+    return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
+  }
+  if (m === 'PUT' && id) {
+    const { name, email, role, status } = req.body ?? {};
+    const rows = await sql`UPDATE users SET name=COALESCE(${name},name), email=COALESCE(${email},email), role=COALESCE(${role},role), status=COALESCE(${status},status) WHERE id=${id} RETURNING id,name,email,role,status,avatar,joined_date`;
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    return res.json(row2camel(rows[0] as Record<string, unknown>));
+  }
+  if (m === 'DELETE' && id) {
+    if (id === user.id) return res.status(400).json({ error: 'Cannot delete yourself' });
+    await sql`DELETE FROM users WHERE id=${id}`;
+    return res.status(204).end();
   }
   return res.status(405).json({ error: 'Method not allowed' });
 }
