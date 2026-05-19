@@ -74,7 +74,7 @@ const DeliveryNoteModal: React.FC<DeliveryNoteModalProps> = ({
               <div className="w-8 h-8 bg-slate-900 rounded-xl flex items-center justify-center">
                 <Truck size={15} className="text-white" />
               </div>
-              <span className="font-black text-slate-900 text-sm uppercase tracking-widest">Afleverbon</span>
+              <span className="font-black text-slate-900 text-sm uppercase tracking-widest">Delivery Note</span>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -106,7 +106,7 @@ const DeliveryNoteModal: React.FC<DeliveryNoteModalProps> = ({
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <p className="font-black text-3xl tracking-tight text-slate-900 uppercase">Afleverbon</p>
+                <p className="font-black text-3xl tracking-tight text-slate-900 uppercase">Delivery Note</p>
                 <p className="font-mono text-sm text-slate-600 mt-1">{invoiceNumber}</p>
                 <p className="text-xs text-slate-500 mt-0.5">{fmtDate(date)}</p>
               </div>
@@ -149,7 +149,11 @@ const DeliveryNoteModal: React.FC<DeliveryNoteModalProps> = ({
                   <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                     <td className="py-3 px-4 border-b border-slate-100 font-medium text-slate-800">
                       {item.description}
-                      {item.spec && <span className="text-slate-400 font-normal ml-1.5">{item.spec}mm</span>}
+                      {item.spec && (() => {
+                        const parts = item.spec.split('x');
+                        const dim = parts.length === 2 ? `${parts[0]} × ${parts[1]} mm` : item.spec;
+                        return <span className="text-slate-500 font-normal ml-2 text-[10px]">({dim})</span>;
+                      })()}
                     </td>
                     <td className="py-3 px-4 border-b border-slate-100 text-center font-black text-slate-900">{item.qty}</td>
                     <td className="py-3 px-4 border-b border-slate-100 text-center text-slate-500 font-medium">{item.unit}</td>

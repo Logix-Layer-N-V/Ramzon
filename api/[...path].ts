@@ -90,8 +90,8 @@ function row2camel(r: unknown): Record<string, unknown> {
   return sanitizeNulls(toCamel(r as Record<string, unknown>));
 }
 
-function rows2camel(rows: unknown[]): Record<string, unknown>[] {
-  return rows.map(row2camel);
+function rows2camel(rows: unknown): Record<string, unknown>[] {
+  return (rows as unknown[]).map(row2camel);
 }
 
 /* ── Main handler ───────────────────────────────────────────────────────── */
@@ -266,8 +266,26 @@ async function handleInvoices(req: VercelRequest, res: VercelResponse, id: strin
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
-      const { status, paid_amount, notes } = b;
-      const rows = await sql`UPDATE invoices SET status=${status},paid_amount=${paid_amount},notes=${notes} WHERE id=${id} RETURNING *`;
+      const {
+        invoice_number, client_id, client_name, date, due_date,
+        currency = 'USD', exchange_rate = 1, subtotal = 0, tax_amount = 0, total_amount = 0,
+        status = 'Pending', notes = '', rep = '', paid_amount = 0,
+      } = b;
+      const items = (req.body as any)?.items ?? [];
+      const rows = await sql`UPDATE invoices SET invoice_number=${invoice_number},client_id=${client_id},client_name=${client_name},date=${date},due_date=${due_date},currency=${currency},exchange_rate=${exchange_rate},subtotal=${subtotal},tax_amount=${tax_amount},total_amount=${total_amount},status=${status},notes=${notes},rep=${rep},paid_amount=${paid_amount} WHERE id=${id} RETURNING *`;
+      await sql`DELETE FROM invoice_items WHERE invoice_id=${id}`;
+      for (const item of items) {
+        const desc = item.description ?? '';
+        const houtsoort = item.houtsoort ?? '';
+        const spec = item.spec ?? '';
+        const qty = item.quantity ?? 0;
+        const unit = item.unit ?? 'PCS';
+        const price = item.unitPrice ?? item.unit_price ?? 0;
+        const tot = item.total ?? 0;
+        const taxRate = item.taxRate ?? item.tax_rate ?? 10;
+        const priceByArea = item.priceByArea ?? item.price_by_area ?? false;
+        await sql`INSERT INTO invoice_items (invoice_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area) VALUES (${id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea})`;
+      }
       return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
@@ -322,8 +340,26 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
-      const { status, notes } = b;
-      const rows = await sql`UPDATE estimates SET status=${status},notes=${notes} WHERE id=${id} RETURNING *`;
+      const {
+        estimate_number, client_id, client_name, date, valid_until,
+        currency = 'USD', exchange_rate = 1, subtotal = 0, tax_amount = 0, total = 0,
+        status = 'Draft', notes = '', rep = '',
+      } = b;
+      const items = (req.body as any)?.items ?? [];
+      const rows = await sql`UPDATE estimates SET estimate_number=${estimate_number},client_id=${client_id},client_name=${client_name},date=${date},valid_until=${valid_until},currency=${currency},exchange_rate=${exchange_rate},subtotal=${subtotal},tax_amount=${tax_amount},total=${total},status=${status},notes=${notes},rep=${rep} WHERE id=${id} RETURNING *`;
+      await sql`DELETE FROM estimate_items WHERE estimate_id=${id}`;
+      for (const item of items) {
+        const desc = item.description ?? '';
+        const houtsoort = item.houtsoort ?? '';
+        const spec = item.spec ?? '';
+        const qty = item.quantity ?? 0;
+        const unit = item.unit ?? 'PCS';
+        const price = item.unitPrice ?? item.unit_price ?? 0;
+        const tot = item.total ?? 0;
+        const taxRate = item.taxRate ?? item.tax_rate ?? 10;
+        const priceByArea = item.priceByArea ?? item.price_by_area ?? false;
+        await sql`INSERT INTO estimate_items (estimate_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area) VALUES (${id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea})`;
+      }
       return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {

@@ -158,7 +158,7 @@ const ClientImportModal: React.FC<ClientImportModalProps> = ({ onClose, onImport
           vatNumber: r.vatNumber,
           status: r.status,
           preferredCurrency: r.preferredCurrency || 'SRD',
-        }, { onSuccess: resolve, onError: resolve });
+        }, { onSuccess: () => resolve(), onError: () => resolve() });
       });
       setProgress(i + 1);
     }
@@ -260,7 +260,7 @@ const ClientImportModal: React.FC<ClientImportModalProps> = ({ onClose, onImport
                         <td className="px-3 py-2">
                           {r.valid
                             ? <CheckCircle2 size={13} className="text-emerald-500" />
-                            : <AlertCircle size={13} className="text-red-400" title={r.error} />}
+                            : <AlertCircle size={13} className="text-red-400" aria-label={r.error} />}
                         </td>
                         <td className="px-3 py-2 font-medium text-slate-800">{r.name || '—'}</td>
                         <td className="px-3 py-2 text-slate-500">{r.company || '—'}</td>

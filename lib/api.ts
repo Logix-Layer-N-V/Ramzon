@@ -20,7 +20,7 @@ export const setTokenSetter = (fn: (t: string) => void): void => { _setToken = f
 
 api.interceptors.request.use(cfg => {
   // Don't overwrite Authorization on retries — the response interceptor already set the fresh token
-  if ((cfg as Record<string, unknown>)._retry) return cfg;
+  if ((cfg as unknown as Record<string, unknown>)._retry) return cfg;
   const token = _getToken?.();
   if (token && cfg.headers) cfg.headers.Authorization = `Bearer ${token}`;
   return cfg;

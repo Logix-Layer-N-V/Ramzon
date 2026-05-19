@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { InvoiceStatus } from '../../types';
 import { api } from '../api';
 
 export interface InvoiceRow {
@@ -12,7 +13,7 @@ export interface InvoiceRow {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
-  status: string;
+  status: InvoiceStatus;
   notes: string;
   rep: string;
   paidAmount: number;

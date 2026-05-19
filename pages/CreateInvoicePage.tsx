@@ -273,7 +273,7 @@ const CreateInvoicePage: React.FC = () => {
       taxRate: docTaxRate,
       taxAmount: tax,
       totalAmount: total,
-      status: 'Pending',
+      status: 'Pending' as const,
       rep: selectedRep,
       paidAmount: paidAmount > 0 ? paidAmount : 0,
       items: items.map(i => ({

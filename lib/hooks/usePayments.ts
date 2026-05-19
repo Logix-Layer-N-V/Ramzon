@@ -7,10 +7,13 @@ export interface PaymentRow {
   invoiceId: string;
   amount: number;
   currency: string;
+  exchangeRate: number;
+  bankAccountId: string;
   date: string;
   method: string;
   reference: string;
   notes: string;
+  status: string;
   createdAt: string;
 }
 

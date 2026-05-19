@@ -255,7 +255,7 @@ const CreateQuotePage: React.FC = () => {
       taxRate: 10,
       taxAmount: tax,
       total,
-      status: 'Draft',
+      status: 'Draft' as const,
       rep: selectedRep,
       paidAmount: paidAmount > 0 ? paidAmount : 0,
       items: items.map(i => ({

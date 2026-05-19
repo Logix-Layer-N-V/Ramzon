@@ -5,7 +5,8 @@ import {
   CheckCircle2, AlertCircle, ChevronUp, ChevronDown, Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Estimate, EstimateStatus } from '../types';
+import { EstimateStatus } from '../types';
+import { EstimateRow, EstimateItemRow } from '../lib/hooks/useEstimates';
 import { LanguageContext } from '../lib/context';
 import { sendDocumentEmail } from '../lib/sendDocument';
 import { useEstimates, useUpdateEstimate, useDeleteEstimate } from '../lib/hooks/useEstimates';
@@ -52,7 +53,7 @@ const QuotesPage: React.FC = () => {
 
   const { data: allClients = [] } = useClients();
 
-  const handleSendEmail = async (e: React.MouseEvent, q: Estimate) => {
+  const handleSendEmail = async (e: React.MouseEvent, q: EstimateRow) => {
     e.stopPropagation();
     const client = allClients.find(c => c.id === q.clientId);
     const email = client?.email;
