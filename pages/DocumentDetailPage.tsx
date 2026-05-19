@@ -239,7 +239,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
           <button title="Print"    onClick={() => setShowPdfModal(true)} className="w-9 h-9 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm active:scale-95"><Printer  size={15} /></button>
           <button title="Download" onClick={() => setShowPdfModal(true)} className="w-9 h-9 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm active:scale-95"><Download size={15} /></button>
           {type === 'invoices' && (
-            <button title="Afleverbon" onClick={() => setShowDeliveryNote(true)} className="w-9 h-9 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm active:scale-95"><Truck size={15} /></button>
+            <button title="Delivery Note" onClick={() => setShowDeliveryNote(true)} className="w-9 h-9 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm active:scale-95"><Truck size={15} /></button>
           )}
           {type !== 'reports' && (<>
             <button
@@ -721,7 +721,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
         );
       })()}
 
-      {/* ── Afleverbon Modal ── */}
+      {/* ── Delivery Note Modal ── */}
       {showDeliveryNote && type === 'invoices' && (() => {
         const d = docData as any;
         return (
