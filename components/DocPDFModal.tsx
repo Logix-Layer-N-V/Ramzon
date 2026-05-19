@@ -17,6 +17,7 @@ export interface ModalLineItem {
   taxRate?: number;
   mmW?: number;
   mmH?: number;
+  priceByArea?: boolean;
 }
 
 export interface DocPDFModalProps {
@@ -42,7 +43,7 @@ export interface DocPDFModalProps {
 }
 
 const itemArea = (item: ModalLineItem) =>
-  item.mmW && item.mmH ? (item.mmW / 1000) * (item.mmH / 1000) : 1;
+  item.priceByArea === true && item.mmW && item.mmH ? (item.mmW / 1000) * (item.mmH / 1000) : 1;
 
 const PRINT_CSS = [
   '@media print {',
@@ -326,7 +327,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
             type ColDef = { label: string; align: 'left' | 'center' | 'right'; width?: string; cell: (item: ModalLineItem, idx: number, area: number, lineTotal: number) => React.ReactNode };
             const allCols: Record<string, ColDef> = {
               omschrijving: { label: 'Description',  align: 'left',   cell: (item) => <span className="font-medium">{item.description || '—'}</span> },
-              afmeting:     { label: 'Dimensions',   align: 'center', width: '90px', cell: (item) => item.mmW && item.mmH ? `${item.mmW}×${item.mmH}` : '—' },
+              afmeting:     { label: 'Dimensions',   align: 'center', width: '90px', cell: (item) => item.priceByArea === true && item.mmW && item.mmH ? `${item.mmW}×${item.mmH}` : '—' },
               qty:          { label: 'Qty',          align: 'right',  width: '48px', cell: (item) => <span className="font-bold">{item.qty}</span> },
               eenheid:      { label: 'U/M',          align: 'center', width: '44px', cell: (item) => <span className="text-slate-500">{item.unit}</span> },
               houtsoort:    { label: 'Wood',         align: 'left',   width: '80px', cell: (item) => <span className="text-slate-600">{item.houtsoort || '—'}</span> },

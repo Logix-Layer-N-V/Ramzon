@@ -257,7 +257,7 @@ const CreateInvoicePage: React.FC = () => {
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
   const updateItem = (id: string, field: keyof LineItem, val: any) => setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
 
-  const itemArea = (i: LineItem) => (i.mmW && i.mmH && i.priceByArea !== false) ? (i.mmW / 1000) * (i.mmH / 1000) : 1;
+  const itemArea = (i: LineItem) => (i.mmW && i.mmH && i.priceByArea === true) ? (i.mmW / 1000) * (i.mmH / 1000) : 1;
   const itemSubtotal = (i: LineItem) => i.price * (1 + getMarkup(i.houtsoort) / 100) * i.qty * (1 - i.discount / 100) * itemArea(i);
   const itemTotal = (i: LineItem) => itemSubtotal(i) * (1 + i.taxRate / 100);
   const fmt = (n: number) => n.toLocaleString(currency === 'USD' ? 'en-US' : 'nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -827,6 +827,7 @@ const CreateInvoicePage: React.FC = () => {
           taxRate: i.taxRate,
           mmW: i.mmW,
           mmH: i.mmH,
+          priceByArea: i.priceByArea === true,
         }))}
         subtotal={subtotal}
         tax={tax}

@@ -756,15 +756,24 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
         // credits have no items array — synthesize one row from reason + amount
         const pdfItems  = type === 'credits'
           ? [{ id: '1', description: d.reason || 'Credit', houtsoort: '', spec: '', qty: 1, unit: 'PCS', price: d.amount || 0 }]
-          : (d.items || []).map((i: any) => ({
-              id: i.id || String(Math.random()),
-              description: i.description || '',
-              houtsoort: i.houtsoort || i.wood || '',
-              spec: i.spec || '',
-              qty: i.quantity || i.qty || 1,
-              unit: i.um || i.unit || 'PCS',
-              price: i.rate || i.unitPrice || i.price || 0,
-            }));
+          : (d.items || []).map((i: any) => {
+              const specParts = (i.spec || '').split('x').map(Number);
+              const mmW = specParts[0] > 0 ? specParts[0] : undefined;
+              const mmH = specParts[1] > 0 ? specParts[1] : undefined;
+              return {
+                id: i.id || String(Math.random()),
+                description: i.description || '',
+                houtsoort: i.houtsoort || i.wood || '',
+                spec: i.spec || '',
+                qty: i.quantity || i.qty || 1,
+                unit: i.um || i.unit || 'PCS',
+                price: i.rate || i.unitPrice || i.price || 0,
+                taxRate: i.taxRate ?? 10,
+                mmW,
+                mmH,
+                priceByArea: i.priceByArea === true,
+              };
+            });
         return (
           <DocPDFModal
             docType={docType}
