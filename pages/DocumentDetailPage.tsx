@@ -735,6 +735,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
               description: i.description ?? '',
               qty: i.quantity ?? i.qty ?? 1,
               unit: i.um ?? i.unit ?? 'st',
+              spec: i.spec || undefined,
             }))}
             onClose={() => setShowDeliveryNote(false)}
           />

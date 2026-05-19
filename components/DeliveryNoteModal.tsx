@@ -8,7 +8,7 @@ interface DeliveryNoteModalProps {
   clientName: string;
   clientCompany?: string;
   clientAddress?: string;
-  items: Array<{ description: string; qty: number; unit: string }>;
+  items: Array<{ description: string; qty: number; unit: string; spec?: string }>;
   onClose: () => void;
 }
 
@@ -115,16 +115,16 @@ const DeliveryNoteModal: React.FC<DeliveryNoteModalProps> = ({
             {/* ── CLIENT BLOCK ── */}
             <div className="mb-8 grid grid-cols-2 gap-8">
               <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Afleveren aan</p>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Deliver to</p>
                 <p className="font-bold text-sm text-slate-900">{clientName}</p>
                 {clientCompany && <p className="text-sm text-slate-600">{clientCompany}</p>}
                 {clientAddress && <p className="text-xs text-slate-500 mt-0.5 uppercase leading-relaxed">{clientAddress}</p>}
               </div>
               <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Afleverlocatie</p>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Delivery Location</p>
                 <input
                   className="delivery-location-input w-full text-sm font-bold text-slate-900 border-b-2 border-slate-300 focus:border-slate-900 outline-none bg-slate-50 px-2 py-1.5 rounded-t transition-colors no-print"
-                  placeholder="Vul afleveradres in..."
+                  placeholder="Enter delivery address..."
                   value={deliveryLocation}
                   onChange={e => setDeliveryLocation(e.target.value)}
                 />
@@ -139,22 +139,25 @@ const DeliveryNoteModal: React.FC<DeliveryNoteModalProps> = ({
             <table className="w-full border-collapse text-xs mb-10">
               <thead>
                 <tr>
-                  <th className="text-left py-3 px-4 text-[9px] font-black uppercase tracking-widest bg-slate-900 text-white">Omschrijving</th>
-                  <th className="text-center py-3 px-4 text-[9px] font-black uppercase tracking-widest bg-slate-900 text-white w-20">Aantal</th>
-                  <th className="text-center py-3 px-4 text-[9px] font-black uppercase tracking-widest bg-slate-900 text-white w-20">Eenheid</th>
+                  <th className="text-left py-3 px-4 text-[9px] font-black uppercase tracking-widest bg-slate-900 text-white">Description</th>
+                  <th className="text-center py-3 px-4 text-[9px] font-black uppercase tracking-widest bg-slate-900 text-white w-20">Qty</th>
+                  <th className="text-center py-3 px-4 text-[9px] font-black uppercase tracking-widest bg-slate-900 text-white w-20">Unit</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item, i) => (
                   <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                    <td className="py-3 px-4 border-b border-slate-100 font-medium text-slate-800">{item.description}</td>
+                    <td className="py-3 px-4 border-b border-slate-100 font-medium text-slate-800">
+                      {item.description}
+                      {item.spec && <span className="text-slate-400 font-normal ml-1.5">{item.spec}mm</span>}
+                    </td>
                     <td className="py-3 px-4 border-b border-slate-100 text-center font-black text-slate-900">{item.qty}</td>
                     <td className="py-3 px-4 border-b border-slate-100 text-center text-slate-500 font-medium">{item.unit}</td>
                   </tr>
                 ))}
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="py-6 text-center text-slate-400 text-xs">Geen artikelen</td>
+                    <td colSpan={3} className="py-6 text-center text-slate-400 text-xs">No items</td>
                   </tr>
                 )}
               </tbody>
@@ -164,18 +167,18 @@ const DeliveryNoteModal: React.FC<DeliveryNoteModalProps> = ({
             <div className="grid grid-cols-2 gap-10 mt-8 pt-6 border-t border-slate-200">
               {/* Left: Afgeleverd door */}
               <div className="space-y-6">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Afgeleverd door</p>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Delivered by</p>
                 <div className="space-y-4">
                   <div>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-8">Naam</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-8">Name</p>
                     <div className="border-b-2 border-slate-300 w-full" />
                   </div>
                   <div>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-8">Handtekening</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-8">Signature</p>
                     <div className="border-b-2 border-slate-300 w-full" />
                   </div>
                   <div>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Datum</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Date</p>
                     <div className="border-b-2 border-slate-300 w-full" />
                   </div>
                 </div>
@@ -183,18 +186,18 @@ const DeliveryNoteModal: React.FC<DeliveryNoteModalProps> = ({
 
               {/* Right: Ontvangen / Afgehandeld */}
               <div className="space-y-6">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ontvangen / Afgehandeld</p>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Received / Acknowledged</p>
                 <div className="space-y-4">
                   <div>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-8">Naam</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-8">Name</p>
                     <div className="border-b-2 border-slate-300 w-full" />
                   </div>
                   <div>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-8">Handtekening</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-8">Signature</p>
                     <div className="border-b-2 border-slate-300 w-full" />
                   </div>
                   <div>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Datum</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Date</p>
                     <div className="border-b-2 border-slate-300 w-full" />
                   </div>
                 </div>
@@ -203,7 +206,7 @@ const DeliveryNoteModal: React.FC<DeliveryNoteModalProps> = ({
 
             {/* ── FOOTER NOTE ── */}
             <p className="text-[9px] text-slate-400 text-center mt-10 pt-4 border-t border-slate-100">
-              Dit document dient ondertekend te worden bij ontvangst van de goederen. — {companyName}
+              This document must be signed upon receipt of goods. — {companyName}
             </p>
           </div>
         </div>
