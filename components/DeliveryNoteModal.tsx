@@ -38,27 +38,18 @@ const DeliveryNoteModal: React.FC<DeliveryNoteModalProps> = ({
     <>
       <style>{`
         @media print {
-          body > * { display: none !important; }
-          .delivery-print-root {
-            display: block !important;
+          body * { visibility: hidden !important; }
+          #delivery-note-body, #delivery-note-body * { visibility: visible !important; }
+          #delivery-note-body {
             position: fixed !important;
-            top: 0 !important; left: 0 !important;
-            width: 100% !important; height: auto !important;
-            z-index: 99999 !important;
-            background: white !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            overflow: visible !important;
-          }
-          .delivery-modal-card {
-            max-height: none !important;
-            overflow: visible !important;
-            border-radius: 0 !important;
-            box-shadow: none !important;
-            max-width: 100% !important;
+            top: 0 !important;
+            left: 0 !important;
             width: 100% !important;
+            background: white !important;
+            padding: 20mm 15mm !important;
+            box-sizing: border-box !important;
+            overflow: visible !important;
           }
-          .no-print { display: none !important; }
           .delivery-location-input {
             border: none !important;
             background: transparent !important;
@@ -75,7 +66,7 @@ const DeliveryNoteModal: React.FC<DeliveryNoteModalProps> = ({
       {/* Overlay */}
       <div className="delivery-print-root fixed inset-0 z-50 items-end sm:items-center justify-center bg-black/60 p-4">
         {/* Modal card */}
-        <div className="delivery-modal-card bg-white rounded-[24px] w-full max-w-[800px] max-h-[95vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+        <div className="bg-white rounded-[24px] w-full max-w-[800px] max-h-[95vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
 
           {/* Modal header (no-print) */}
           <div className="no-print flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -99,7 +90,7 @@ const DeliveryNoteModal: React.FC<DeliveryNoteModalProps> = ({
           </div>
 
           {/* Printable document body */}
-          <div className="p-10 font-sans text-slate-900">
+          <div id="delivery-note-body" className="p-10 font-sans text-slate-900">
 
             {/* ── HEADER ── */}
             <div className="flex items-start justify-between pb-6 mb-6 border-b-2 border-slate-900">
