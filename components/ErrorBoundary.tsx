@@ -20,9 +20,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    if (import.meta.env.DEV) {
-      console.error('ErrorBoundary caught:', error, info.componentStack);
-    }
+    console.error('ErrorBoundary caught:', error.message, info.componentStack);
   }
 
   render() {
@@ -37,8 +35,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
           </div>
           <div>
             <h2 className="text-lg font-bold text-slate-800">Something went wrong</h2>
-            {import.meta.env.DEV && this.state.error?.message && (
-              <p className="text-sm text-slate-500 mt-1">{this.state.error.message}</p>
+            {this.state.error?.message && (
+              <p className="text-sm text-red-400 mt-1 font-mono max-w-md">{this.state.error.message}</p>
             )}
           </div>
           <button

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { api, setTokenGetter } from './api';
+import { api, setTokenGetter, setTokenSetter } from './api';
 
 interface AuthUser {
   id: string;
@@ -24,9 +24,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Register token getter for axios interceptor
+  // Register token getter/setter for axios interceptor
   useEffect(() => {
     setTokenGetter(() => accessToken);
+    setTokenSetter(setAccessToken);
   }, [accessToken]);
 
   // On mount: try to restore session via refresh token (httpOnly cookie)

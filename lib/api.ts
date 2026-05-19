@@ -13,11 +13,14 @@ export const api = axios.create({
 });
 
 let _getToken: (() => string | null) | null = null;
-export const setTokenGetter = (fn: () => string | null): void => {
-  _getToken = fn;
-};
+let _setToken: ((t: string) => void) | null = null;
+
+export const setTokenGetter = (fn: () => string | null): void => { _getToken = fn; };
+export const setTokenSetter = (fn: (t: string) => void): void => { _setToken = fn; };
 
 api.interceptors.request.use(cfg => {
+  // Don't overwrite Authorization on retries — the response interceptor already set the fresh token
+  if ((cfg as Record<string, unknown>)._retry) return cfg;
   const token = _getToken?.();
   if (token && cfg.headers) cfg.headers.Authorization = `Bearer ${token}`;
   return cfg;
@@ -33,6 +36,8 @@ api.interceptors.response.use(
       anyErr.config._retry = true;
       try {
         const { data } = await api.post('/auth/refresh');
+        // Update stored token so subsequent requests use it immediately
+        _setToken?.(data.accessToken);
         const cfg = anyErr.config as Record<string, unknown>;
         if (cfg.headers && typeof cfg.headers === 'object') {
           Object.assign(cfg.headers as Record<string, unknown>, {
