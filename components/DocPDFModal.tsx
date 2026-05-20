@@ -333,16 +333,8 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
           {/* ── LINE ITEMS TABLE ── */}
           {(() => {
             type ColDef = { label: string; align: 'left' | 'center' | 'right'; width?: string; cell: (item: ModalLineItem, idx: number, area: number, lineTotal: number) => React.ReactNode };
-            const hasAnyDimensions = items.some(i => i.mmW && i.mmH);
             const allCols: Record<string, ColDef> = {
-              omschrijving: { label: 'Description', align: 'left', cell: (item) => (
-                <span>
-                  <span className="font-medium">{item.description || '—'}</span>
-                  {item.mmW && item.mmH && (
-                    <span className="text-slate-400 font-normal ml-2 text-[9px]">({item.mmW}×{item.mmH} mm)</span>
-                  )}
-                </span>
-              )},
+              omschrijving: { label: 'Description', align: 'left', cell: (item) => <span className="font-medium">{item.description || '—'}</span> },
               afmeting:     { label: 'Dimensions',   align: 'center', width: '96px', cell: (item) => item.mmW && item.mmH ? `${item.mmW}×${item.mmH} mm` : '—' },
               qty:          { label: 'Qty',          align: 'right',  width: '48px', cell: (item) => <span className="font-bold">{item.qty}</span> },
               eenheid:      { label: 'U/M',          align: 'center', width: '44px', cell: (item) => <span className="text-slate-500">{item.unit}</span> },
@@ -353,7 +345,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
               totaal:       { label: 'Amount',       align: 'right',  width: '80px', cell: (item, _idx, _area, lineTotal) => <span className="font-black">{currencySymbol}{(lineTotal * (1 + (item.taxRate ?? 10) / 100)).toFixed(2)}</span> },
             };
             const visCols = tableColsOrder.filter(k => {
-              if (k === 'afmeting') return hasAnyDimensions;
+              if (k === 'afmeting') return !!allCols[k];
               return showTableCols[k] !== false && allCols[k];
             });
             const visColCount = visCols.length + 1;
