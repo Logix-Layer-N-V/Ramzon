@@ -1,9 +1,10 @@
 import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { LanguageContext } from '../lib/context';
-import { Search, Plus, Package, Ruler, Pencil, Trash2, Settings2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Search, Plus, Package, Ruler, Pencil, Trash2, Settings2, ChevronUp, ChevronDown, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useProducts, useDeleteProduct, useCreateProduct, ProductRow } from '../lib/hooks/useProducts';
 import { storage } from '../lib/storage';
+import ProductImportModal from '../components/ProductImportModal';
 
 const CATEGORIES = ['All', 'Doors', 'Mouldings', 'Frames', 'Window Frames', 'Crating'];
 
@@ -17,6 +18,7 @@ const ProductsPage: React.FC = () => {
 
   const [sortKey, setSortKey] = useState<string>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [showImport, setShowImport] = useState(false);
 
   const localProducts = useMemo(() => storage.products.get(), []);
 
@@ -122,6 +124,12 @@ const ProductsPage: React.FC = () => {
             className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 bg-white text-slate-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
           >
             <Settings2 size={14} /> Configure Types
+          </button>
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 bg-white text-slate-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
+          >
+            <Upload size={14} /> Import CSV
           </button>
           <button
             onClick={() => navigate('/products/new')}
@@ -249,6 +257,13 @@ const ProductsPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {showImport && (
+        <ProductImportModal
+          onClose={() => setShowImport(false)}
+          onImported={() => setShowImport(false)}
+        />
+      )}
     </div>
   );
 };
