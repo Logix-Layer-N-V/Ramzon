@@ -31,7 +31,7 @@ const INPUT = 'w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl t
 
 const CreatePaymentPage: React.FC = () => {
   const navigate = useNavigate();
-  const { defaultCurrency, enableCrypto } = useContext(LanguageContext);
+  const { defaultCurrency } = useContext(LanguageContext);
   const { id: editId } = useParams();
   const location = useLocation();
   const isEdit = !!editId;
@@ -92,7 +92,6 @@ const CreatePaymentPage: React.FC = () => {
     switch (cur) {
       case 'USD': return r.usdSrd;
       case 'EUR': return r.eurSrd;
-      case 'USDT': return r.usdSrd;
       default: return 1;
     }
   };
@@ -105,10 +104,6 @@ const CreatePaymentPage: React.FC = () => {
     if (!selectedInvoice) return 0;
     return selectedInvoice.totalAmount - (selectedInvoice.paidAmount ?? 0);
   }, [selectedInvoice]);
-
-  useEffect(() => {
-    if (!enableCrypto && currency === 'USDT') setCurrency('SRD');
-  }, [enableCrypto]);
 
   useEffect(() => {
     const banks = bankAccounts.filter(b =>
@@ -280,7 +275,7 @@ const CreatePaymentPage: React.FC = () => {
             <div className="space-y-1.5">
               <label className={`${LABEL} flex items-center gap-2`}><TrendingUp size={10}/> Currency</label>
               <select aria-label="Currency" value={currency} onChange={e => setCurrency(e.target.value)} className={INPUT}>
-                {['SRD', 'USD', 'EUR', ...(enableCrypto ? ['USDT'] : [])].map(c => <option key={c}>{c}</option>)}
+                {['SRD', 'USD', 'EUR'].map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
 

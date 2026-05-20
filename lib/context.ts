@@ -47,8 +47,6 @@ export const LanguageContext = createContext<{
   defaultCurrency: string;
   setDefaultCurrency: (v: string) => void;
   currencySymbol: string;
-  enableCrypto: boolean;
-  setEnableCrypto: (v: boolean) => void;
   // Brand Colors
   brandColor: string;
   setBrandColor: (v: string) => void;
@@ -93,8 +91,6 @@ export const LanguageContext = createContext<{
   defaultCurrency: 'USD',
   setDefaultCurrency: () => {},
   currencySymbol: '$',
-  enableCrypto: false,
-  setEnableCrypto: () => {},
   brandColor: '#BE1E2D',
   setBrandColor: () => {},
   accentColor: '#1A1A1A',

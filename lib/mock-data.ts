@@ -299,7 +299,7 @@ export const mockPayments: Payment[] = [
   { id: 'pay6',  clientId: 'c6', amount: 1815,  currency: 'SRD', bankAccountId: 'dsb_srd', date: '2026-02-12', method: 'Bank Transfer',  reference: 'INV-2026-006 — Full Payment',          status: 'Completed' },
   { id: 'pay7',  clientId: 'c4', amount: 4180,  currency: 'EUR', bankAccountId: 'ing_eur', date: '2026-02-18', method: 'iDEAL',          reference: 'INV-2026-005 — Full Payment',          status: 'Completed' },
   { id: 'pay8',  clientId: 'c1', amount: 9966,  currency: 'USD', bankAccountId: 'dsb_usd', date: '2026-02-28', method: 'Wire Transfer',  reference: 'INV-2026-007 — Full Payment',          status: 'Completed' },
-  { id: 'pay9',  clientId: 'c1', amount: 800,   currency: 'USDT',bankAccountId: 'crypto',  date: '2026-02-22', method: 'Crypto (USDT)', reference: 'Misc. advance payment',                status: 'Completed' },
+  { id: 'pay9',  clientId: 'c1', amount: 800,   currency: 'USD', bankAccountId: 'dsb_usd', date: '2026-02-22', method: 'Wire Transfer',  reference: 'Misc. advance payment',                status: 'Completed' },
   { id: 'pay10', clientId: 'c5', amount: 6000,  currency: 'USD', bankAccountId: 'dsb_usd', date: '2026-03-01', method: 'Wire Transfer',  reference: 'INV-2026-010 — Advance 50%',           status: 'Completed' },
   { id: 'pay11', clientId: 'c4', amount: 1500,  currency: 'SRD', bankAccountId: 'hkb_srd', date: '2026-03-02', method: 'Cash',           reference: 'INV-2026-011 — Down Payment',          status: 'Completed' },
   { id: 'pay12', clientId: 'c3', amount: 2500,  currency: 'SRD', bankAccountId: 'dsb_srd', date: '2026-03-04', method: 'Bank Transfer',  reference: 'INV-2026-009 — Partial Payment',       status: 'Completed' },

@@ -7,7 +7,6 @@ import { useClient, useUpdateClient } from '../lib/hooks/useClients';
 const EditClientPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { enableCrypto } = useContext(LanguageContext);
 
   const { data: client, isLoading } = useClient(id ?? '');
   const updateClient = useUpdateClient();
@@ -188,7 +187,6 @@ const EditClientPage: React.FC = () => {
                 <option value="SRD">🇸🇷 SRD – Surinamese Dollar</option>
                 <option value="USD">🇺🇸 USD – US Dollar</option>
                 <option value="EUR">🇪🇺 EUR – Euro</option>
-                {enableCrypto && <option value="USDT">💵 USDT – Tether</option>}
               </select>
               <p className="text-[10px] text-slate-400 font-medium">Used as default currency on invoices and quotes</p>
             </div>

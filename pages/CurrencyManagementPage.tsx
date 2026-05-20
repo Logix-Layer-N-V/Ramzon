@@ -24,7 +24,7 @@ import type { ExchangeRate } from '../types';
 const rateToRow = (r: ExchangeRate) => ({
   id: r.id, date: r.date,
   usd: r.usdSrd.toString(), srd: '1.00',
-  eur: r.eurSrd.toString(), usdt: r.usdSrd.toString(),
+  eur: r.eurSrd.toString(),
 });
 
 const DEFAULT_RATES: ExchangeRate[] = [
@@ -56,7 +56,6 @@ const CurrencyManagementPage: React.FC = () => {
     usd: '',
     srd: '1.00',
     eur: '',
-    usdt: ''
   });
 
   const [newCurrency, setNewCurrency] = useState({
@@ -69,8 +68,8 @@ const CurrencyManagementPage: React.FC = () => {
   const [editingCurrency, setEditingCurrency] = useState<{ id: string; code: string; name: string; symbol: string; status: string } | null>(null);
 
   const handleExportCSV = () => {
-    const headers = ['Date', 'USD Rate', 'SRD Base', 'EUR Rate', 'USDT Rate'];
-    const rows = dailyRates.map(r => [r.date, r.usd, r.srd, r.eur, r.usdt]);
+    const headers = ['Date', 'USD Rate', 'SRD Base', 'EUR Rate'];
+    const rows = dailyRates.map(r => [r.date, r.usd, r.srd, r.eur]);
     const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -98,7 +97,7 @@ const CurrencyManagementPage: React.FC = () => {
     // Update display list
     setDailyRates([rateToRow(newRate), ...dailyRates.filter(r => r.date !== newEntry.date)]);
     setShowEntryForm(false);
-    setNewEntry({ date: new Date().toISOString().split('T')[0], usd: '', srd: '1.00', eur: '', usdt: '' });
+    setNewEntry({ date: new Date().toISOString().split('T')[0], usd: '', srd: '1.00', eur: '' });
   };
 
   const handleDeleteRate = (rateId: string) => {
@@ -246,7 +245,6 @@ const CurrencyManagementPage: React.FC = () => {
                         <th className="px-4 py-5 text-center">USD Rate</th>
                         <th className="px-4 py-5 text-center bg-slate-100/50">SRD (Base)</th>
                         <th className="px-4 py-5 text-center">EURO Rate</th>
-                        <th className="px-4 py-5 text-center">USDT Rate</th>
                         <th className="px-8 py-5 text-right">Actions</th>
                       </tr>
                     </thead>
@@ -264,9 +262,6 @@ const CurrencyManagementPage: React.FC = () => {
                           </td>
                           <td className="px-4 py-4 text-center">
                             <span className="font-black text-brand-primary text-lg italic">{row.eur}</span>
-                          </td>
-                          <td className="px-4 py-4 text-center">
-                            <span className="font-black text-orange-600 text-lg italic">{row.usdt}</span>
                           </td>
                           <td className="px-8 py-4 text-right">
                             <button onClick={() => handleDeleteRate(row.id)} className="p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
@@ -379,17 +374,6 @@ const CurrencyManagementPage: React.FC = () => {
                     type="number" step="0.01" placeholder="0.00"
                     value={newEntry.eur}
                     onChange={(e) => setNewEntry({...newEntry, eur: e.target.value})}
-                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-lg font-black outline-none focus:bg-white transition-all shadow-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest flex items-center gap-2">
-                    <span className="w-1 h-1 bg-orange-600 rounded-full"></span> USDT Rate
-                  </label>
-                  <input 
-                    type="number" step="0.01" placeholder="0.00"
-                    value={newEntry.usdt}
-                    onChange={(e) => setNewEntry({...newEntry, usdt: e.target.value})}
                     className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-lg font-black outline-none focus:bg-white transition-all shadow-sm"
                   />
                 </div>

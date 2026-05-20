@@ -65,7 +65,7 @@ const DEFAULT_NOTES = `1-Office Hours: mon-fri 08:00-12:00/13:00-17:00).
 const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t, companyName, companyLogo, companyAddress, companyEmail, companyPhone, companyWebsite, companyBTW, companyKKF, currencySymbol, enableCrypto } = useContext(LanguageContext);
+  const { t, companyName, companyLogo, companyAddress, companyEmail, companyPhone, companyWebsite, companyBTW, companyKKF, currencySymbol } = useContext(LanguageContext);
   const [notes, setNotes] = useState<string>(() =>
     localStorage.getItem(`notes_${type}_${id}`) ?? DEFAULT_NOTES
   );
@@ -607,7 +607,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
 
         const getRateSRD = (cur: string) => {
           if (!latestRate) return 1;
-          if (cur === 'USD' || cur === 'USDT') return latestRate.usdSrd;
+          if (cur === 'USD') return latestRate.usdSrd;
           if (cur === 'EUR') return latestRate.eurSrd;
           return 1;
         };
@@ -674,7 +674,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Currency</label>
                   <select value={paymentCurrency} onChange={e => { setPaymentCurrency(e.target.value); const banks = bankAccounts.filter(b => b.currency === e.target.value); setPaymentBankId(banks[0]?.id || ''); }}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none">
-                    {['SRD','USD','EUR',...(enableCrypto?['USDT']:[])].map(c => <option key={c}>{c}</option>)}
+                    {['SRD','USD','EUR'].map(c => <option key={c}>{c}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1.5">
@@ -707,7 +707,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Method</label>
                   <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none">
-                    {['Bank Transfer','Cash','Credit Card','USDT'].map(m => <option key={m}>{m}</option>)}
+                    {['Bank Transfer','Cash','Credit Card'].map(m => <option key={m}>{m}</option>)}
                   </select>
                 </div>
               </div>

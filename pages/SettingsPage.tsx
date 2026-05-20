@@ -59,7 +59,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ viewMode, setViewMode }) =>
     companyKKF, setCompanyKKF,
     companyBTW, setCompanyBTW,
     taxRates, setTaxRates,
-    enableCrypto, setEnableCrypto,
     brandColor, setBrandColor,
     accentColor, setAccentColor,
     timezone, setTimezone,
@@ -757,28 +756,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ viewMode, setViewMode }) =>
               </div>
             </div>
 
-            {/* Crypto Payment Toggle */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">Payment Settings</h4>
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-orange-50 rounded-xl flex items-center justify-center text-orange-500 font-black text-sm">₮</div>
-                  <div>
-                    <p className="text-xs font-black text-slate-900">Crypto Payment</p>
-                    <p className="text-[9px] text-slate-400 font-bold">USDT / Tether</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setEnableCrypto(!enableCrypto)}
-                  className={`relative w-11 h-6 rounded-full transition-all duration-300 focus:outline-none shrink-0 ${enableCrypto ? 'bg-brand-primary' : 'bg-slate-200'}`}
-                >
-                  <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-300 ${enableCrypto ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
-              </div>
-              <p className="text-[9px] font-bold text-slate-400 px-1">
-                {enableCrypto ? '✓ USDT will appear as a payment option on invoices and payment forms.' : 'Tether (USDT) is hidden from all currency selections.'}
-              </p>
-            </div>
           </div>
       </div>
     </div>

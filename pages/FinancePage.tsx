@@ -27,7 +27,6 @@ const CURRENCY_COLORS: Record<string, string> = {
   SRD: 'bg-emerald-50 text-emerald-700 border-emerald-100',
   USD: 'bg-blue-50 text-blue-700 border-blue-100',
   EUR: 'bg-purple-50 text-purple-700 border-purple-100',
-  USDT: 'bg-amber-50 text-amber-700 border-amber-100',
 };
 
 const BANK_COLORS: Record<string, string> = {
@@ -269,7 +268,7 @@ const FinancePage: React.FC = () => {
                 <div>
                   <label className="text-[9px] font-black text-slate-400 uppercase">Currency</label>
                   <select value={newCurrency} onChange={e => setNewCurrency(e.target.value)} className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none bg-white">
-                    <option>SRD</option><option>USD</option><option>EUR</option><option>USDT</option>
+                    <option>SRD</option><option>USD</option><option>EUR</option>
                   </select>
                 </div>
                 <div>
@@ -330,7 +329,7 @@ const FinancePage: React.FC = () => {
                 {uniqueBanks.map(b => <option key={b}>{b}</option>)}
               </select>
               <select value={txFilterCurrency} onChange={e => setTxFilterCurrency(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black outline-none bg-white text-slate-700">
-                {['All','SRD','USD','EUR','USDT'].map(c => <option key={c}>{c}</option>)}
+                {['All','SRD','USD','EUR'].map(c => <option key={c}>{c}</option>)}
               </select>
               <input type="date" value={txDateFrom} onChange={e => setTxDateFrom(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none bg-white text-slate-700" placeholder="From"/>
               <input type="date" value={txDateTo} onChange={e => setTxDateTo(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none bg-white text-slate-700" placeholder="To"/>

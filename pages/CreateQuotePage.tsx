@@ -39,7 +39,7 @@ const catToDesc = (cat: string) => {
 const CreateQuotePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currencySymbol, enableCrypto } = useContext(LanguageContext);
+  const { currencySymbol } = useContext(LanguageContext);
   const { user } = useAuth();
   const { id } = useParams();
   const isEdit = !!id;
@@ -163,13 +163,9 @@ const CreateQuotePage: React.FC = () => {
   }, [client]);
 
   useEffect(() => {
-    if (!enableCrypto && currency === 'USDT') setCurrency('SRD');
-  }, [enableCrypto]);
-
-  useEffect(() => {
     const latest = getLatestExchangeRate();
     if (!latest) return;
-    if (currency === 'USD' || currency === 'USDT') setExchangeRate(latest.usdSrd);
+    if (currency === 'USD') setExchangeRate(latest.usdSrd);
     else if (currency === 'EUR') setExchangeRate(latest.eurSrd);
     else setExchangeRate(1);
   }, [currency]);
@@ -410,7 +406,6 @@ const CreateQuotePage: React.FC = () => {
                 <option value="SRD">🇸🇷 SRD</option>
                 <option value="USD">🇺🇸 USD</option>
                 <option value="EUR">🇪🇺 EUR</option>
-                {enableCrypto && <option value="USDT">💵 USDT</option>}
               </select>
             </div>
             {currency !== 'SRD' && (

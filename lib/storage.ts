@@ -110,7 +110,6 @@ export function toBase(
     case 'SRD':  srdAmount = amount; break;
     case 'USD':  srdAmount = amount * r.usdSrd; break;
     case 'EUR':  srdAmount = amount * r.eurSrd; break;
-    case 'USDT': srdAmount = amount * r.usdSrd; break; // USDT ≈ USD
     default:     srdAmount = amount;
   }
 

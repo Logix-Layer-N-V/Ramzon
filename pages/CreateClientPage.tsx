@@ -6,7 +6,6 @@ import { useCreateClient } from '../lib/hooks/useClients';
 
 const CreateClientPage: React.FC = () => {
   const navigate = useNavigate();
-  const { enableCrypto } = useContext(LanguageContext);
 
   const [contactName, setContactName] = useState('');
   const [company, setCompany] = useState('');
@@ -152,7 +151,6 @@ const CreateClientPage: React.FC = () => {
                 <option value="SRD">🇸🇷 SRD – Surinamese Dollar</option>
                 <option value="USD">🇺🇸 USD – US Dollar</option>
                 <option value="EUR">🇪🇺 EUR – Euro</option>
-                {enableCrypto && <option value="USDT">💵 USDT – Tether</option>}
               </select>
               <p className="text-[10px] text-slate-400 font-medium">Used as default currency on invoices and quotes</p>
             </div>

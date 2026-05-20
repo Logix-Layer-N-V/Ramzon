@@ -180,7 +180,6 @@ const App: React.FC = () => {
       { id: '1', code: 'USD', name: 'US Dollar', symbol: '$', status: 'Active' },
       { id: '2', code: 'SRD', name: 'Surinamese Dollar', symbol: 'SRD', status: 'Active' },
       { id: '3', code: 'EUR', name: 'Euro', symbol: '€', status: 'Active' },
-      { id: '4', code: 'USDT', name: 'Tether', symbol: '₮', status: 'Active' },
     ];
   });
 
@@ -200,8 +199,6 @@ const App: React.FC = () => {
   const [companyBTW, setCompanyBTW] = useState(() => localStorage.getItem('companyBTW') || '101.202.303');
   
   const [defaultCurrency, setDefaultCurrency] = useState(() => localStorage.getItem('defaultCurrency') || 'USD');
-  const [enableCrypto, setEnableCrypto] = useState(() => localStorage.getItem('enableCrypto') === 'true');
-
   // Brand Colors (custom override)
   const [brandColor, setBrandColor] = useState(() => localStorage.getItem('erp_brand_color') || '#BE1E2D');
   const [accentColor, setAccentColor] = useState(() => localStorage.getItem('erp_accent_color') || '#1A1A1A');
@@ -228,7 +225,6 @@ const App: React.FC = () => {
       case 'USD': return '$';
       case 'EUR': return '€';
       case 'SRD': return 'SRD ';
-      case 'USDT': return '₮';
       case 'GBP': return '£';
       case 'JPY': return '¥';
       case 'CAD': return 'CA$';
@@ -265,10 +261,6 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('multiCurrency', multiCurrency.toString());
   }, [multiCurrency]);
-
-  useEffect(() => {
-    localStorage.setItem('enableCrypto', enableCrypto.toString());
-  }, [enableCrypto]);
 
   useEffect(() => {
     localStorage.setItem('availableCurrencies', JSON.stringify(availableCurrencies));
@@ -330,7 +322,6 @@ const App: React.FC = () => {
       taxRates, setTaxRates,
       defaultCurrency, setDefaultCurrency: (v: string) => { setDefaultCurrency(v); localStorage.setItem('defaultCurrency', v); },
       currencySymbol: getCurrencySymbol(defaultCurrency),
-      enableCrypto, setEnableCrypto,
       brandColor, setBrandColor,
       accentColor, setAccentColor,
       timezone,   setTimezone:   (v: string) => { setTimezone(v);   localStorage.setItem('timezone', v); },

@@ -137,7 +137,6 @@ const TrafficInsightsPage: React.FC = () => {
       'Cash':          { bg: 'bg-emerald-500', text: 'text-emerald-700',icon: Banknote },
       'iDeal':         { bg: 'bg-purple-500',  text: 'text-purple-700', icon: Smartphone },
       'PayPal':        { bg: 'bg-cyan-500',    text: 'text-cyan-700',   icon: CreditCard },
-      'USDT':          { bg: 'bg-amber-500',   text: 'text-amber-700',  icon: Coins },
       'Cheque':        { bg: 'bg-slate-500',   text: 'text-slate-700',  icon: FileText },
     };
     return [...map.entries()]
