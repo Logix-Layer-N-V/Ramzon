@@ -194,6 +194,8 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                         qty: i.qty,
                         unit: i.unit || 'pcs',
                         houtsoort: i.houtsoort || undefined,
+                        mmW: i.mmW,
+                        mmH: i.mmH,
                         price: effectivePrice,
                         subtotal: itemSub,
                         total: itemSub * (1 + itemTax / 100),

@@ -39,7 +39,7 @@ export interface DocPDFProps {
   paidAmount?: number;
   currency: string;
   currencySymbol: string;
-  items: Array<{ description: string; qty: number; unit: string; price: number; total: number; houtsoort?: string; taxRate?: number; subtotal?: number }>;
+  items: Array<{ description: string; qty: number; unit: string; price: number; total: number; houtsoort?: string; taxRate?: number; subtotal?: number; mmW?: number; mmH?: number }>;
   subtotal: number;
   tax: number;
   total: number;
@@ -170,6 +170,9 @@ export const DocPDF: React.FC<DocPDFProps> = ({
                   <View key={i} style={S.tableRow}>
                     <View style={{ flex: 3 }}>
                       <Text style={S.value}>{item.description}</Text>
+                      {item.mmW && item.mmH && (
+                        <Text style={[S.label, { marginTop: 1 }]}>{item.mmW} × {item.mmH} mm</Text>
+                      )}
                       {item.houtsoort && <Text style={[S.label, { marginTop: 1 }]}>{item.houtsoort}</Text>}
                     </View>
                     <Text style={{ flex: 1, textAlign: 'right', color: '#1e293b', fontSize: 9 }}>{item.qty} {item.unit}</Text>
