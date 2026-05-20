@@ -18,7 +18,8 @@ import { useExpenses } from '../lib/hooks/useExpenses';
 type Period = 'month' | 'year' | 'all';
 type ReportType = 'sales' | 'estimates' | 'invoices' | 'payments' | 'credits' | 'profit_loss';
 type DateMode = 'presets' | 'custom';
-type Tab = 'insights' | 'reports';
+type Tab = 'insights' | 'reports' | 'btw';
+type BtwPeriod = 'month' | 'quarter' | 'year' | 'all';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -33,6 +34,10 @@ const FinanceReportsPage: React.FC = () => {
 
   // ── Tab ──────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>('insights');
+
+  // ── BTW state ─────────────────────────────────────────────────────────────
+  const [btwPeriod, setBtwPeriod] = useState<BtwPeriod>('year');
+  const [btwYear,   setBtwYear]   = useState(currentYear.toString());
 
   // ── Insights state ────────────────────────────────────────────────────────
   const [period, setPeriod] = useState<Period>('month');
@@ -238,6 +243,63 @@ const FinanceReportsPage: React.FC = () => {
     }
   }, [reportType, invoices, estimates, payments, credits, clients]);
 
+  // ── BTW data ──────────────────────────────────────────────────────────────
+  const btwRows = useMemo(() => {
+    const yr = parseInt(btwYear, 10);
+    const currentQ = Math.floor(currentMonth / 3);
+    return invoices
+      .filter(inv => {
+        if (!inv.date) return false;
+        const d = new Date(inv.date);
+        if (btwPeriod === 'month')   return d.getMonth() === currentMonth && d.getFullYear() === yr;
+        if (btwPeriod === 'quarter') return Math.floor(d.getMonth() / 3) === currentQ && d.getFullYear() === yr;
+        if (btwPeriod === 'year')    return d.getFullYear() === yr;
+        return true;
+      })
+      .filter(inv => (inv as any).status !== 'cancelled')
+      .map(inv => {
+        const rate     = Number((inv as any).taxRate ?? 0);
+        const subtotal = Number(inv.subtotal ?? 0);
+        const taxAmt   = Number((inv as any).taxAmount ?? 0);
+        const total    = Number(inv.totalAmount ?? 0);
+        return {
+          ref:      (inv as any).invoiceNumber || inv.id,
+          client:   inv.clientName || '—',
+          date:     inv.date || '',
+          subtotal,
+          rate,
+          taxAmt,
+          total,
+          status:   (inv as any).status || '—',
+        };
+      });
+  }, [invoices, btwPeriod, btwYear, currentMonth]);
+
+  const btwSummary = useMemo(() => {
+    const total10 = btwRows.filter(r => r.rate <= 10).reduce((s, r) => s + r.taxAmt, 0);
+    const total21 = btwRows.filter(r => r.rate > 10).reduce((s, r) => s + r.taxAmt, 0);
+    const totalBtw = btwRows.reduce((s, r) => s + r.taxAmt, 0);
+    const totalEx  = btwRows.reduce((s, r) => s + r.subtotal, 0);
+    return { total10, total21, totalBtw, totalEx, count: btwRows.length };
+  }, [btwRows]);
+
+  const handleBtwExport = () => {
+    const header = 'Factuurnr,Klant,Datum,Ex. BTW,BTW%,BTW Bedrag,Totaal incl. BTW,Status';
+    const csvRows = btwRows.map(r =>
+      `"${r.ref}","${r.client}",${r.date},${r.subtotal.toFixed(2)},${r.rate}%,${r.taxAmt.toFixed(2)},${r.total.toFixed(2)},${r.status}`
+    );
+    const csv  = [header, ...csvRows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `btw-rapport-${btwYear}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
   const currentModel = reportOptions.find(o => o.id === reportType) || reportOptions[0];
 
   useEffect(() => {
@@ -284,8 +346,10 @@ const FinanceReportsPage: React.FC = () => {
         {([
           { key: 'insights', label: 'Business Insights' },
           { key: 'reports',  label: 'Finance Reports'   },
+          { key: 'btw',      label: 'BTW Report'        },
         ] as { key: Tab; label: string }[]).map(tab => (
           <button
+            type="button"
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={`px-5 py-2 text-xs font-black rounded-lg transition-all ${
@@ -305,7 +369,7 @@ const FinanceReportsPage: React.FC = () => {
           {/* Period filter */}
           <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
             {(['month', 'year', 'all'] as Period[]).map(p => (
-              <button key={p} onClick={() => setPeriod(p)}
+              <button type="button" key={p} onClick={() => setPeriod(p)}
                 className={`px-4 py-1.5 text-[11px] font-black rounded-lg transition-all ${
                   period === p ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}>
@@ -551,6 +615,7 @@ const FinanceReportsPage: React.FC = () => {
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Report Type</h3>
                   </div>
                   <button
+                    type="button"
                     onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
                     className="w-full lg:max-w-md flex items-center justify-between px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl hover:border-brand-primary transition-all group"
                   >
@@ -570,6 +635,7 @@ const FinanceReportsPage: React.FC = () => {
                     <div className="absolute top-full left-0 mt-2 w-full lg:max-w-md bg-white border border-slate-100 rounded-xl shadow-lg z-[100] p-2 animate-in fade-in zoom-in-95 duration-200">
                       {reportOptions.map(opt => (
                         <button
+                          type="button"
                           key={opt.id}
                           onClick={() => { setReportType(opt.id as ReportType); setIsModelDropdownOpen(false); }}
                           className={`w-full flex items-center justify-between p-3 rounded-lg transition-all ${reportType === opt.id ? 'bg-brand-primary text-white' : 'hover:bg-slate-50'}`}
@@ -594,8 +660,8 @@ const FinanceReportsPage: React.FC = () => {
                 <div className="space-y-3">
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Date Range</h3>
                   <div className="bg-slate-50 p-1 rounded-xl flex gap-1 border border-slate-100">
-                    <button onClick={() => setDateMode('presets')} className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-tight transition-all ${dateMode === 'presets' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Presets</button>
-                    <button onClick={() => setDateMode('custom')}  className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-tight transition-all ${dateMode === 'custom'  ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Custom</button>
+                    <button type="button" onClick={() => setDateMode('presets')} className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-tight transition-all ${dateMode === 'presets' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Presets</button>
+                    <button type="button" onClick={() => setDateMode('custom')}  className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-tight transition-all ${dateMode === 'custom'  ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Custom</button>
                   </div>
                 </div>
               </div>
@@ -612,7 +678,7 @@ const FinanceReportsPage: React.FC = () => {
                       </div>
                       <div className="bg-slate-50 p-1 rounded-xl flex gap-1 border border-slate-100">
                         {days.map(day => (
-                          <button key={day} onClick={() => setSelectedDay(day)}
+                          <button type="button" key={day} onClick={() => setSelectedDay(day)}
                             className={`flex-1 py-2.5 rounded-lg text-xs font-bold uppercase tracking-tight transition-all ${
                               selectedDay === day ? 'bg-brand-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
                             }`}>
@@ -628,7 +694,7 @@ const FinanceReportsPage: React.FC = () => {
                         <span className="text-xs font-bold uppercase tracking-wider">Month</span>
                       </div>
                       <div className="relative">
-                        <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+                        <select title="Select month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
                           className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none hover:border-brand-primary transition-all cursor-pointer">
                           {months.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
                         </select>
@@ -642,7 +708,7 @@ const FinanceReportsPage: React.FC = () => {
                         <span className="text-xs font-bold uppercase tracking-wider">Year</span>
                       </div>
                       <div className="relative">
-                        <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)}
+                        <select title="Select year" value={selectedYear} onChange={e => setSelectedYear(e.target.value)}
                           className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none hover:border-brand-primary transition-all cursor-pointer">
                           {years.map(y => <option key={y} value={y}>{y}</option>)}
                         </select>
@@ -657,7 +723,7 @@ const FinanceReportsPage: React.FC = () => {
                         <Calendar size={14} />
                         <span className="text-xs font-bold uppercase tracking-wider">Start Date</span>
                       </div>
-                      <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)}
+                      <input type="date" title="Start date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-brand-accent-light focus:border-brand-primary transition-all" />
                     </div>
                     <div className="space-y-3">
@@ -665,7 +731,7 @@ const FinanceReportsPage: React.FC = () => {
                         <ArrowRight size={14} />
                         <span className="text-xs font-bold uppercase tracking-wider">End Date</span>
                       </div>
-                      <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)}
+                      <input type="date" title="End date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-brand-accent-light focus:border-brand-primary transition-all" />
                     </div>
                   </div>
@@ -681,12 +747,14 @@ const FinanceReportsPage: React.FC = () => {
                 </p>
                 <div className="flex gap-3 w-full md:w-auto">
                   <button
+                    type="button"
                     onClick={() => { setReportType('sales'); setSelectedDay('All'); setDateMode('presets'); }}
                     className="flex-1 md:flex-none px-5 py-2.5 text-slate-400 hover:text-red-500 font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2"
                   >
                     <RotateCcw size={14} /> Reset
                   </button>
                   <button
+                    type="button"
                     onClick={handleRunReport}
                     disabled={isRunning}
                     className="flex-1 md:flex-none bg-slate-900 text-white px-8 py-3 rounded-xl text-xs font-bold uppercase tracking-wider shadow-md hover:bg-slate-800 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
@@ -787,10 +855,171 @@ const FinanceReportsPage: React.FC = () => {
                 {reportType === 'profit_loss' ? '5 summary lines' : `Total records: ${ledgerRows.length}`}
               </p>
               <div className="flex gap-2">
-                <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold uppercase text-slate-400">Previous</button>
-                <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold uppercase text-slate-900 shadow-sm">Next</button>
+                <button type="button" className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold uppercase text-slate-400">Previous</button>
+                <button type="button" className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold uppercase text-slate-900 shadow-sm">Next</button>
               </div>
             </div>
+          </div>
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          BTW REPORT TAB
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'btw' && (
+        <>
+          {/* Period + year filter */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+              {(['month', 'quarter', 'year', 'all'] as BtwPeriod[]).map(p => (
+                <button type="button" key={p} onClick={() => setBtwPeriod(p)}
+                  className={`px-4 py-1.5 text-[11px] font-black rounded-lg transition-all ${
+                    btwPeriod === p ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}>
+                  {p === 'month' ? 'This Month' : p === 'quarter' ? 'This Quarter' : p === 'year' ? 'Year' : 'All Time'}
+                </button>
+              ))}
+            </div>
+            {(btwPeriod === 'year' || btwPeriod === 'month' || btwPeriod === 'quarter') && (
+              <div className="relative">
+                <select title="Select year" value={btwYear} onChange={e => setBtwYear(e.target.value)}
+                  className="appearance-none bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold outline-none hover:border-brand-primary transition-all cursor-pointer pr-8">
+                  {Array.from({ length: currentYear - 2020 + 1 }, (_, i) => (currentYear - i).toString()).map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+              </div>
+            )}
+            <button type="button" onClick={handleBtwExport}
+              className="ml-auto flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all shadow-sm active:scale-95">
+              <Download size={14} /> Export CSV
+            </button>
+          </div>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: 'Totaal BTW',       value: btwSummary.totalBtw, color: 'bg-blue-50 text-blue-600',     icon: Receipt },
+              { label: 'BTW 10%',          value: btwSummary.total10,  color: 'bg-amber-50 text-amber-600',   icon: FileText },
+              { label: 'BTW 21%',          value: btwSummary.total21,  color: 'bg-purple-50 text-purple-600', icon: FileText },
+              { label: 'Totaal Ex. BTW',   value: btwSummary.totalEx,  color: 'bg-emerald-50 text-emerald-600', icon: DollarSign },
+            ].map((card, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${card.color}`}>
+                  <card.icon size={18} />
+                </div>
+                <p className="text-2xl font-black text-slate-900 leading-none">
+                  {currencySymbol} {card.value.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-[11px] font-bold text-slate-500 mt-1.5 uppercase tracking-wide">{card.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Per-rate summary */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {[
+              { rate: '10%', rows: btwRows.filter(r => r.rate <= 10), color: 'bg-amber-500' },
+              { rate: '21%', rows: btwRows.filter(r => r.rate > 10),  color: 'bg-purple-500' },
+            ].map(group => {
+              const groupBtw = group.rows.reduce((s, r) => s + r.taxAmt, 0);
+              const groupEx  = group.rows.reduce((s, r) => s + r.subtotal, 0);
+              return (
+                <div key={group.rate} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`w-3 h-3 rounded-full ${group.color}`} />
+                    <h3 className="text-sm font-black text-slate-900">BTW {group.rate}</h3>
+                    <span className="ml-auto text-[10px] font-bold text-slate-400 uppercase">{group.rows.length} facturen</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-500 font-bold">Grondslag (ex. BTW)</span>
+                      <span className="font-black text-slate-900">{currencySymbol} {groupEx.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-500 font-bold">BTW bedrag</span>
+                      <span className="font-black text-blue-700">{currencySymbol} {groupBtw.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="h-px bg-slate-100 my-2" />
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-500 font-bold">Totaal incl. BTW</span>
+                      <span className="font-black text-slate-900">{currencySymbol} {(groupEx + groupBtw).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Per-invoice table */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">BTW per Factuur</h3>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5">{btwRows.length} facturen in geselecteerde periode</p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-3">Factuur</th>
+                    <th className="px-4 py-3">Klant</th>
+                    <th className="px-4 py-3 text-center">Datum</th>
+                    <th className="px-4 py-3 text-right">Ex. BTW</th>
+                    <th className="px-4 py-3 text-center">BTW%</th>
+                    <th className="px-4 py-3 text-right">BTW Bedrag</th>
+                    <th className="px-4 py-3 text-right">Incl. BTW</th>
+                    <th className="px-4 py-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {btwRows.length === 0 ? (
+                    <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-medium">Geen facturen in deze periode</td></tr>
+                  ) : (
+                    btwRows.map((row, i) => (
+                      <tr key={i} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-6 py-3 font-bold text-slate-900">{row.ref}</td>
+                        <td className="px-4 py-3 text-slate-600 font-medium">{row.client}</td>
+                        <td className="px-4 py-3 text-center text-slate-400 font-medium">{row.date}</td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-700">
+                          {currencySymbol} {row.subtotal.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${row.rate <= 10 ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
+                            {row.rate}%
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-black text-blue-700">
+                          {currencySymbol} {row.taxAmt.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-3 text-right font-black text-slate-900">
+                          {currencySymbol} {row.total.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                            row.status === 'paid'      ? 'bg-emerald-100 text-emerald-700' :
+                            row.status === 'overdue'   ? 'bg-red-100 text-red-700' :
+                            row.status === 'pending'   ? 'bg-amber-100 text-amber-700' :
+                            'bg-slate-100 text-slate-500'
+                          }`}>{row.status}</span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {btwRows.length > 0 && (
+              <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex justify-between items-center">
+                <div className="flex gap-6 text-xs font-bold text-slate-500">
+                  <span>Ex. BTW: <span className="text-slate-900 font-black">{currencySymbol} {btwSummary.totalEx.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+                  <span>BTW: <span className="text-blue-700 font-black">{currencySymbol} {btwSummary.totalBtw.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+                  <span>Incl. BTW: <span className="text-slate-900 font-black">{currencySymbol} {(btwSummary.totalEx + btwSummary.totalBtw).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}
