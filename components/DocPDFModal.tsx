@@ -336,7 +336,11 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
               btw:          { label: 'BTW%',         align: 'center', width: '48px', cell: (item) => `${item.taxRate ?? 10}%` },
               totaal:       { label: 'Amount',       align: 'right',  width: '80px', cell: (item, _idx, _area, lineTotal) => <span className="font-black">{currencySymbol}{(lineTotal * (1 + (item.taxRate ?? 10) / 100)).toFixed(2)}</span> },
             };
-            const visCols = tableColsOrder.filter(k => showTableCols[k] !== false && allCols[k]);
+            const hasAnyDimensions = items.some(i => i.mmW && i.mmH);
+            const visCols = tableColsOrder.filter(k => {
+              if (k === 'afmeting') return hasAnyDimensions;
+              return showTableCols[k] !== false && allCols[k];
+            });
             const visColCount = visCols.length + 1;
             return (
               <table className="w-full mb-6 border-collapse text-xs mt-4">
@@ -345,7 +349,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                     {visCols.map(key => (
                       <th
                         key={key}
-                        className={`text-${allCols[key].align} py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white${key === 'subtotaal' || key === 'btw' ? ' hidden' : ''}${key === 'afmeting' ? ' print-invisible' : ''}`}
+                        className={`text-${allCols[key].align} py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white${key === 'subtotaal' || key === 'btw' ? ' hidden' : ''}`}
                         style={{ backgroundColor: accentColor, ...(allCols[key].width ? { width: allCols[key].width } : {}) }}
                       >
                         {allCols[key].label}
@@ -362,18 +366,11 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                       <React.Fragment key={item.id}>
                         <tr className={tblRowCls}>
                           {visCols.map(key => (
-                            <td key={key} className={`py-2.5 px-3 text-${allCols[key].align}${key === 'subtotaal' || key === 'btw' ? ' hidden' : ''}${key === 'afmeting' ? ' print-invisible' : ''}`}>
+                            <td key={key} className={`py-2.5 px-3 text-${allCols[key].align}${key === 'subtotaal' || key === 'btw' ? ' hidden' : ''}`}>
                               {allCols[key].cell(item, idx, area, lineTotal)}
                             </td>
                           ))}
                         </tr>
-                        {item.unit === 'm²' && item.mmW && item.mmH && !visCols.includes('afmeting') && (
-                          <tr key={`${item.id}-dim`}>
-                            <td colSpan={visColCount} className="pb-2 pt-0 px-3 text-[9px] text-slate-400 italic">
-                              Afmeting: {item.mmW} × {item.mmH} mm = {area.toFixed(4)} m²
-                            </td>
-                          </tr>
-                        )}
                       </React.Fragment>
                     );
                   })}
