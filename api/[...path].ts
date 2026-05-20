@@ -22,26 +22,45 @@ function getAuthUser(req: VercelRequest): AuthUser | null {
   const auth = req.headers.authorization || '';
   const token = auth.split(' ')[1];
   if (!token) return null;
-  try { return jwt.verify(token, process.env.JWT_SECRET!) as AuthUser; }
+  try { return jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as AuthUser; }
   catch { return null; }
 }
 
 function signAccess(p: AuthUser): string {
-  return jwt.sign(p, process.env.JWT_SECRET!, { expiresIn: '15m' });
+  return jwt.sign(p, process.env.JWT_SECRET!, { expiresIn: '15m', algorithm: 'HS256' });
 }
 function signRefresh(p: AuthUser): string {
-  return jwt.sign(p, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d' });
+  return jwt.sign(p, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d', algorithm: 'HS256' });
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const VALID_ROLES = ['Admin', 'Sales', 'Accountant'] as const;
+const MAX_PDF_BYTES = 4 * 1024 * 1024;
+
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 function hasRole(u: AuthUser, roles: string[]): boolean {
   return roles.includes(u.role);
 }
 
+const isVercel = !!process.env.VERCEL;
+
 function cors(res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', process.env.CLIENT_URL || 'http://localhost:3000');
+  const origin = process.env.CLIENT_URL || (isVercel ? null : 'http://localhost:3000');
+  if (!origin) throw new Error('CLIENT_URL env var is required in production');
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
 }
+
+const secureCookie = isVercel ? '; Secure' : '';
 
 function toCamel(obj: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -132,7 +151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       stack: e?.stack?.split('\n').slice(0, 5).join(' | '),
     };
     console.error('[API_ERROR]', JSON.stringify(errPayload));
-    return res.status(500).json({ error: 'Server error', message: e.message });
+    return res.status(500).json({ error: 'Server error' });
   }
 }
 
@@ -163,20 +182,19 @@ async function handleAuth(req: VercelRequest, res: VercelResponse, sub: string, 
     const payload: AuthUser = { id: user.id, role: user.role, name: user.name };
     const accessToken = signAccess(payload);
     const refreshToken = signRefresh(payload);
-    const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-    res.setHeader('Set-Cookie', `refreshToken=${refreshToken}; HttpOnly; SameSite=Strict; Max-Age=${7 * 86400}; Path=/${secure}`);
+    res.setHeader('Set-Cookie', `refreshToken=${refreshToken}; HttpOnly; SameSite=Strict; Max-Age=${7 * 86400}; Path=/${secureCookie}`);
     return res.json({ accessToken, user: payload });
   }
   if (sub === 'refresh' && m === 'POST') {
     const token = req.cookies?.refreshToken;
     if (!token) return res.status(401).json({ error: 'No refresh token' });
     try {
-      const p = jwt.verify(token, process.env.JWT_REFRESH_SECRET!) as AuthUser;
+      const p = jwt.verify(token, process.env.JWT_REFRESH_SECRET!, { algorithms: ['HS256'] }) as AuthUser;
       return res.json({ accessToken: signAccess({ id: p.id, role: p.role, name: p.name }) });
     } catch { return res.status(401).json({ error: 'Invalid refresh token' }); }
   }
   if (sub === 'logout' && m === 'POST') {
-    res.setHeader('Set-Cookie', 'refreshToken=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/');
+    res.setHeader('Set-Cookie', `refreshToken=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/${secureCookie}`);
     return res.json({ ok: true });
   }
   if (sub === 'me' && m === 'GET') {
@@ -189,14 +207,16 @@ async function handleAuth(req: VercelRequest, res: VercelResponse, sub: string, 
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
     const { currentPassword, newPassword } = req.body ?? {};
     if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both fields required' });
-    if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    const trimmedNew = newPassword.trim();
+    if (trimmedNew.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    if (newPassword.length > 72) return res.status(400).json({ error: 'Password too long (max 72 characters)' });
     const sql = getSql();
     const rows = await sql`SELECT password FROM users WHERE id=${user.id}`;
     const row = rows[0] as any;
     if (!row) return res.status(404).json({ error: 'User not found' });
     const match = await bcrypt.compare(currentPassword, row.password);
     if (!match) return res.status(401).json({ error: 'Current password is incorrect' });
-    const hashed = await bcrypt.hash(newPassword, 10);
+    const hashed = await bcrypt.hash(trimmedNew, 10);
     await sql`UPDATE users SET password=${hashed} WHERE id=${user.id}`;
     return res.json({ ok: true });
   }
@@ -538,14 +558,17 @@ async function handleUsers(req: VercelRequest, res: VercelResponse, id: string |
     return res.json(rows2camel(rows as unknown[]));
   }
   if (m === 'POST' && !id) {
-    const { name, email, role = 'Sales', status = 'Active', password = 'ramzon123' } = req.body ?? {};
+    const { name, email, role = 'Sales', status = 'Active', password } = req.body ?? {};
     if (!name || !email) return res.status(400).json({ error: 'Name and email required' });
-    const hashed = await bcrypt.hash(password, 10);
+    if (!password || password.trim().length < 8) return res.status(400).json({ error: 'Password required (min 8 characters)' });
+    if (!VALID_ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+    const hashed = await bcrypt.hash(password.trim(), 10);
     const rows = await sql`INSERT INTO users (name,email,password,role,status) VALUES (${name},${email},${hashed},${role},${status}) RETURNING id,name,email,role,status,avatar,joined_date`;
     return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
   }
   if (m === 'PUT' && id) {
     const { name, email, role, status } = req.body ?? {};
+    if (role && !VALID_ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
     const rows = await sql`UPDATE users SET name=COALESCE(${name},name), email=COALESCE(${email},email), role=COALESCE(${role},role), status=COALESCE(${status},status) WHERE id=${id} RETURNING id,name,email,role,status,avatar,joined_date`;
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     return res.json(row2camel(rows[0] as Record<string, unknown>));
@@ -575,29 +598,39 @@ async function handleSendDocument(req: VercelRequest, res: VercelResponse, m: st
 
   if (!to || !docNumber || !pdfBase64)
     return res.status(400).json({ error: 'Missing required fields: to, docNumber, pdfBase64' });
+  if (!EMAIL_RE.test(to))
+    return res.status(400).json({ error: 'Invalid recipient email address' });
+  if (Buffer.byteLength(pdfBase64, 'base64') > MAX_PDF_BYTES)
+    return res.status(413).json({ error: 'PDF attachment too large (max 4 MB)' });
 
   const resend = new Resend(apiKey);
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
   const typeLabel = docType === 'invoice' ? 'Invoice' : 'Estimate';
   const filename = `${docNumber.replace(/\s+/g, '_')}.pdf`;
+  const safeCompany  = escapeHtml(companyName  || 'Ramzon N.V.');
+  const safeClient   = escapeHtml(clientName   || 'Client');
+  const safeDocNum   = escapeHtml(docNumber);
+  const safeTotal    = escapeHtml(String(total ?? ''));
+  const safeCurrency = escapeHtml(String(currency ?? ''));
+  const safeSender   = escapeHtml(user.name || 'Admin');
 
   try {
     const { data, error } = await resend.emails.send({
-      from: `${companyName || 'Ramzon N.V.'} <${fromEmail}>`,
+      from: `${safeCompany} <${fromEmail}>`,
       to: [to],
-      subject: `${typeLabel} ${docNumber} — ${companyName || 'Ramzon N.V.'}`,
+      subject: `${typeLabel} ${safeDocNum} — ${safeCompany}`,
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-          <h2 style="color: #1e293b; margin-bottom: 8px;">${typeLabel} ${docNumber}</h2>
-          <p style="color: #64748b; font-size: 15px; line-height: 1.6;">Dear ${clientName || 'Client'},</p>
+          <h2 style="color: #1e293b; margin-bottom: 8px;">${typeLabel} ${safeDocNum}</h2>
+          <p style="color: #64748b; font-size: 15px; line-height: 1.6;">Dear ${safeClient},</p>
           <p style="color: #64748b; font-size: 15px; line-height: 1.6;">
-            Please find attached your ${typeLabel.toLowerCase()} <strong>${docNumber}</strong>
-            for a total of <strong>${currency} ${total}</strong>.
+            Please find attached your ${typeLabel.toLowerCase()} <strong>${safeDocNum}</strong>
+            for a total of <strong>${safeCurrency} ${safeTotal}</strong>.
           </p>
           <p style="color: #64748b; font-size: 15px; line-height: 1.6;">If you have any questions, please don't hesitate to contact us.</p>
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;" />
           <p style="color: #94a3b8; font-size: 12px;">
-            ${companyName || 'Ramzon N.V.'}<br/>Sent by ${user.name || 'Admin'}
+            ${safeCompany}<br/>Sent by ${safeSender}
           </p>
         </div>
       `,
@@ -606,12 +639,12 @@ async function handleSendDocument(req: VercelRequest, res: VercelResponse, m: st
 
     if (error) {
       console.error('Resend error:', error);
-      return res.status(500).json({ error: 'Failed to send email', details: (error as any).message });
+      return res.status(500).json({ error: 'Failed to send email' });
     }
 
     return res.json({ success: true, messageId: data?.id });
   } catch (e: any) {
     console.error('Email send error:', e);
-    return res.status(500).json({ error: 'Failed to send email', message: e.message });
+    return res.status(500).json({ error: 'Failed to send email' });
   }
 }

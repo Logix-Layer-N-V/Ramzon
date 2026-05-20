@@ -11,7 +11,7 @@ interface LoginPageProps {
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const { companyName, companyLogo } = useContext(LanguageContext);
   const { login } = useAuth();
-  const [email, setEmail] = useState(import.meta.env.VITE_DEFAULT_EMAIL ?? '');
+  const [email, setEmail] = useState(import.meta.env.DEV ? (import.meta.env.VITE_DEFAULT_EMAIL ?? '') : '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);

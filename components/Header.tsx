@@ -482,8 +482,8 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
             onClick={() => { setIsUserMenuOpen(!isUserMenuOpen); setIsQuickCreateOpen(false); setIsNotificationOpen(false); }}
             className="flex items-center gap-2 p-1 hover:bg-slate-100 rounded-full transition-all group border border-transparent hover:border-slate-200"
           >
-            <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 shadow-sm">
-              <img src="https://picsum.photos/seed/admin/100/100" className="w-full h-full object-cover" alt="Avatar" />
+            <div className="w-8 h-8 rounded-full border border-slate-200 shadow-sm bg-slate-900 flex items-center justify-center text-white text-xs font-black">
+              {(user?.name ?? 'U').split(' ').map(w => w[0]).slice(0, 2).join('')}
             </div>
             <ChevronDown size={14} className={`text-slate-400 transition-transform mr-1 ${isUserMenuOpen ? 'rotate-180' : 'group-hover:translate-y-0.5'}`} />
           </button>
@@ -493,7 +493,7 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
               <GlobalBackdrop onClick={() => setIsUserMenuOpen(false)} zIndex="z-[10000]" />
               <div className="fixed md:absolute right-4 md:right-0 mt-3 top-20 md:top-auto w-[calc(100vw-4rem)] md:w-64 max-w-[280px] bg-white border border-slate-200 rounded-[32px] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.3)] z-[10001] p-2 animate-in fade-in zoom-in-95 duration-200 ring-4 ring-black/5 md:ring-0">
                 <div className="px-5 py-4 border-b border-slate-50 mb-1 flex justify-between items-center">
-                  <div className="flex flex-col items-start text-left"><p className="text-sm font-black text-slate-900 leading-tight">Alex Andria</p><p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Admin</p></div>
+                  <div className="flex flex-col items-start text-left"><p className="text-sm font-black text-slate-900 leading-tight">{user?.name ?? '—'}</p><p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{user?.role ?? ''}</p></div>
                 </div>
                 <div className="space-y-0.5 mt-1">
                   <button onClick={() => { navigate('/users'); setIsUserMenuOpen(false); }} className="w-full px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 rounded-2xl flex items-center gap-4 transition-colors group text-left">
@@ -547,7 +547,8 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
                   e.preventDefault();
                   setPwdError('');
                   if (pwdForm.next !== pwdForm.confirm) { setPwdError('New passwords do not match'); return; }
-                  if (pwdForm.next.length < 6) { setPwdError('New password must be at least 6 characters'); return; }
+                  if (pwdForm.next.trim().length < 8) { setPwdError('New password must be at least 8 characters'); return; }
+                  if (pwdForm.next.length > 72) { setPwdError('Password too long (max 72 characters)'); return; }
                   setPwdLoading(true);
                   try {
                     await api.post('/auth/change-password', { currentPassword: pwdForm.current, newPassword: pwdForm.next });
