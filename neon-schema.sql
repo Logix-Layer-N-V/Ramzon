@@ -180,6 +180,13 @@ CREATE TABLE IF NOT EXISTS error_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key            TEXT PRIMARY KEY,
+  attempts       INTEGER NOT NULL DEFAULT 0,
+  window_start   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  locked_until   TIMESTAMPTZ
+);
+
 -- Seed users (password for all: admin123)
 INSERT INTO users (name, email, password, role) VALUES
   ('Admin User', 'admin@ramzon.sr', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL548sd2', 'Admin'),

@@ -45,6 +45,48 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+function getClientIp(req: VercelRequest): string {
+  const fwd = req.headers['x-forwarded-for'];
+  return (Array.isArray(fwd) ? fwd[0] : fwd?.split(',')[0]?.trim()) ?? 'unknown';
+}
+
+async function checkRateLimit(
+  sql: ReturnType<typeof getSql>,
+  key: string,
+  maxAttempts: number,
+  windowMinutes: number,
+  lockMinutes: number
+): Promise<{ allowed: boolean; retryAfterSeconds?: number }> {
+  const now = new Date();
+  await sql`DELETE FROM rate_limits WHERE key = ${key} AND window_start < NOW() - INTERVAL '2 hours'`;
+  const rows = await sql`SELECT attempts, window_start, locked_until FROM rate_limits WHERE key = ${key}`;
+  const row = rows[0] as any;
+
+  if (row?.locked_until && new Date(row.locked_until) > now) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((new Date(row.locked_until).getTime() - now.getTime()) / 1000) };
+  }
+
+  if (row && new Date(row.window_start) < new Date(now.getTime() - windowMinutes * 60_000)) {
+    await sql`DELETE FROM rate_limits WHERE key = ${key}`;
+    await sql`INSERT INTO rate_limits (key, attempts, window_start) VALUES (${key}, 1, NOW())`;
+    return { allowed: true };
+  }
+
+  if (!row) {
+    await sql`INSERT INTO rate_limits (key, attempts, window_start) VALUES (${key}, 1, NOW())`;
+    return { allowed: true };
+  }
+
+  if (row.attempts >= maxAttempts) {
+    const lockedUntil = new Date(now.getTime() + lockMinutes * 60_000).toISOString();
+    await sql`UPDATE rate_limits SET locked_until = ${lockedUntil} WHERE key = ${key}`;
+    return { allowed: false, retryAfterSeconds: lockMinutes * 60 };
+  }
+
+  await sql`UPDATE rate_limits SET attempts = attempts + 1 WHERE key = ${key}`;
+  return { allowed: true };
+}
+
 function hasRole(u: AuthUser, roles: string[]): boolean {
   return roles.includes(u.role);
 }
@@ -172,6 +214,11 @@ async function handleAuth(req: VercelRequest, res: VercelResponse, sub: string, 
   if (sub === 'login' && m === 'POST') {
     const { email, password } = req.body ?? {};
     const sql = getSql();
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(sql, `login:${ip}`, 5, 15, 15);
+    if (!rl.allowed) {
+      return res.status(429).json({ error: `Too many login attempts. Try again in ${Math.ceil((rl.retryAfterSeconds ?? 900) / 60)} minutes.` });
+    }
     const rows = await sql`SELECT id, email, role, name, status, password FROM users WHERE email=${email}`;
     const user = rows[0] as any;
     if (!user || user.status !== 'Active')
@@ -205,12 +252,16 @@ async function handleAuth(req: VercelRequest, res: VercelResponse, sub: string, 
   if (sub === 'change-password' && m === 'POST') {
     const user = getAuthUser(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    const sql = getSql();
+    const rl = await checkRateLimit(sql, `changepwd:${user.id}`, 5, 15, 15);
+    if (!rl.allowed) {
+      return res.status(429).json({ error: `Too many attempts. Try again in ${Math.ceil((rl.retryAfterSeconds ?? 900) / 60)} minutes.` });
+    }
     const { currentPassword, newPassword } = req.body ?? {};
     if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both fields required' });
     const trimmedNew = newPassword.trim();
     if (trimmedNew.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
     if (newPassword.length > 72) return res.status(400).json({ error: 'Password too long (max 72 characters)' });
-    const sql = getSql();
     const rows = await sql`SELECT password FROM users WHERE id=${user.id}`;
     const row = rows[0] as any;
     if (!row) return res.status(404).json({ error: 'User not found' });
@@ -588,6 +639,11 @@ async function handleSendDocument(req: VercelRequest, res: VercelResponse, m: st
 
   const user = getAuthUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const emailRl = await checkRateLimit(getSql(), `email:${user.id}`, 20, 60, 60);
+  if (!emailRl.allowed) {
+    return res.status(429).json({ error: 'Email rate limit reached. Try again later.' });
+  }
 
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Email service not configured — set RESEND_API_KEY' });

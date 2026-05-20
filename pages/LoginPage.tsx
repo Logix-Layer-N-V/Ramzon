@@ -51,8 +51,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               try {
                 await login(email, password);
                 onLogin();
-              } catch {
-                setError('Invalid email or password');
+              } catch (err: any) {
+                setError(err?.response?.data?.error ?? 'Invalid email or password');
               } finally {
                 setIsLoading(false);
               }
