@@ -184,6 +184,22 @@ async function handleAuth(req: VercelRequest, res: VercelResponse, sub: string, 
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
     return res.json({ user });
   }
+  if (sub === 'change-password' && m === 'POST') {
+    const user = getAuthUser(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both fields required' });
+    if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    const sql = getSql();
+    const rows = await sql`SELECT password FROM users WHERE id=${user.id}`;
+    const row = rows[0] as any;
+    if (!row) return res.status(404).json({ error: 'User not found' });
+    const match = await bcrypt.compare(currentPassword, row.password);
+    if (!match) return res.status(401).json({ error: 'Current password is incorrect' });
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await sql`UPDATE users SET password=${hashed} WHERE id=${user.id}`;
+    return res.json({ ok: true });
+  }
   return res.status(404).json({ error: 'Not found' });
 }
 

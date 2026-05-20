@@ -26,6 +26,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
 import { useAuth } from '../lib/auth';
+import { api } from '../lib/api';
 import { useInvoices } from '../lib/hooks/useInvoices';
 import { useEstimates } from '../lib/hooks/useEstimates';
 import { useClients } from '../lib/hooks/useClients';
@@ -43,6 +44,11 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showChangePwd, setShowChangePwd] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwdError, setPwdError] = useState('');
+  const [pwdSuccess, setPwdSuccess] = useState(false);
+  const [pwdLoading, setPwdLoading] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -499,7 +505,7 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
                   <button onClick={() => { navigate('/documentation'); setIsUserMenuOpen(false); }} className="w-full px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 rounded-2xl flex items-center gap-4 transition-colors group text-left">
                     <BookOpen size={18} className="text-slate-400 group-hover:text-slate-900" /> <span>Documentation</span>
                   </button>
-                  <button className="w-full px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 rounded-2xl flex items-center gap-4 transition-colors group text-left">
+                  <button onClick={() => { setIsUserMenuOpen(false); setPwdForm({ current: '', next: '', confirm: '' }); setPwdError(''); setPwdSuccess(false); setShowChangePwd(true); }} className="w-full px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 rounded-2xl flex items-center gap-4 transition-colors group text-left">
                     <Shield size={18} className="text-slate-400 group-hover:text-slate-900" /> <span>{t('security')}</span>
                   </button>
                 </div>
@@ -512,6 +518,77 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onToggleSidebar }) => {
           )}
         </div>
       </div>
+
+      {/* ── Change Password Modal ── */}
+      {showChangePwd && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-slate-900 rounded-xl flex items-center justify-center">
+                  <Shield size={15} className="text-white" />
+                </div>
+                <span className="font-black text-slate-900 text-sm uppercase tracking-widest">Change Password</span>
+              </div>
+              <button type="button" title="Close" onClick={() => setShowChangePwd(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            {pwdSuccess ? (
+              <div className="px-6 py-10 text-center space-y-3">
+                <CheckCircle2 size={40} className="mx-auto text-emerald-500" />
+                <p className="font-black text-slate-900">Password updated!</p>
+                <button onClick={() => setShowChangePwd(false)} className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all">Close</button>
+              </div>
+            ) : (
+              <form
+                className="p-6 space-y-4"
+                onSubmit={async e => {
+                  e.preventDefault();
+                  setPwdError('');
+                  if (pwdForm.next !== pwdForm.confirm) { setPwdError('New passwords do not match'); return; }
+                  if (pwdForm.next.length < 6) { setPwdError('New password must be at least 6 characters'); return; }
+                  setPwdLoading(true);
+                  try {
+                    await api.post('/auth/change-password', { currentPassword: pwdForm.current, newPassword: pwdForm.next });
+                    setPwdSuccess(true);
+                  } catch (err: any) {
+                    setPwdError(err?.response?.data?.error ?? 'Something went wrong');
+                  } finally {
+                    setPwdLoading(false);
+                  }
+                }}
+              >
+                {(['current', 'next', 'confirm'] as const).map((f, i) => {
+                  const label = f === 'current' ? 'Current Password' : f === 'next' ? 'New Password' : 'Confirm New Password';
+                  return (
+                    <div key={f}>
+                      <label htmlFor={`pwd-${f}`} className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</label>
+                      <input
+                        id={`pwd-${f}`}
+                        type="password"
+                        autoFocus={i === 0}
+                        placeholder={label}
+                        value={pwdForm[f]}
+                        onChange={e => setPwdForm(p => ({ ...p, [f]: e.target.value }))}
+                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-slate-400 transition-colors"
+                        required
+                      />
+                    </div>
+                  );
+                })}
+                {pwdError && <p className="text-xs font-bold text-red-500">{pwdError}</p>}
+                <div className="flex gap-3 pt-1">
+                  <button type="button" onClick={() => setShowChangePwd(false)} className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all">Cancel</button>
+                  <button type="submit" disabled={pwdLoading} className="flex-1 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all disabled:opacity-40">
+                    {pwdLoading ? 'Saving…' : 'Update'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 };
