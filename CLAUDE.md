@@ -1,6 +1,6 @@
 # Ramzon N.V. — Admin System
 
-> **Stack:** React 18 + TypeScript + Vite + TailwindCSS (CDN) + React Router v6 (HashRouter) + Node.js/Express + PostgreSQL 17
+> **Stack:** React 18 + TypeScript + Vite + TailwindCSS (CDN) + React Router v6 (HashRouter) + Vercel Serverless API + Neon PostgreSQL (production) / Node.js/Express + PostgreSQL 17 (local dev)
 
 ---
 
@@ -69,8 +69,12 @@ All routes use `HashRouter` (`#/route`). Key route map:
 - **`lib/hooks/`** — React Query hooks that call the real Express backend (gradually replacing mock-data imports)
 
 ### Key Components
-- `components/DocPDFModal.tsx` — full-page PDF renderer used by invoices and quotes
+
+- `components/DocPDFModal.tsx` — full-page PDF renderer used by invoices and quotes (browser print via `window.print()`)
 - `components/DocPDF.tsx` — `@react-pdf/renderer` document for real PDF download
+- `components/DeliveryNoteModal.tsx` — printable delivery note (no prices); triggered from DocumentDetailPage for invoices only
+- `components/ClientImportModal.tsx` — CSV bulk import for CRM clients; drag-drop + preview + sequential insert
+- `components/ProductImportModal.tsx` — CSV bulk import for product catalog; drag-drop + preview + sequential insert
 - `components/ErrorBoundary.tsx` — catches page crashes; `LocationAwareErrorBoundary` resets on navigation
 - `components/Header.tsx` — top nav with search, notifications, user avatar
 - `components/Sidebar.tsx` — left nav
@@ -355,8 +359,9 @@ Set in `.env` at project root. Injected at build time via `vite.config.ts` defin
 |------|-------|
 | Loading skeletons | Pages snap instantly with mock data; API will need loading states |
 | Server-side pagination | InvoicesPage / ClientsPage render all records in memory |
-| Real PDF generation | Browser print is inconsistent; use react-pdf or server-side renderer |
+| Real PDF generation | ✅ Done — DocPDF.tsx uses @react-pdf/renderer; DocPDFModal for browser print |
 | PWA manifest + service worker | localStorage used but no offline support |
+| Persist item_type in DB | invoice_items has no item_type column; on re-load, type is inferred from houtsoort presence (products without wood species lose their type on next edit). Fix: add item_type column via migration |
 
 ### Quick Wins
 | Item | File | Change |
@@ -381,7 +386,11 @@ Set in `.env` at project root. Injected at build time via `vite.config.ts` defin
 │   ├── translations.ts        # Global i18n strings (nl/en/es/fr/zh/pt/de)
 │   └── docNumbering.ts        # Invoice/estimate number generation
 ├── components/
-│   ├── DocPDFModal.tsx        # PDF document renderer (invoice + quote)
+│   ├── DocPDFModal.tsx        # PDF renderer for browser print (invoice + quote)
+│   ├── DocPDF.tsx             # react-pdf/renderer document for PDF download
+│   ├── DeliveryNoteModal.tsx  # Printable delivery note (no prices)
+│   ├── ClientImportModal.tsx  # CSV import for CRM clients
+│   ├── ProductImportModal.tsx # CSV import for product catalog
 │   ├── Header.tsx             # Top navigation bar
 │   ├── Sidebar.tsx            # Left navigation
 │   └── GeminiAssistant.tsx    # AI chat assistant

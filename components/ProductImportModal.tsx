@@ -70,7 +70,13 @@ function parseCSV(text: string): ParsedRow[] {
       const field = COL_MAP[col];
       if (!field) return;
       if (field === 'pricePerUnit' || field === 'stock') {
-        (row as any)[field] = parseFloat(val) || 0;
+        const n = parseFloat(val);
+        if (val !== '' && isNaN(n)) {
+          row.valid = false;
+          row.error = `Invalid number in column "${col}"`;
+        } else {
+          (row as any)[field] = isNaN(n) ? 0 : n;
+        }
       } else {
         (row as any)[field] = val;
       }
@@ -78,7 +84,7 @@ function parseCSV(text: string): ParsedRow[] {
 
     if (!row.name) {
       row.valid = false;
-      row.error = 'Naam verplicht';
+      row.error = row.error ?? 'Naam verplicht';
     }
     return row;
   }).filter(r => r.name || r.sku);
@@ -101,10 +107,15 @@ const ProductImportModal: React.FC<ProductImportModalProps> = ({ onClose, onImpo
   const [progress, setProgress] = useState(0);
   const [importing, setImporting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [fileError, setFileError] = useState('');
   const createProduct = useCreateProduct();
 
   const handleFile = (file: File) => {
-    if (!file.name.endsWith('.csv')) return;
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setFileError('Only .csv files are supported.');
+      return;
+    }
+    setFileError('');
     const reader = new FileReader();
     reader.onload = e => {
       const parsed = parseCSV(e.target?.result as string);
@@ -169,7 +180,7 @@ const ProductImportModal: React.FC<ProductImportModalProps> = ({ onClose, onImpo
           {step === 'upload' && (
             <>
               <div
-                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); setFileError(''); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleDrop}
                 onClick={() => fileRef.current?.click()}
@@ -186,6 +197,10 @@ const ProductImportModal: React.FC<ProductImportModalProps> = ({ onClose, onImpo
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
                 />
               </div>
+
+              {fileError && (
+                <p className="text-xs font-bold text-red-500">{fileError}</p>
+              )}
 
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span>Gebruik de exacte kolomnamen uit het voorbeeldbestand.</span>

@@ -115,6 +115,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
       if (!stored.includes('afmeting')) {
         const idx = stored.indexOf('omschrijving');
         stored.splice(idx >= 0 ? idx + 1 : 1, 0, 'afmeting');
+        localStorage.setItem('erp_doc_table_cols_order', JSON.stringify(stored));
       }
       return stored;
     } catch { return ['omschrijving', 'afmeting', 'qty', 'eenheid', 'houtsoort', 'prijs', 'subtotaal', 'btw', 'totaal']; }
@@ -340,11 +341,11 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
               btw:          { label: 'BTW%',         align: 'center', width: '48px', cell: (item) => `${item.taxRate ?? 10}%` },
               totaal:       { label: 'Amount',       align: 'right',  width: '80px', cell: (item, _idx, _area, lineTotal) => <span className="font-black">{currencySymbol}{(lineTotal * (1 + (item.taxRate ?? 10) / 100)).toFixed(2)}</span> },
             };
+            const hasAnyDimensions = items.some(i => i.mmW && i.mmH);
             const visCols = tableColsOrder.filter(k => {
-              if (k === 'afmeting') return !!allCols[k];
+              if (k === 'afmeting') return hasAnyDimensions && showTableCols[k] !== false;
               return showTableCols[k] !== false && allCols[k];
             });
-            const visColCount = visCols.length + 1;
             return (
               <table className="w-full mb-6 border-collapse text-xs mt-4">
                 <thead>
