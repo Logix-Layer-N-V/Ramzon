@@ -12,7 +12,6 @@
     "dev:server": "echo 'Backend is now Vercel API routes — run: vercel dev'"
   },
   "dependencies": {
-    "@google/genai": "1.40.0",
     "@neondatabase/serverless": "^1.0.2",
     "@react-pdf/renderer": "^4.3.2",
     "@tanstack/react-query": "^5.91.2",
