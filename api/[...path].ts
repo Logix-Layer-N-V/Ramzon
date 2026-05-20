@@ -181,6 +181,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'users':         return handleUsers(req, res, id, m);
       case 'send-document': return handleSendDocument(req, res, m);
       case 'error-logs':    return handleErrorLog(req, res, m);
+      case 'system-stats':  return handleSystemStats(req, res, m);
       case 'health':        return res.json({ status: 'ok' });
       default:              return res.status(404).json({ error: 'Not found' });
     }
@@ -208,6 +209,42 @@ async function handleErrorLog(req: VercelRequest, res: VercelResponse, m: string
   if (!rl.allowed) return res.status(429).json({ error: 'Too many requests. Try again shortly.' });
   const rows = await sql`SELECT id, ts, level, source, message, meta, created_at FROM error_logs ORDER BY created_at DESC LIMIT 200`;
   return res.json(rows2camel(rows as unknown[]));
+}
+
+/* ── System stats endpoint ──────────────────────────────────────────────── */
+
+async function handleSystemStats(req: VercelRequest, res: VercelResponse, m: string) {
+  if (m !== 'GET') return res.status(405).end();
+  const user = getAuthUser(req);
+  if (!user || !hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+  const sql = getSql();
+  const rl = await checkRateLimit(sql, `sysstats:${user.id}`, 30, 1, 5);
+  if (!rl.allowed) return res.status(429).json({ error: 'Too many requests.' });
+
+  // Measure DB latency
+  const t0 = Date.now();
+  await sql`SELECT 1`;
+  const dbLatencyMs = Date.now() - t0;
+
+  // Parallel metric queries
+  const [sizeRows, connRows, err24Rows, warnRows, blockRows, loginRows] = await Promise.all([
+    sql`SELECT pg_database_size(current_database()) AS size_bytes`,
+    sql`SELECT count(*) AS cnt FROM pg_stat_activity WHERE state = 'active'`,
+    sql`SELECT count(*) AS cnt FROM error_logs WHERE ts > NOW() - INTERVAL '24 hours' AND level = 'error'`,
+    sql`SELECT count(*) AS cnt FROM error_logs WHERE ts > NOW() - INTERVAL '24 hours' AND level = 'warn'`,
+    sql`SELECT count(*) AS cnt FROM rate_limits WHERE locked_until > NOW()`,
+    sql`SELECT count(*) AS cnt FROM rate_limits WHERE key LIKE 'login:%' AND window_start > NOW() - INTERVAL '24 hours'`,
+  ]);
+
+  return res.json({
+    dbLatencyMs,
+    dbSizeMb: Math.round(Number((sizeRows[0] as any).size_bytes) / 1024 / 1024),
+    activeConnections: Number((connRows[0] as any).cnt),
+    errors24h:         Number((err24Rows[0] as any).cnt),
+    warns24h:          Number((warnRows[0] as any).cnt),
+    rateLimitBlocks:   Number((blockRows[0] as any).cnt),
+    loginAttempts24h:  Number((loginRows[0] as any).cnt),
+  });
 }
 
 /* ── AUTH ────────────────────────────────────────────────────────────────── */

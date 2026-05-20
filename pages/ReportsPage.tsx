@@ -4,7 +4,7 @@ import {
   Activity, ShieldCheck, Database, Zap, RefreshCcw,
   Cpu, Server, HardDrive, FileSearch, Lock,
   X, CheckCircle, AlertTriangle, XCircle,
-  Bug, BellRing,
+  Bug, BellRing, PlugZap,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
@@ -31,6 +31,16 @@ interface DisplayLog {
 interface Toast {
   id: string;
   log: DisplayLog;
+}
+
+interface SystemStats {
+  dbLatencyMs: number;
+  dbSizeMb: number;
+  activeConnections: number;
+  errors24h: number;
+  warns24h: number;
+  rateLimitBlocks: number;
+  loginAttempts24h: number;
 }
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
@@ -101,6 +111,10 @@ const ReportsPage: React.FC = () => {
   const [logsLoading, setLogsLoading] = useState(true);
   const lastSeenId = useRef<string | null>(null);
 
+  /* system stats */
+  const [stats, setStats] = useState<SystemStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+
   /* debug mode */
   const [debugMode, setDebugMode] = useState(false);
   const debugModeRef = useRef(false);
@@ -153,10 +167,25 @@ const ReportsPage: React.FC = () => {
   /* keep ref in sync so fetchLogs closure always reads current value */
   useEffect(() => { debugModeRef.current = debugMode; }, [debugMode]);
 
+  /* fetch system stats */
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await api.get<SystemStats>('/api/system-stats');
+      setStats(res.data);
+    } catch {
+      /* silent */
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
   /* initial load */
   useEffect(() => {
-    if (isSuperAdmin) fetchLogs(false);
-  }, [isSuperAdmin, fetchLogs]);
+    if (isSuperAdmin) {
+      fetchLogs(false);
+      fetchStats();
+    }
+  }, [isSuperAdmin, fetchLogs, fetchStats]);
 
   /* debug-mode polling every 30 s */
   useEffect(() => {
@@ -274,28 +303,70 @@ const ReportsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Stat cards */}
+      {/* Stat cards — real data from /api/system-stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[
-          { label: 'System Uptime',    value: '99.99%',                   status: 'Operational',   icon: Activity,    color: 'text-green-500',  bg: 'bg-green-50'  },
-          { label: 'Firewall',         value: 'Active',                   status: 'Threats Blocked', icon: ShieldCheck, color: 'text-blue-500',   bg: 'bg-blue-50'   },
-          { label: 'Error Logs',       value: logsLoading ? '…' : String(logs.length), status: logs.filter(l => l.severity === 'High').length > 0 ? `${logs.filter(l => l.severity === 'High').length} high` : 'No critical', icon: Database, color: logs.filter(l => l.severity === 'High').length > 0 ? 'text-red-500' : 'text-purple-500', bg: logs.filter(l => l.severity === 'High').length > 0 ? 'bg-red-50' : 'bg-purple-50' },
-          { label: 'Debug Mode',       value: debugMode ? 'Active' : 'Off', status: debugMode ? 'Notifications on' : 'Toggle to enable', icon: Zap, color: debugMode ? 'text-amber-500' : 'text-slate-400', bg: debugMode ? 'bg-amber-50' : 'bg-slate-50' },
-        ].map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm flex items-start gap-4 hover:shadow-lg hover:-translate-y-1 transition-all">
-            <div className={`p-3 rounded-2xl ${stat.bg} ${stat.color} shadow-inner shrink-0`}>
-              <stat.icon size={24} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">{stat.label}</p>
-              <p className="text-2xl font-black text-slate-900">{stat.value}</p>
-              <div className="flex items-center gap-1.5 mt-1">
-                <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${i === 3 && debugMode ? 'bg-amber-500' : 'bg-green-500'}`} />
-                <span className="text-[10px] font-bold text-slate-500">{stat.status}</span>
+        {(() => {
+          const loading = statsLoading || logsLoading;
+          const latency = stats?.dbLatencyMs ?? null;
+          const blocks  = stats?.rateLimitBlocks ?? null;
+          const err24   = stats?.errors24h ?? null;
+          const dbMb    = stats?.dbSizeMb ?? null;
+
+          const cards = [
+            {
+              label: 'DB Latency',
+              value: loading ? '…' : latency !== null ? `${latency}ms` : '—',
+              status: latency === null ? 'Unavailable' : latency < 100 ? 'Optimal' : latency < 300 ? 'Acceptable' : 'Slow',
+              icon: Database,
+              color: latency !== null && latency >= 300 ? 'text-red-500' : latency !== null && latency >= 100 ? 'text-amber-500' : 'text-purple-500',
+              bg:    latency !== null && latency >= 300 ? 'bg-red-50'   : latency !== null && latency >= 100 ? 'bg-amber-50'   : 'bg-purple-50',
+              dot:   latency !== null && latency >= 300 ? 'bg-red-500'  : 'bg-green-500',
+            },
+            {
+              label: 'Rate Limit Blocks',
+              value: loading ? '…' : blocks !== null ? String(blocks) : '—',
+              status: blocks === 0 ? 'No active blocks' : blocks === 1 ? '1 IP blocked' : `${blocks} IPs blocked`,
+              icon: ShieldCheck,
+              color: blocks !== null && blocks > 0 ? 'text-amber-500' : 'text-blue-500',
+              bg:    blocks !== null && blocks > 0 ? 'bg-amber-50'   : 'bg-blue-50',
+              dot:   blocks !== null && blocks > 0 ? 'bg-amber-500'  : 'bg-green-500',
+            },
+            {
+              label: 'Errors (24h)',
+              value: loading ? '…' : err24 !== null ? String(err24) : '—',
+              status: err24 === 0 ? 'All clear' : err24 === 1 ? '1 error logged' : `${err24} errors logged`,
+              icon: Activity,
+              color: err24 !== null && err24 > 0 ? 'text-red-500' : 'text-green-500',
+              bg:    err24 !== null && err24 > 0 ? 'bg-red-50'   : 'bg-green-50',
+              dot:   err24 !== null && err24 > 0 ? 'bg-red-500'  : 'bg-green-500',
+            },
+            {
+              label: 'DB Size',
+              value: loading ? '…' : dbMb !== null ? `${dbMb} MB` : '—',
+              status: dbMb !== null ? `${Math.min(100, Math.round(dbMb / 5.12))}% of 512MB` : 'Unavailable',
+              icon: HardDrive,
+              color: 'text-slate-600',
+              bg: 'bg-slate-50',
+              dot: 'bg-green-500',
+            },
+          ];
+
+          return cards.map((stat, i) => (
+            <div key={i} className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm flex items-start gap-4 hover:shadow-lg hover:-translate-y-1 transition-all">
+              <div className={`p-3 rounded-2xl ${stat.bg} ${stat.color} shadow-inner shrink-0`}>
+                <stat.icon size={24} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">{stat.label}</p>
+                <p className="text-2xl font-black text-slate-900">{stat.value}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${stat.dot}`} />
+                  <span className="text-[10px] font-bold text-slate-500">{stat.status}</span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ));
+        })()}
       </div>
 
       {/* Main grid */}
@@ -365,26 +436,48 @@ const ReportsPage: React.FC = () => {
         {/* Right column */}
         <div className="space-y-6">
           <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-6">Resource Allocation</h3>
-            <div className="space-y-6">
-              {[
-                { label: 'CPU Usage', val: 45, icon: Cpu,       color: 'bg-blue-600'   },
-                { label: 'Memory',    val: 78, icon: HardDrive, color: 'bg-purple-600' },
-                { label: 'Network',   val: 12, icon: Server,    color: 'bg-green-600'  },
-              ].map((m) => (
-                <div key={m.label} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2 text-slate-600 font-bold text-xs">
-                      <m.icon size={14} /> {m.label}
-                    </div>
-                    <span className="text-xs font-black text-slate-900">{m.val}%</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                    <div className={`h-full ${m.color} transition-all duration-1000 ease-out`} style={{ width: `${m.val}%` }} />
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">DB Metrics</h3>
+              {!statsLoading && stats && (
+                <button type="button" onClick={fetchStats} title="Refresh metrics" className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                  <RefreshCcw size={13} />
+                </button>
+              )}
             </div>
+            {statsLoading ? (
+              <div className="flex items-center justify-center py-8 text-slate-400 gap-2">
+                <RefreshCcw size={16} className="animate-spin" />
+                <span className="text-xs font-bold">Loading…</span>
+              </div>
+            ) : stats ? (() => {
+              const connPct  = Math.min(100, Math.round((stats.activeConnections / 10) * 100));
+              const errPct   = Math.min(100, Math.round((stats.errors24h / 50) * 100));
+              const sizePct  = Math.min(100, Math.round((stats.dbSizeMb / 512) * 100));
+              const bars = [
+                { label: 'Active connections', val: connPct, display: `${stats.activeConnections} / 10`, icon: PlugZap, color: connPct > 80 ? 'bg-red-500' : 'bg-blue-600' },
+                { label: 'Errors (24h)',        val: errPct,  display: `${stats.errors24h} errors`,      icon: Activity, color: errPct > 50 ? 'bg-red-500' : errPct > 20 ? 'bg-amber-500' : 'bg-purple-600' },
+                { label: 'DB storage',          val: sizePct, display: `${stats.dbSizeMb} MB / 512 MB`,  icon: HardDrive, color: sizePct > 80 ? 'bg-red-500' : 'bg-green-600' },
+              ];
+              return (
+                <div className="space-y-6">
+                  {bars.map((m) => (
+                    <div key={m.label} className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2 text-slate-600 font-bold text-xs">
+                          <m.icon size={14} /> {m.label}
+                        </div>
+                        <span className="text-xs font-black text-slate-900">{m.display}</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                        <div className={`h-full ${m.color} transition-all duration-1000 ease-out`} style={{ width: `${m.val}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })() : (
+              <p className="text-xs text-slate-400 text-center py-8">Could not load metrics</p>
+            )}
           </div>
 
           <div className="bg-slate-900 p-8 rounded-[32px] shadow-2xl relative overflow-hidden">
