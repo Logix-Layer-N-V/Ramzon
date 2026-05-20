@@ -333,7 +333,6 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
             type ColDef = { label: string; align: 'left' | 'center' | 'right'; width?: string; cell: (item: ModalLineItem, idx: number, area: number, lineTotal: number) => React.ReactNode };
             const allCols: Record<string, ColDef> = {
               omschrijving: { label: 'Description',  align: 'left',   cell: (item) => <span className="font-medium">{item.description || '—'}</span> },
-              afmeting:     { label: 'Dimensions',   align: 'center', width: '90px', cell: (item) => item.mmW && item.mmH ? `${item.mmW}×${item.mmH}` : '—' },
               qty:          { label: 'Qty',          align: 'right',  width: '48px', cell: (item) => <span className="font-bold">{item.qty}</span> },
               eenheid:      { label: 'U/M',          align: 'center', width: '44px', cell: (item) => <span className="text-slate-500">{item.unit}</span> },
               houtsoort:    { label: 'Wood',         align: 'left',   width: '80px', cell: (item) => <span className="text-slate-600">{item.houtsoort || '—'}</span> },
@@ -342,23 +341,32 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
               btw:          { label: 'BTW%',         align: 'center', width: '48px', cell: (item) => `${item.taxRate ?? 10}%` },
               totaal:       { label: 'Amount',       align: 'right',  width: '80px', cell: (item, _idx, _area, lineTotal) => <span className="font-black">{currencySymbol}{(lineTotal * (1 + (item.taxRate ?? 10) / 100)).toFixed(2)}</span> },
             };
-            const visCols = tableColsOrder.filter(k => {
-              if (k === 'afmeting') return !!allCols[k];
-              return showTableCols[k] !== false && allCols[k];
-            });
-            const visColCount = visCols.length + 1;
+            const visCols = tableColsOrder.filter(k => showTableCols[k] !== false && allCols[k]);
+            const visColCount = visCols.length + 2;
+            const dimThStyle = { backgroundColor: accentColor, width: '90px' };
             return (
               <table className="w-full mb-6 border-collapse text-xs mt-4">
                 <thead>
                   <tr>
-                    {visCols.map(key => (
-                      <th
-                        key={key}
-                        className={`text-${allCols[key].align} py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white${key === 'subtotaal' || key === 'btw' ? ' hidden' : ''}`}
-                        style={{ backgroundColor: accentColor, ...(allCols[key].width ? { width: allCols[key].width } : {}) }}
-                      >
-                        {allCols[key].label}
-                      </th>
+                    {visCols.filter(k => k !== 'afmeting').map((key, i) => (
+                      <React.Fragment key={key}>
+                        <th
+                          className={`text-${allCols[key].align} py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white${key === 'subtotaal' || key === 'btw' ? ' hidden' : ''}`}
+                          style={{ backgroundColor: accentColor, ...(allCols[key].width ? { width: allCols[key].width } : {}) }}
+                        >
+                          {allCols[key].label}
+                        </th>
+                        {key === 'omschrijving' && (
+                          <th className="text-center py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white" style={dimThStyle}>
+                            Dimensions
+                          </th>
+                        )}
+                        {i === 0 && !visCols.includes('omschrijving') && (
+                          <th className="text-center py-2.5 px-3 text-[9px] uppercase tracking-widest font-black text-white" style={dimThStyle}>
+                            Dimensions
+                          </th>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tr>
                 </thead>
@@ -367,13 +375,22 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                     const area = itemArea(item);
                     const discountFactor = docType === 'invoice' ? (1 - (item.discount ?? 0) / 100) : 1;
                     const lineTotal = item.qty * item.price * area * discountFactor;
+                    const dimCell = item.mmW && item.mmH ? `${item.mmW}×${item.mmH} mm` : '—';
                     return (
                       <React.Fragment key={item.id}>
                         <tr className={tblRowCls}>
-                          {visCols.map(key => (
-                            <td key={key} className={`py-2.5 px-3 text-${allCols[key].align}${key === 'subtotaal' || key === 'btw' ? ' hidden' : ''}`}>
-                              {allCols[key].cell(item, idx, area, lineTotal)}
-                            </td>
+                          {visCols.filter(k => k !== 'afmeting').map((key, i) => (
+                            <React.Fragment key={key}>
+                              <td className={`py-2.5 px-3 text-${allCols[key].align}${key === 'subtotaal' || key === 'btw' ? ' hidden' : ''}`}>
+                                {allCols[key].cell(item, idx, area, lineTotal)}
+                              </td>
+                              {key === 'omschrijving' && (
+                                <td className="py-2.5 px-3 text-center text-slate-500">{dimCell}</td>
+                              )}
+                              {i === 0 && !visCols.includes('omschrijving') && (
+                                <td className="py-2.5 px-3 text-center text-slate-500">{dimCell}</td>
+                              )}
+                            </React.Fragment>
                           ))}
                         </tr>
                       </React.Fragment>
