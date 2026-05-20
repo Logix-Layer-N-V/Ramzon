@@ -130,7 +130,7 @@ const CreateInvoicePage: React.FC = () => {
           const mmH = specParts[1] > 0 ? specParts[1] : undefined;
           return {
             id: anyI.id || Math.random().toString(36).slice(2),
-            type: (anyI.houtsoort ? 'product' : 'item') as ItemType,
+            type: (anyI.itemType ?? anyI.item_type ?? (anyI.houtsoort ? 'product' : 'item')) as ItemType,
             description: anyI.description || '',
             houtsoort: anyI.houtsoort || '',
             qty: anyI.quantity || 1,

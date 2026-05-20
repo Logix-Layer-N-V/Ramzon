@@ -169,6 +169,8 @@ ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS unit          TEXT DEFAULT '
 ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS tax_rate      NUMERIC(5,2) DEFAULT 21;
 ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS price_by_area BOOLEAN DEFAULT false;
 ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS price_by_area BOOLEAN DEFAULT false;
+ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS item_type TEXT DEFAULT 'item';
+ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS item_type TEXT DEFAULT 'item';
 
 CREATE TABLE IF NOT EXISTS error_logs (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),

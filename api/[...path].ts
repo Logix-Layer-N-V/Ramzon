@@ -339,7 +339,8 @@ async function handleInvoices(req: VercelRequest, res: VercelResponse, id: strin
         const tot = item.total ?? 0;
         const taxRate = item.taxRate ?? item.tax_rate ?? 10;
         const priceByArea = item.priceByArea ?? item.price_by_area ?? false;
-        await sql`INSERT INTO invoice_items (invoice_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area) VALUES (${inv.id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea})`;
+        const itemType = item.itemType ?? item.item_type ?? 'item';
+        await sql`INSERT INTO invoice_items (invoice_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area,item_type) VALUES (${inv.id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea},${itemType})`;
       }
       return res.status(201).json(row2camel(inv as Record<string, unknown>));
     }
@@ -371,7 +372,8 @@ async function handleInvoices(req: VercelRequest, res: VercelResponse, id: strin
         const tot = item.total ?? 0;
         const taxRate = item.taxRate ?? item.tax_rate ?? 10;
         const priceByArea = item.priceByArea ?? item.price_by_area ?? false;
-        await sql`INSERT INTO invoice_items (invoice_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area) VALUES (${id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea})`;
+        const itemType = item.itemType ?? item.item_type ?? 'item';
+        await sql`INSERT INTO invoice_items (invoice_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area,item_type) VALUES (${id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea},${itemType})`;
       }
       return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
@@ -413,7 +415,8 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
         const tot = item.total ?? 0;
         const taxRate = item.taxRate ?? item.tax_rate ?? 10;
         const priceByArea = item.priceByArea ?? item.price_by_area ?? false;
-        await sql`INSERT INTO estimate_items (estimate_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area) VALUES (${est.id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea})`;
+        const itemType = item.itemType ?? item.item_type ?? 'item';
+        await sql`INSERT INTO estimate_items (estimate_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area,item_type) VALUES (${est.id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea},${itemType})`;
       }
       return res.status(201).json(row2camel(est as Record<string, unknown>));
     }
@@ -445,7 +448,8 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
         const tot = item.total ?? 0;
         const taxRate = item.taxRate ?? item.tax_rate ?? 10;
         const priceByArea = item.priceByArea ?? item.price_by_area ?? false;
-        await sql`INSERT INTO estimate_items (estimate_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area) VALUES (${id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea})`;
+        const itemType = item.itemType ?? item.item_type ?? 'item';
+        await sql`INSERT INTO estimate_items (estimate_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area,item_type) VALUES (${id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea},${itemType})`;
       }
       return res.json(row2camel(rows[0] as Record<string, unknown>));
     }

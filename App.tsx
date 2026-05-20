@@ -88,6 +88,12 @@ const Layout: React.FC<{
   );
 };
 
+const RequireRole: React.FC<{ roles: string[]; children: React.ReactNode }> = ({ roles, children }) => {
+  const { user } = useAuth();
+  if (!user || !roles.includes(user.role)) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+};
+
 const AppRoutes: React.FC<{
   isSidebarCollapsed: boolean;
   setIsSidebarCollapsed: (v: boolean) => void;
@@ -142,9 +148,9 @@ const AppRoutes: React.FC<{
                 <Route path="/appearance" element={<AppearancePage />} />
                 <Route path="/reports/finance" element={<FinanceReportsPage />} />
                 <Route path="/reports/finance/print" element={<DocumentDetailPage type="reports" />} />
-                <Route path="/reports/health" element={<ReportsPage />} />
+                <Route path="/reports/health" element={<RequireRole roles={['Admin']}><ReportsPage /></RequireRole>} />
                 <Route path="/insights" element={<Navigate to="/reports/finance" replace />} />
-                <Route path="/users" element={<UsersPage />} />
+                <Route path="/users" element={<RequireRole roles={['Admin']}><UsersPage /></RequireRole>} />
                 <Route path="/clients" element={<ClientsPage />} />
                 <Route path="/clients/new" element={<CreateClientPage />} />
                 <Route path="/clients/:id" element={<ClientDetailPage />} />
