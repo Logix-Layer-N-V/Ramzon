@@ -103,6 +103,7 @@ const ReportsPage: React.FC = () => {
 
   /* debug mode */
   const [debugMode, setDebugMode] = useState(false);
+  const debugModeRef = useRef(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   /* diagnostics */
@@ -132,7 +133,7 @@ const ReportsPage: React.FC = () => {
       if (isPolling && lastSeenId.current) {
         const prevIdx = display.findIndex(l => l.id === lastSeenId.current);
         const newEntries = prevIdx > 0 ? display.slice(0, prevIdx) : [];
-        if (newEntries.length > 0 && debugMode) {
+        if (newEntries.length > 0 && debugModeRef.current) {
           setToasts(prev => [
             ...newEntries.map(l => ({ id: `toast-${l.id}`, log: l })),
             ...prev,
@@ -147,7 +148,10 @@ const ReportsPage: React.FC = () => {
     } finally {
       setLogsLoading(false);
     }
-  }, [debugMode]);
+  }, []);
+
+  /* keep ref in sync so fetchLogs closure always reads current value */
+  useEffect(() => { debugModeRef.current = debugMode; }, [debugMode]);
 
   /* initial load */
   useEffect(() => {
@@ -171,8 +175,10 @@ const ReportsPage: React.FC = () => {
     const a    = document.createElement('a');
     a.href     = url;
     a.download = `ramzon-error-log-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
     a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   const handleRunDiagnostics = () => {

@@ -204,6 +204,8 @@ async function handleErrorLog(req: VercelRequest, res: VercelResponse, m: string
   const user = getAuthUser(req);
   if (!user || !hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
   const sql = getSql();
+  const rl = await checkRateLimit(sql, `errorlogs:${user.id}`, 60, 1, 5);
+  if (!rl.allowed) return res.status(429).json({ error: 'Too many requests. Try again shortly.' });
   const rows = await sql`SELECT id, ts, level, source, message, meta, created_at FROM error_logs ORDER BY created_at DESC LIMIT 200`;
   return res.json(rows2camel(rows as unknown[]));
 }

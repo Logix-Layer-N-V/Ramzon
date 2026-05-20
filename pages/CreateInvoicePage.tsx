@@ -183,7 +183,7 @@ const CreateInvoicePage: React.FC = () => {
       const c = allClients.find(cl => cl.id === selectedClient);
       if (c?.preferredCurrency) setCurrency(c.preferredCurrency);
     }
-  }, [selectedClient]);
+  }, [selectedClient, allClients]);
 
   useEffect(() => {
     const latest = getLatestExchangeRate();
@@ -300,6 +300,7 @@ const CreateInvoicePage: React.FC = () => {
         taxRate: i.taxRate,
         spec: i.mmW && i.mmH ? `${i.mmW}x${i.mmH}` : '',
         priceByArea: i.priceByArea ?? false,
+        itemType: i.type,
       })),
     };
 
