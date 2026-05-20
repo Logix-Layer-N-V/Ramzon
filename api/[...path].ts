@@ -91,6 +91,20 @@ function hasRole(u: AuthUser, roles: string[]): boolean {
   return roles.includes(u.role);
 }
 
+function logAudit(
+  user: AuthUser,
+  action: string,
+  resource: string,
+  resourceId: string = '',
+  ip: string = '',
+  meta: Record<string, unknown> = {}
+): void {
+  const sql = getSql();
+  sql`INSERT INTO audit_logs (user_id, user_name, action, resource, resource_id, ip, meta)
+      VALUES (${user.id}, ${user.name}, ${action}, ${resource}, ${resourceId}, ${ip}, ${JSON.stringify(meta)})`
+    .catch(() => {/* fire-and-forget */});
+}
+
 const isVercel = !!process.env.VERCEL;
 
 function cors(res: VercelResponse) {
@@ -182,6 +196,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'send-document': return handleSendDocument(req, res, m);
       case 'error-logs':    return handleErrorLog(req, res, m);
       case 'system-stats':  return handleSystemStats(req, res, m);
+      case 'audit-logs':    return handleAuditLogs(req, res, m);
       case 'health':        return res.json({ status: 'ok' });
       default:              return res.status(404).json({ error: 'Not found' });
     }
@@ -247,6 +262,19 @@ async function handleSystemStats(req: VercelRequest, res: VercelResponse, m: str
   });
 }
 
+/* ── Audit logs endpoint ────────────────────────────────────────────────── */
+
+async function handleAuditLogs(req: VercelRequest, res: VercelResponse, m: string) {
+  if (m !== 'GET') return res.status(405).end();
+  const user = getAuthUser(req);
+  if (!user || !hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+  const sql = getSql();
+  const rl = await checkRateLimit(sql, `auditlogs:${user.id}`, 60, 1, 5);
+  if (!rl.allowed) return res.status(429).json({ error: 'Too many requests. Try again shortly.' });
+  const rows = await sql`SELECT id, ts, user_id, user_name, action, resource, resource_id, ip, meta FROM audit_logs ORDER BY ts DESC LIMIT 500`;
+  return res.json(rows2camel(rows as unknown[]));
+}
+
 /* ── AUTH ────────────────────────────────────────────────────────────────── */
 
 async function handleAuth(req: VercelRequest, res: VercelResponse, sub: string, m: string) {
@@ -268,6 +296,7 @@ async function handleAuth(req: VercelRequest, res: VercelResponse, sub: string, 
     const payload: AuthUser = { id: user.id, role: user.role, name: user.name };
     const accessToken = signAccess(payload);
     const refreshToken = signRefresh(payload);
+    logAudit(payload, 'login', 'auth', '', ip);
     res.setHeader('Set-Cookie', `refreshToken=${refreshToken}; HttpOnly; SameSite=Strict; Max-Age=${7 * 86400}; Path=/${secureCookie}`);
     return res.json({ accessToken, user: payload });
   }
@@ -326,7 +355,9 @@ async function handleClients(req: VercelRequest, res: VercelResponse, id: string
       const b = fromBody(req.body);
       const { name, company = '', email = '', vat_number = '', address = '', phone = '', preferred_currency = 'USD' } = b;
       const rows = await sql`INSERT INTO clients (name,company,email,vat_number,address,phone,preferred_currency) VALUES (${name},${company},${email},${vat_number},${address},${phone},${preferred_currency}) RETURNING *`;
-      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
+      const created = row2camel(rows[0] as Record<string, unknown>);
+      logAudit(user, 'create', 'clients', String(created.id ?? ''), getClientIp(req), { name });
+      return res.status(201).json(created);
     }
   } else {
     if (m === 'GET') {
@@ -338,11 +369,13 @@ async function handleClients(req: VercelRequest, res: VercelResponse, id: string
       const b = fromBody(req.body);
       const { name, company, email, vat_number, address, phone, preferred_currency, status } = b;
       const rows = await sql`UPDATE clients SET name=${name},company=${company},email=${email},vat_number=${vat_number},address=${address},phone=${phone},preferred_currency=${preferred_currency ?? 'USD'},status=${status ?? 'Active'} WHERE id=${id} RETURNING *`;
+      logAudit(user, 'update', 'clients', id, getClientIp(req));
       return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
       await sql`DELETE FROM clients WHERE id=${id}`;
+      logAudit(user, 'delete', 'clients', id, getClientIp(req));
       return res.json({ ok: true });
     }
   }
@@ -381,6 +414,7 @@ async function handleInvoices(req: VercelRequest, res: VercelResponse, id: strin
         const itemType = item.itemType ?? item.item_type ?? 'item';
         await sql`INSERT INTO invoice_items (invoice_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area,item_type) VALUES (${inv.id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea},${itemType})`;
       }
+      logAudit(user, 'create', 'invoices', inv.id, getClientIp(req), { invoice_number: b.invoice_number });
       return res.status(201).json(row2camel(inv as Record<string, unknown>));
     }
   } else {
@@ -414,11 +448,13 @@ async function handleInvoices(req: VercelRequest, res: VercelResponse, id: strin
         const itemType = item.itemType ?? item.item_type ?? 'item';
         await sql`INSERT INTO invoice_items (invoice_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area,item_type) VALUES (${id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea},${itemType})`;
       }
+      logAudit(user, 'update', 'invoices', id, getClientIp(req));
       return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
       await sql`DELETE FROM invoices WHERE id=${id}`;
+      logAudit(user, 'delete', 'invoices', id, getClientIp(req));
       return res.json({ ok: true });
     }
   }
@@ -457,6 +493,7 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
         const itemType = item.itemType ?? item.item_type ?? 'item';
         await sql`INSERT INTO estimate_items (estimate_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area,item_type) VALUES (${est.id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea},${itemType})`;
       }
+      logAudit(user, 'create', 'estimates', est.id, getClientIp(req), { estimate_number: b.estimate_number });
       return res.status(201).json(row2camel(est as Record<string, unknown>));
     }
   } else {
@@ -490,11 +527,13 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
         const itemType = item.itemType ?? item.item_type ?? 'item';
         await sql`INSERT INTO estimate_items (estimate_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area,item_type) VALUES (${id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea},${itemType})`;
       }
+      logAudit(user, 'update', 'estimates', id, getClientIp(req));
       return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
       await sql`DELETE FROM estimates WHERE id=${id}`;
+      logAudit(user, 'delete', 'estimates', id, getClientIp(req));
       return res.json({ ok: true });
     }
   }
@@ -514,7 +553,9 @@ async function handlePayments(req: VercelRequest, res: VercelResponse, id: strin
       const b = fromBody(req.body);
       const { client_id, invoice_id, amount, currency = 'USD', date, method = '', reference = '', notes = '' } = b;
       const rows = await sql`INSERT INTO payments (client_id,invoice_id,amount,currency,date,method,reference,notes) VALUES (${client_id},${invoice_id},${amount},${currency},${date},${method},${reference},${notes}) RETURNING *`;
-      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
+      const created = row2camel(rows[0] as Record<string, unknown>);
+      logAudit(user, 'create', 'payments', String(created.id ?? ''), getClientIp(req), { amount, currency });
+      return res.status(201).json(created);
     }
   } else {
     if (m === 'GET') {
@@ -550,7 +591,9 @@ async function handleCredits(req: VercelRequest, res: VercelResponse, id: string
       const b = fromBody(req.body);
       const { client_id, amount, currency = 'USD', date, reason = '' } = b;
       const rows = await sql`INSERT INTO credits (client_id,amount,currency,date,reason) VALUES (${client_id},${amount},${currency},${date},${reason}) RETURNING *`;
-      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
+      const created = row2camel(rows[0] as Record<string, unknown>);
+      logAudit(user, 'create', 'credits', String(created.id ?? ''), getClientIp(req), { amount, currency });
+      return res.status(201).json(created);
     }
   } else {
     if (m === 'GET') {
@@ -586,7 +629,9 @@ async function handleExpenses(req: VercelRequest, res: VercelResponse, id: strin
       const b = fromBody(req.body);
       const { category, vendor = '', amount, currency = 'USD', date, description = '' } = b;
       const rows = await sql`INSERT INTO expenses (category,vendor,amount,currency,date,description) VALUES (${category},${vendor},${amount},${currency},${date},${description}) RETURNING *`;
-      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
+      const created = row2camel(rows[0] as Record<string, unknown>);
+      logAudit(user, 'create', 'expenses', String(created.id ?? ''), getClientIp(req), { category, amount });
+      return res.status(201).json(created);
     }
   } else {
     if (m === 'GET') {
@@ -617,7 +662,9 @@ async function handleProducts(req: VercelRequest, res: VercelResponse, id: strin
       const b = fromBody(req.body);
       const { name, wood_type = '', unit = 'pcs', price_per_unit, stock = 0, category = '', sku = '' } = b;
       const rows = await sql`INSERT INTO products (name,wood_type,unit,price_per_unit,stock,category,sku) VALUES (${name},${wood_type},${unit},${price_per_unit},${stock},${category},${sku}) RETURNING *`;
-      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
+      const created = row2camel(rows[0] as Record<string, unknown>);
+      logAudit(user, 'create', 'products', String(created.id ?? ''), getClientIp(req), { name });
+      return res.status(201).json(created);
     }
   } else {
     if (m === 'GET') {
@@ -629,11 +676,13 @@ async function handleProducts(req: VercelRequest, res: VercelResponse, id: strin
       const b = fromBody(req.body);
       const { name, wood_type, unit, price_per_unit, stock, category, sku } = b;
       const rows = await sql`UPDATE products SET name=${name},wood_type=${wood_type},unit=${unit},price_per_unit=${price_per_unit},stock=${stock},category=${category},sku=${sku} WHERE id=${id} RETURNING *`;
+      logAudit(user, 'update', 'products', id, getClientIp(req));
       return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
       await sql`DELETE FROM products WHERE id=${id}`;
+      logAudit(user, 'delete', 'products', id, getClientIp(req));
       return res.json({ ok: true });
     }
   }
@@ -658,18 +707,22 @@ async function handleUsers(req: VercelRequest, res: VercelResponse, id: string |
     if (!VALID_ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
     const hashed = await bcrypt.hash(password.trim(), 10);
     const rows = await sql`INSERT INTO users (name,email,password,role,status) VALUES (${name},${email},${hashed},${role},${status}) RETURNING id,name,email,role,status,avatar,joined_date`;
-    return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
+    const created = row2camel(rows[0] as Record<string, unknown>);
+    logAudit(user, 'create', 'users', String(created.id ?? ''), getClientIp(req), { name, role });
+    return res.status(201).json(created);
   }
   if (m === 'PUT' && id) {
     const { name, email, role, status } = req.body ?? {};
     if (role && !VALID_ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
     const rows = await sql`UPDATE users SET name=COALESCE(${name},name), email=COALESCE(${email},email), role=COALESCE(${role},role), status=COALESCE(${status},status) WHERE id=${id} RETURNING id,name,email,role,status,avatar,joined_date`;
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    logAudit(user, 'update', 'users', id, getClientIp(req));
     return res.json(row2camel(rows[0] as Record<string, unknown>));
   }
   if (m === 'DELETE' && id) {
     if (id === user.id) return res.status(400).json({ error: 'Cannot delete yourself' });
     await sql`DELETE FROM users WHERE id=${id}`;
+    logAudit(user, 'delete', 'users', id, getClientIp(req));
     return res.status(204).end();
   }
   return res.status(405).json({ error: 'Method not allowed' });

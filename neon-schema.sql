@@ -189,6 +189,21 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   locked_until   TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ts           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  user_id      TEXT NOT NULL,
+  user_name    TEXT NOT NULL,
+  action       TEXT NOT NULL,
+  resource     TEXT NOT NULL,
+  resource_id  TEXT DEFAULT '',
+  ip           TEXT DEFAULT '',
+  meta         JSONB DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS audit_logs_ts_idx ON audit_logs (ts DESC);
+CREATE INDEX IF NOT EXISTS audit_logs_user_idx ON audit_logs (user_id);
+
 -- Seed users (password for all: admin123)
 INSERT INTO users (name, email, password, role) VALUES
   ('Admin User', 'admin@ramzon.sr', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL548sd2', 'Admin'),

@@ -4,7 +4,7 @@ import {
   Activity, ShieldCheck, Database, Zap, RefreshCcw,
   Cpu, Server, HardDrive, FileSearch, Lock,
   X, CheckCircle, AlertTriangle, XCircle,
-  Bug, BellRing, PlugZap,
+  Bug, BellRing, PlugZap, Users, ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
@@ -41,6 +41,18 @@ interface SystemStats {
   warns24h: number;
   rateLimitBlocks: number;
   loginAttempts24h: number;
+}
+
+interface AuditLog {
+  id: string;
+  ts: string;
+  userId: string;
+  userName: string;
+  action: string;
+  resource: string;
+  resourceId: string;
+  ip: string;
+  meta: Record<string, unknown>;
 }
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
@@ -115,6 +127,13 @@ const ReportsPage: React.FC = () => {
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
+  /* active tab */
+  const [activeTab, setActiveTab] = useState<'errors' | 'activity'>('errors');
+
+  /* audit log state */
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+
   /* debug mode */
   const [debugMode, setDebugMode] = useState(false);
   const debugModeRef = useRef(false);
@@ -179,6 +198,19 @@ const ReportsPage: React.FC = () => {
     }
   }, []);
 
+  /* fetch audit logs */
+  const fetchAuditLogs = useCallback(async () => {
+    setAuditLoading(true);
+    try {
+      const res = await api.get<AuditLog[]>('/api/audit-logs');
+      setAuditLogs(res.data);
+    } catch {
+      /* silent */
+    } finally {
+      setAuditLoading(false);
+    }
+  }, []);
+
   /* initial load */
   useEffect(() => {
     if (isSuperAdmin) {
@@ -186,6 +218,13 @@ const ReportsPage: React.FC = () => {
       fetchStats();
     }
   }, [isSuperAdmin, fetchLogs, fetchStats]);
+
+  /* load audit logs on first tab switch */
+  useEffect(() => {
+    if (activeTab === 'activity' && isSuperAdmin && auditLogs.length === 0 && !auditLoading) {
+      fetchAuditLogs();
+    }
+  }, [activeTab, isSuperAdmin, auditLogs.length, auditLoading, fetchAuditLogs]);
 
   /* debug-mode polling every 30 s */
   useEffect(() => {
@@ -372,64 +411,166 @@ const ReportsPage: React.FC = () => {
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-        {/* Live Error Log */}
+        {/* Tabbed panel: Error Log + User Activity */}
         <div className="lg:col-span-2 space-y-8">
           <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/20">
-              <div className="flex items-center gap-3">
-                <h3 className="font-black text-sm text-slate-900">Live Error Monitoring</h3>
-                <span className="px-2 py-0.5 bg-red-50 text-red-600 rounded text-[8px] font-black uppercase tracking-widest">Master Logs</span>
-                {logs.length > 0 && (
-                  <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[8px] font-black">{logs.length} entries</span>
-                )}
+            {/* Tab bar */}
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/20">
+              <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('errors')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black transition-all ${
+                    activeTab === 'errors' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Activity size={13} /> Error Log
+                  {logs.length > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${activeTab === 'errors' ? 'bg-red-50 text-red-600' : 'bg-slate-200 text-slate-500'}`}>{logs.length}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('activity')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black transition-all ${
+                    activeTab === 'activity' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Users size={13} /> User Activity
+                  {auditLogs.length > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${activeTab === 'activity' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-500'}`}>{auditLogs.length}</span>
+                  )}
+                </button>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${debugMode ? 'bg-amber-500 animate-ping' : 'bg-red-500 animate-ping'}`} />
-                <span className={`text-[10px] font-bold uppercase ${debugMode ? 'text-amber-600' : 'text-red-600'}`}>{debugMode ? 'Debug' : 'Live'}</span>
+                {activeTab === 'errors' && (
+                  <>
+                    <span className={`w-2 h-2 rounded-full ${debugMode ? 'bg-amber-500 animate-ping' : 'bg-red-500 animate-ping'}`} />
+                    <span className={`text-[10px] font-bold uppercase ${debugMode ? 'text-amber-600' : 'text-red-600'}`}>{debugMode ? 'Debug' : 'Live'}</span>
+                  </>
+                )}
+                {activeTab === 'activity' && (
+                  <button type="button" onClick={fetchAuditLogs} title="Refresh" className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                    <RefreshCcw size={13} className={auditLoading ? 'animate-spin' : ''} />
+                  </button>
+                )}
               </div>
             </div>
 
-            {logsLoading ? (
-              <div className="flex items-center justify-center py-16 text-slate-400">
-                <RefreshCcw size={20} className="animate-spin mr-2" />
-                <span className="text-sm font-bold">Loading logs…</span>
-              </div>
-            ) : logs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-3">
-                <CheckCircle size={32} className="text-emerald-400" />
-                <p className="text-sm font-black text-slate-500">No errors logged</p>
-                <p className="text-[10px] text-slate-400 font-medium">System is running clean</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {logs.slice(0, 20).map((log) => (
-                  <div key={log.id} className="px-6 py-4 flex items-center justify-between text-xs group hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center gap-4 min-w-0">
-                      <span className="text-slate-400 font-mono font-bold shrink-0">{log.time}</span>
-                      <div className="flex flex-col min-w-0">
-                        <span className={`font-black text-sm tracking-tight truncate ${log.severity === 'High' ? 'text-red-600' : 'text-slate-900'}`}>{log.type}</span>
-                        <span className="text-slate-400 truncate max-w-[220px] font-bold italic">{log.path}</span>
-                      </div>
-                    </div>
-                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shrink-0 ml-3 ${
-                      log.severity === 'High'   ? 'bg-red-100 text-red-700' :
-                      log.severity === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-slate-100 text-slate-600'
-                    }`}>{log.severity}</span>
+            {/* Error log tab */}
+            {activeTab === 'errors' && (
+              <>
+                {logsLoading ? (
+                  <div className="flex items-center justify-center py-16 text-slate-400">
+                    <RefreshCcw size={20} className="animate-spin mr-2" />
+                    <span className="text-sm font-bold">Loading logs…</span>
                   </div>
-                ))}
-              </div>
+                ) : logs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-3">
+                    <CheckCircle size={32} className="text-emerald-400" />
+                    <p className="text-sm font-black text-slate-500">No errors logged</p>
+                    <p className="text-[10px] text-slate-400 font-medium">System is running clean</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {logs.slice(0, 20).map((log) => (
+                      <div key={log.id} className="px-6 py-4 flex items-center justify-between text-xs group hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-4 min-w-0">
+                          <span className="text-slate-400 font-mono font-bold shrink-0">{log.time}</span>
+                          <div className="flex flex-col min-w-0">
+                            <span className={`font-black text-sm tracking-tight truncate ${log.severity === 'High' ? 'text-red-600' : 'text-slate-900'}`}>{log.type}</span>
+                            <span className="text-slate-400 truncate max-w-[220px] font-bold italic">{log.path}</span>
+                          </div>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shrink-0 ml-3 ${
+                          log.severity === 'High'   ? 'bg-red-100 text-red-700' :
+                          log.severity === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-slate-100 text-slate-600'
+                        }`}>{log.severity}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="p-4 bg-slate-50/30 border-t border-slate-50 text-center">
+                  <button type="button" onClick={handleExportLogs} className="text-xs font-black text-slate-500 hover:text-brand-primary transition-colors">
+                    Download Full Log CSV →
+                  </button>
+                </div>
+              </>
             )}
 
-            <div className="p-4 bg-slate-50/30 border-t border-slate-50 text-center">
-              <button
-                type="button"
-                onClick={handleExportLogs}
-                className="text-xs font-black text-slate-500 hover:text-brand-primary transition-colors"
-              >
-                Download Full Log CSV →
-              </button>
-            </div>
+            {/* User activity tab */}
+            {activeTab === 'activity' && (() => {
+              const ACTION_STYLE: Record<string, { bg: string; text: string; dot: string }> = {
+                login:   { bg: 'bg-indigo-100', text: 'text-indigo-700', dot: 'bg-indigo-500' },
+                create:  { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+                update:  { bg: 'bg-blue-100',    text: 'text-blue-700',    dot: 'bg-blue-500' },
+                delete:  { bg: 'bg-red-100',     text: 'text-red-700',     dot: 'bg-red-500' },
+              };
+
+              const fmt = (ts: string) => {
+                const d = new Date(ts);
+                return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' ' + d.toTimeString().slice(0, 8);
+              };
+
+              return auditLoading ? (
+                <div className="flex items-center justify-center py-16 text-slate-400">
+                  <RefreshCcw size={20} className="animate-spin mr-2" />
+                  <span className="text-sm font-bold">Loading activity…</span>
+                </div>
+              ) : auditLogs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-3">
+                  <ClipboardList size={32} className="text-slate-300" />
+                  <p className="text-sm font-black text-slate-500">No activity recorded yet</p>
+                  <p className="text-[10px] text-slate-400 font-medium">Actions will appear here as users interact with the system</p>
+                </div>
+              ) : (
+                <>
+                  <div className="divide-y divide-slate-100 max-h-[480px] overflow-y-auto">
+                    {auditLogs.map((log) => {
+                      const style = ACTION_STYLE[log.action] ?? { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' };
+                      return (
+                        <div key={log.id} className="px-6 py-3.5 flex items-center gap-4 text-xs hover:bg-slate-50 transition-colors">
+                          <div className={`w-2 h-2 rounded-full shrink-0 ${style.dot}`} />
+                          <span className="text-slate-400 font-mono font-bold shrink-0 w-36">{fmt(log.ts)}</span>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest shrink-0 ${style.bg} ${style.text}`}>{log.action}</span>
+                          <div className="flex flex-col min-w-0 flex-1">
+                            <span className="font-bold text-slate-900 truncate">{log.userName}</span>
+                            <span className="text-slate-400 truncate">{log.resource}{log.resourceId ? ` · ${log.resourceId.slice(0, 8)}` : ''}</span>
+                          </div>
+                          {log.ip && log.ip !== 'unknown' && (
+                            <span className="text-[10px] text-slate-300 font-mono shrink-0">{log.ip}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="p-4 bg-slate-50/30 border-t border-slate-50 flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400 font-bold">{auditLogs.length} events</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const header = 'Time,User,Action,Resource,ResourceID,IP';
+                        const csvRows = auditLogs.map(l => `"${fmt(l.ts)}","${l.userName}",${l.action},${l.resource},${l.resourceId},"${l.ip}"`);
+                        const csv = [header, ...csvRows].join('\n');
+                        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `ramzon-audit-log-${new Date().toISOString().split('T')[0]}.csv`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        setTimeout(() => URL.revokeObjectURL(url), 0);
+                      }}
+                      className="text-xs font-black text-slate-500 hover:text-brand-primary transition-colors"
+                    >
+                      Download Audit CSV →
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 
