@@ -201,7 +201,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'system-stats':  return handleSystemStats(req, res, m);
       case 'audit-logs':    return handleAuditLogs(req, res, m);
       case 'health':        return res.json({ status: 'ok' });
-      case 'run-migration': return handleRunMigration(req, res, m);
       default:              return res.status(404).json({ error: 'Not found' });
     }
   } catch (e: any) {
@@ -863,31 +862,6 @@ async function handleExchangeRates(req: VercelRequest, res: VercelResponse, id: 
     }
   }
   return res.status(405).json({ error: 'Method not allowed' });
-}
-
-/* ── ONE-TIME MIGRATION ─────────────────────────────────────────────────── */
-
-async function handleRunMigration(req: VercelRequest, res: VercelResponse, m: string) {
-  if (m !== 'POST') return res.status(405).end();
-  const user = getAuthUser(req);
-  if (!user || user.role !== 'Admin') return res.status(403).json({ error: 'Forbidden' });
-  const sql = getSql();
-  await sql`
-    CREATE TABLE IF NOT EXISTS bank_transactions (
-      id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      account_id    TEXT NOT NULL,
-      type          TEXT NOT NULL CHECK (type IN ('deposit','withdrawal','transfer','fee')),
-      amount        NUMERIC(14,2) NOT NULL,
-      date          DATE NOT NULL DEFAULT CURRENT_DATE,
-      description   TEXT DEFAULT '',
-      reference     TEXT DEFAULT '',
-      to_account_id TEXT DEFAULT '',
-      created_at    TIMESTAMPTZ DEFAULT NOW()
-    )
-  `;
-  await sql`CREATE INDEX IF NOT EXISTS bank_transactions_account_idx ON bank_transactions (account_id)`;
-  await sql`CREATE INDEX IF NOT EXISTS bank_transactions_date_idx ON bank_transactions (date DESC)`;
-  return res.json({ ok: true, message: 'bank_transactions table created' });
 }
 
 /* ── SEND DOCUMENT (Email via Resend) ──────────────────────────────────── */
