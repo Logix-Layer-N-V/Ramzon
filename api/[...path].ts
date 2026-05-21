@@ -193,8 +193,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'expenses':      return handleExpenses(req, res, id, m);
       case 'products':      return handleProducts(req, res, id, m);
       case 'users':          return handleUsers(req, res, id, m);
-      case 'bank-accounts':  return handleBankAccounts(req, res, id, m);
-      case 'exchange-rates': return handleExchangeRates(req, res, id, m);
+      case 'bank-accounts':      return handleBankAccounts(req, res, id, m);
+      case 'bank-transactions':  return handleBankTransactions(req, res, id, m);
+      case 'exchange-rates':     return handleExchangeRates(req, res, id, m);
       case 'send-document':  return handleSendDocument(req, res, m);
       case 'error-logs':    return handleErrorLog(req, res, m);
       case 'system-stats':  return handleSystemStats(req, res, m);
@@ -762,6 +763,76 @@ async function handleBankAccounts(req: VercelRequest, res: VercelResponse, id: s
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
       await sql`DELETE FROM bank_accounts WHERE id=${id}`;
       logAudit(user, 'delete', 'bank-accounts', id, getClientIp(req));
+      return res.json({ ok: true });
+    }
+  }
+  return res.status(405).json({ error: 'Method not allowed' });
+}
+
+/* ── BANK TRANSACTIONS ──────────────────────────────────────────────────── */
+
+async function handleBankTransactions(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string) {
+  const user = getAuthUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  const sql = getSql();
+
+  if (!id) {
+    if (m === 'GET') {
+      const accountId = req.query.accountId as string | undefined;
+      if (accountId) {
+        const rows = await sql`SELECT * FROM bank_transactions WHERE account_id = ${accountId} ORDER BY date DESC, created_at DESC`;
+        return res.json(rows2camel(rows as unknown[]));
+      }
+      const rows = await sql`SELECT * FROM bank_transactions ORDER BY date DESC, created_at DESC LIMIT 200`;
+      return res.json(rows2camel(rows as unknown[]));
+    }
+    if (m === 'POST') {
+      if (!hasRole(user, ['Admin', 'Accountant'])) return res.status(403).json({ error: 'Forbidden' });
+      const b = fromBody(req.body);
+      const { account_id, type, amount, date, description = '', reference = '', to_account_id = '' } = b;
+      if (!account_id || !type || !amount || !date) return res.status(400).json({ error: 'account_id, type, amount and date required' });
+      const validTypes = ['deposit', 'withdrawal', 'transfer', 'fee'];
+      if (!validTypes.includes(String(type))) return res.status(400).json({ error: 'Invalid transaction type' });
+      const numAmount = Number(amount);
+      if (isNaN(numAmount) || numAmount <= 0) return res.status(400).json({ error: 'Amount must be positive' });
+
+      const rows = await sql`
+        INSERT INTO bank_transactions (account_id, type, amount, date, description, reference, to_account_id)
+        VALUES (${account_id}, ${type}, ${numAmount}, ${date}, ${description}, ${reference}, ${to_account_id})
+        RETURNING *
+      `;
+
+      if (type === 'deposit') {
+        await sql`UPDATE bank_accounts SET balance = balance + ${numAmount} WHERE id = ${account_id}`;
+      } else if (type === 'withdrawal' || type === 'fee') {
+        await sql`UPDATE bank_accounts SET balance = balance - ${numAmount} WHERE id = ${account_id}`;
+      } else if (type === 'transfer' && to_account_id) {
+        await sql`UPDATE bank_accounts SET balance = balance - ${numAmount} WHERE id = ${account_id}`;
+        await sql`UPDATE bank_accounts SET balance = balance + ${numAmount} WHERE id = ${to_account_id}`;
+      }
+
+      logAudit(user, 'create', 'bank-transactions', String((rows[0] as any).id ?? ''), getClientIp(req), { account_id, type, amount: numAmount });
+      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
+    }
+  } else {
+    if (m === 'DELETE') {
+      if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+      const txRows = await sql`SELECT * FROM bank_transactions WHERE id = ${id}`;
+      const tx = txRows[0] as any;
+      if (!tx) return res.status(404).json({ error: 'Not found' });
+      const amount = Number(tx.amount);
+
+      if (tx.type === 'deposit') {
+        await sql`UPDATE bank_accounts SET balance = balance - ${amount} WHERE id = ${tx.account_id}`;
+      } else if (tx.type === 'withdrawal' || tx.type === 'fee') {
+        await sql`UPDATE bank_accounts SET balance = balance + ${amount} WHERE id = ${tx.account_id}`;
+      } else if (tx.type === 'transfer' && tx.to_account_id) {
+        await sql`UPDATE bank_accounts SET balance = balance + ${amount} WHERE id = ${tx.account_id}`;
+        await sql`UPDATE bank_accounts SET balance = balance - ${amount} WHERE id = ${tx.to_account_id}`;
+      }
+
+      await sql`DELETE FROM bank_transactions WHERE id = ${id}`;
+      logAudit(user, 'delete', 'bank-transactions', id, getClientIp(req));
       return res.json({ ok: true });
     }
   }

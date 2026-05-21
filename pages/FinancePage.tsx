@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Landmark, Globe2, Plus, Check, X, TrendingUp, TrendingDown, Wallet, DollarSign, Filter, Download, FileSpreadsheet, FileText, ChevronDown, ArrowDownLeft, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { Landmark, Globe2, Plus, Check, X, TrendingUp, TrendingDown, Wallet, DollarSign, Filter, Download, FileSpreadsheet, FileText, ChevronDown, ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Minus, MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import { toSRD } from '../lib/storage';
 import { usePayments } from '../lib/hooks/usePayments';
 import { useBankAccounts, useCreateBankAccount, useUpdateBankAccount, useDeleteBankAccount } from '../lib/hooks/useBankAccounts';
 import type { BankAccountRow } from '../lib/hooks/useBankAccounts';
+import { useBankTransactions, useCreateBankTransaction, useDeleteBankTransaction } from '../lib/hooks/useBankTransactions';
 import { useExchangeRates, useCreateExchangeRate, useDeleteExchangeRate } from '../lib/hooks/useExchangeRates';
 import { exportCSV } from '../lib/csvExport';
 
@@ -21,6 +22,13 @@ const BANK_COLORS: Record<string, string> = {
   'Cash': 'bg-brand-primary',
 };
 
+const TX_META: Record<string, { icon: React.ElementType; color: string; bg: string; label: string; sign: string }> = {
+  deposit:    { icon: ArrowDownLeft,   color: 'text-emerald-600', bg: 'bg-emerald-50',  label: 'Deposit',    sign: '+' },
+  withdrawal: { icon: ArrowUpRight,    color: 'text-red-500',     bg: 'bg-red-50',      label: 'Withdrawal', sign: '-' },
+  fee:        { icon: Minus,           color: 'text-amber-600',   bg: 'bg-amber-50',    label: 'Bank Fee',   sign: '-' },
+  transfer:   { icon: ArrowRightLeft,  color: 'text-blue-600',    bg: 'bg-blue-50',     label: 'Transfer',   sign: '±' },
+};
+
 type FinanceTab = 'accounts' | 'transactions' | 'rates';
 
 const FinancePage: React.FC = () => {
@@ -33,6 +41,14 @@ const FinancePage: React.FC = () => {
   const deleteAccount = useDeleteBankAccount();
   const createRate = useCreateExchangeRate();
   const deleteRate = useDeleteExchangeRate();
+
+  // Detail account state declared early so useBankTransactions can reference it
+  const [detailAccount, setDetailAccount] = useState<BankAccountRow | null>(null);
+
+  // Bank transactions for detail modal — only fetched when a detail account is open
+  const { data: bankTxs = [] } = useBankTransactions(detailAccount?.id);
+  const createTx = useCreateBankTransaction();
+  const deleteTx = useDeleteBankTransaction();
 
   // Filter state (accounts tab)
   const [filterBank, setFilterBank] = useState('All');
@@ -74,7 +90,6 @@ const FinancePage: React.FC = () => {
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
 
   // Edit account
-  const [detailAccount, setDetailAccount] = useState<BankAccountRow | null>(null);
   const [editAccount, setEditAccount] = useState<BankAccountRow | null>(null);
   const [editBank, setEditBank] = useState('');
   const [editIban, setEditIban] = useState('');
@@ -106,12 +121,37 @@ const FinancePage: React.FC = () => {
   const [newIban, setNewIban] = useState('');
   const [newBalance, setNewBalance] = useState('');
 
+  // Add transaction form (inside detail modal)
+  const [addingTx, setAddingTx] = useState(false);
+  const [txType, setTxType] = useState<'deposit' | 'withdrawal' | 'fee' | 'transfer'>('deposit');
+  const [txAmount, setTxAmount] = useState('');
+  const [txDate, setTxDate] = useState(new Date().toISOString().split('T')[0]);
+  const [txDesc, setTxDesc] = useState('');
+  const [txRef, setTxRef] = useState('');
+  const [txToAccId, setTxToAccId] = useState('');
+
   // Add rate
   const [addingRate, setAddingRate] = useState(false);
   const [rateDate, setRateDate] = useState(new Date().toISOString().split('T')[0]);
   const [rateUsdSrd, setRateUsdSrd] = useState('');
   const [rateEurSrd, setRateEurSrd] = useState('');
   const [rateEurUsd, setRateEurUsd] = useState('');
+
+  const handleAddTransaction = () => {
+    if (!detailAccount || !txAmount || !txDate) return;
+    createTx.mutate({
+      accountId: detailAccount.id,
+      type: txType,
+      amount: +txAmount,
+      date: txDate,
+      description: txDesc,
+      reference: txRef,
+      toAccountId: txType === 'transfer' ? txToAccId : '',
+    });
+    setAddingTx(false);
+    setTxAmount(''); setTxDesc(''); setTxRef(''); setTxToAccId('');
+    setTxType('deposit');
+  };
 
   const handleAddAccount = () => {
     if (!newBalance) return;
@@ -500,67 +540,179 @@ const FinancePage: React.FC = () => {
         </div>
       )}
       {/* Bank account detail modal */}
-      {detailAccount && (() => {
-        const accTx = allPayments.filter(p => p.bankAccountId === detailAccount.id);
-        return (
-          <>
-            <div className="fixed inset-0 bg-black/40 z-[996] backdrop-blur-sm" onClick={() => setDetailAccount(null)} />
-            <div className="fixed inset-0 z-[997] flex items-center justify-center p-4 pointer-events-none">
-              <div className="bg-white rounded-[28px] shadow-2xl w-full max-w-lg pointer-events-auto animate-in zoom-in-95 duration-200 overflow-hidden">
-                <div className="px-8 pt-8 pb-6">
-                  <div className="flex items-start justify-between mb-6">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-2.5 h-14 rounded-full ${BANK_COLORS[detailAccount.bank] || 'bg-slate-300'}`} />
-                      <div>
-                        <h2 className="text-xl font-black text-slate-900">{detailAccount.bank}</h2>
-                        <p className="text-xs font-mono text-slate-400 mt-0.5">{detailAccount.iban || '—'}</p>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${CURRENCY_COLORS[detailAccount.currency] || 'bg-slate-50 text-slate-700 border-slate-100'}`}>{detailAccount.currency}</span>
-                          <span className="px-2 py-0.5 bg-slate-100 rounded-full text-[9px] font-black text-slate-600">{detailAccount.bank === 'Cash' ? 'Cash' : 'Bank'}</span>
-                        </div>
+      {detailAccount && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-[996] backdrop-blur-sm" onClick={() => { setDetailAccount(null); setAddingTx(false); }} />
+          <div className="fixed inset-0 z-[997] flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-[28px] shadow-2xl w-full max-w-lg pointer-events-auto animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+              {/* Header */}
+              <div className="px-8 pt-8 pb-5 flex-shrink-0">
+                <div className="flex items-start justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-2.5 h-14 rounded-full ${BANK_COLORS[detailAccount.bank] || 'bg-slate-300'}`} />
+                    <div>
+                      <h2 className="text-xl font-black text-slate-900">{detailAccount.bank}</h2>
+                      <p className="text-xs font-mono text-slate-400 mt-0.5">{detailAccount.iban || '—'}</p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${CURRENCY_COLORS[detailAccount.currency] || 'bg-slate-50 text-slate-700 border-slate-100'}`}>{detailAccount.currency}</span>
+                        <span className="px-2 py-0.5 bg-slate-100 rounded-full text-[9px] font-black text-slate-600">{detailAccount.bank === 'Cash' ? 'Cash' : 'Bank'}</span>
                       </div>
                     </div>
-                    <button type="button" title="Close" onClick={() => setDetailAccount(null)} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-900 transition-all">
-                      <X size={20} />
-                    </button>
                   </div>
-                  <div className="bg-slate-50 rounded-2xl px-6 py-5 mb-4">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Balance</p>
-                    <p className="text-3xl font-black text-slate-900">{detailAccount.currency} {detailAccount.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                  </div>
-                  <button type="button" onClick={() => { openEditAccount(detailAccount); setDetailAccount(null); }}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 border border-slate-200 rounded-xl text-xs font-black text-slate-600 hover:bg-slate-50 transition-all">
-                    <Pencil size={13} /> Edit Account
+                  <button type="button" title="Close" onClick={() => { setDetailAccount(null); setAddingTx(false); }} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-900 transition-all">
+                    <X size={20} />
                   </button>
                 </div>
-                <div className="border-t border-slate-100">
-                  <div className="px-8 py-3 bg-slate-50/50 flex items-center justify-between">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Recent Transactions</p>
-                    <span className="text-[9px] font-black text-slate-300">{accTx.length} total</span>
-                  </div>
-                  {accTx.length === 0 ? (
-                    <div className="px-8 py-8 text-center">
-                      <p className="text-xs font-bold text-slate-400">No transactions for this account</p>
-                    </div>
-                  ) : (
-                    <div className="max-h-60 overflow-y-auto divide-y divide-slate-50">
-                      {accTx.slice(0, 15).map(p => (
-                        <div key={p.id} className="px-8 py-3 flex items-center justify-between hover:bg-slate-50/40 transition-colors">
-                          <div>
-                            <p className="text-xs font-bold text-slate-900">{p.reference || '—'}</p>
-                            <p className="text-[10px] text-slate-400">{p.date} · {p.method}</p>
-                          </div>
-                          <p className="text-sm font-black text-emerald-700">{p.currency} {Number(p.amount).toFixed(2)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <div className="bg-slate-50 rounded-2xl px-6 py-5 mb-4">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Balance</p>
+                  <p className="text-3xl font-black text-slate-900">{detailAccount.currency} {detailAccount.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => { openEditAccount(detailAccount); setDetailAccount(null); setAddingTx(false); }}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-slate-200 rounded-xl text-xs font-black text-slate-600 hover:bg-slate-50 transition-all">
+                    <Pencil size={13} /> Edit Account
+                  </button>
+                  <button type="button" onClick={() => setAddingTx(!addingTx)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black transition-all ${addingTx ? 'bg-slate-900 text-white' : 'bg-slate-900 text-white hover:bg-slate-700'}`}>
+                    <Plus size={13} /> Add Transaction
+                  </button>
                 </div>
               </div>
+
+              {/* Add transaction form */}
+              {addingTx && (
+                <div className="px-8 pb-5 flex-shrink-0 border-b border-slate-100">
+                  <div className="bg-slate-50 rounded-2xl p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Type</label>
+                        <select
+                          title="Transaction type"
+                          value={txType}
+                          onChange={e => setTxType(e.target.value as typeof txType)}
+                          className="w-full mt-1 px-2.5 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none bg-white focus:border-slate-400"
+                        >
+                          <option value="deposit">Deposit (inkomst)</option>
+                          <option value="withdrawal">Withdrawal (opname)</option>
+                          <option value="fee">Bank Fee (kosten)</option>
+                          <option value="transfer">Transfer (overschrijving)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount ({detailAccount.currency})</label>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={txAmount}
+                          onChange={e => setTxAmount(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full mt-1 px-2.5 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-slate-400"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</label>
+                        <input
+                          type="date"
+                          title="Transaction date"
+                          value={txDate}
+                          onChange={e => setTxDate(e.target.value)}
+                          className="w-full mt-1 px-2.5 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-slate-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Reference</label>
+                        <input
+                          value={txRef}
+                          onChange={e => setTxRef(e.target.value)}
+                          placeholder="INV-001, etc."
+                          className="w-full mt-1 px-2.5 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-slate-400"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Description</label>
+                      <input
+                        value={txDesc}
+                        onChange={e => setTxDesc(e.target.value)}
+                        placeholder="e.g. Eigen inbreng, Bank kosten..."
+                        className="w-full mt-1 px-2.5 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-slate-400"
+                      />
+                    </div>
+                    {txType === 'transfer' && (
+                      <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Transfer To</label>
+                        <select
+                          title="Destination account"
+                          value={txToAccId}
+                          onChange={e => setTxToAccId(e.target.value)}
+                          className="w-full mt-1 px-2.5 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none bg-white focus:border-slate-400"
+                        >
+                          <option value="">— select account —</option>
+                          {accounts.filter(a => a.id !== detailAccount.id).map(a => (
+                            <option key={a.id} value={a.id}>{a.bank} · {a.currency} ({a.iban || '—'})</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex gap-2 pt-1">
+                      <button type="button" onClick={handleAddTransaction} disabled={!txAmount || !txDate || createTx.isPending}
+                        className="flex-1 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black disabled:opacity-40 flex items-center justify-center gap-1.5">
+                        <Check size={13} /> Save Transaction
+                      </button>
+                      <button type="button" title="Cancel" onClick={() => setAddingTx(false)} className="px-4 py-2 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-black">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Transaction history */}
+              <div className="border-t border-slate-100 flex flex-col overflow-hidden">
+                <div className="px-8 py-3 bg-slate-50/50 flex items-center justify-between flex-shrink-0">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Transaction History</p>
+                  <span className="text-[9px] font-black text-slate-300">{bankTxs.length} records</span>
+                </div>
+                {bankTxs.length === 0 ? (
+                  <div className="px-8 py-8 text-center">
+                    <p className="text-xs font-bold text-slate-400">No transactions yet</p>
+                    <p className="text-[10px] text-slate-300 mt-1">Use "Add Transaction" to record deposits, withdrawals, fees, or transfers.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-y-auto divide-y divide-slate-50">
+                    {bankTxs.map(tx => {
+                      const meta = TX_META[tx.type] ?? TX_META.deposit;
+                      const TxIcon = meta.icon;
+                      const toAcc = tx.toAccountId ? accounts.find(a => a.id === tx.toAccountId) : null;
+                      return (
+                        <div key={tx.id} className="px-8 py-3 flex items-center gap-3 hover:bg-slate-50/40 transition-colors group">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${meta.bg}`}>
+                            <TxIcon size={13} className={meta.color} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-slate-900 truncate">{tx.description || meta.label}{tx.reference ? ` · ${tx.reference}` : ''}</p>
+                            <p className="text-[10px] text-slate-400">{tx.date}{toAcc ? ` → ${toAcc.bank} ${toAcc.currency}` : ''}</p>
+                          </div>
+                          <p className={`text-sm font-black flex-shrink-0 ${meta.sign === '+' ? 'text-emerald-700' : meta.sign === '-' ? 'text-red-500' : 'text-blue-600'}`}>
+                            {meta.sign}{detailAccount.currency} {tx.amount.toFixed(2)}
+                          </p>
+                          <button type="button" title="Delete transaction" onClick={() => deleteTx.mutate(tx.id)}
+                            className="p-1 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          </>
-        );
-      })()}
+          </div>
+        </>
+      )}
 
       {/* Account actions dropdown — root level to escape overflow clipping */}
       {menuAccId && (

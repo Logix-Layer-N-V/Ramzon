@@ -242,6 +242,21 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS audit_logs_ts_idx ON audit_logs (ts DESC);
 CREATE INDEX IF NOT EXISTS audit_logs_user_idx ON audit_logs (user_id);
 
+CREATE TABLE IF NOT EXISTS bank_transactions (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id    TEXT NOT NULL,
+  type          TEXT NOT NULL CHECK (type IN ('deposit','withdrawal','transfer','fee')),
+  amount        NUMERIC(14,2) NOT NULL,
+  date          DATE NOT NULL DEFAULT CURRENT_DATE,
+  description   TEXT DEFAULT '',
+  reference     TEXT DEFAULT '',
+  to_account_id TEXT DEFAULT '',
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS bank_transactions_account_idx ON bank_transactions (account_id);
+CREATE INDEX IF NOT EXISTS bank_transactions_date_idx ON bank_transactions (date DESC);
+
 -- Seed users (password for all: admin123)
 INSERT INTO users (name, email, password, role) VALUES
   ('Admin User', 'admin@ramzon.sr', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL548sd2', 'Admin'),
