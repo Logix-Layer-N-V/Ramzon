@@ -118,43 +118,43 @@ const AppRoutes: React.FC<{
                 <Route path="/invoices/new" element={<CreateInvoicePage />} />
                 <Route path="/invoices/edit/:id" element={<CreateInvoicePage />} />
                 <Route path="/invoices/:id" element={<DocumentDetailPage type="invoices" />} />
-                <Route path="/estimates" element={<QuotesPage />} />
-                <Route path="/estimates/new" element={<CreateQuotePage />} />
-                <Route path="/estimates/edit/:id" element={<CreateQuotePage />} />
-                <Route path="/estimates/:id" element={<DocumentDetailPage type="estimates" />} />
-                <Route path="/payments" element={<PaymentsPage />} />
-                <Route path="/payments/new" element={<CreatePaymentPage />} />
-                <Route path="/payments/edit/:id" element={<CreatePaymentPage />} />
-                <Route path="/payments/:id" element={<DocumentDetailPage type="payments" />} />
-                <Route path="/credits" element={<CreditsPage />} />
-                <Route path="/credits/new" element={<CreateCreditPage />} />
-                <Route path="/credits/edit/:id" element={<CreateCreditPage />} />
-                <Route path="/credits/:id" element={<DocumentDetailPage type="credits" />} />
-                <Route path="/finance" element={<FinancePage />} />
-                <Route path="/currencies" element={<CurrencyManagementPage />} />
-                <Route path="/expenses" element={<ExpensesPage />} />
-                <Route path="/expenses/new" element={<CreateExpensePage />} />
-                <Route path="/expenses/categories" element={<ExpenseCategoriesPage />} />
-                <Route path="/expenses/vendors" element={<ExpenseVendorsPage />} />
-                <Route path="/expenses/edit/:id" element={<CreateExpensePage />} />
-                <Route path="/expenses/:id" element={<DocumentDetailPage type="expenses" />} />
-                <Route path="/products" element={<ProductsPage />} />
-                <Route path="/products/new" element={<CreateProductPage />} />
-                <Route path="/products/edit/:id" element={<CreateProductPage />} />
-                <Route path="/products/categories" element={<ProductCategoriesPage />} />
+                <Route path="/estimates" element={<RequireRole roles={['Admin','Sales']}><QuotesPage /></RequireRole>} />
+                <Route path="/estimates/new" element={<RequireRole roles={['Admin','Sales']}><CreateQuotePage /></RequireRole>} />
+                <Route path="/estimates/edit/:id" element={<RequireRole roles={['Admin','Sales']}><CreateQuotePage /></RequireRole>} />
+                <Route path="/estimates/:id" element={<RequireRole roles={['Admin','Sales']}><DocumentDetailPage type="estimates" /></RequireRole>} />
+                <Route path="/payments" element={<RequireRole roles={['Admin','Accountant']}><PaymentsPage /></RequireRole>} />
+                <Route path="/payments/new" element={<RequireRole roles={['Admin','Accountant']}><CreatePaymentPage /></RequireRole>} />
+                <Route path="/payments/edit/:id" element={<RequireRole roles={['Admin','Accountant']}><CreatePaymentPage /></RequireRole>} />
+                <Route path="/payments/:id" element={<RequireRole roles={['Admin','Accountant']}><DocumentDetailPage type="payments" /></RequireRole>} />
+                <Route path="/credits" element={<RequireRole roles={['Admin','Accountant']}><CreditsPage /></RequireRole>} />
+                <Route path="/credits/new" element={<RequireRole roles={['Admin','Accountant']}><CreateCreditPage /></RequireRole>} />
+                <Route path="/credits/edit/:id" element={<RequireRole roles={['Admin','Accountant']}><CreateCreditPage /></RequireRole>} />
+                <Route path="/credits/:id" element={<RequireRole roles={['Admin','Accountant']}><DocumentDetailPage type="credits" /></RequireRole>} />
+                <Route path="/finance" element={<RequireRole roles={['Admin','Accountant']}><FinancePage /></RequireRole>} />
+                <Route path="/currencies" element={<RequireRole roles={['Admin','Accountant']}><CurrencyManagementPage /></RequireRole>} />
+                <Route path="/expenses" element={<RequireRole roles={['Admin','Accountant']}><ExpensesPage /></RequireRole>} />
+                <Route path="/expenses/new" element={<RequireRole roles={['Admin','Accountant']}><CreateExpensePage /></RequireRole>} />
+                <Route path="/expenses/categories" element={<RequireRole roles={['Admin','Accountant']}><ExpenseCategoriesPage /></RequireRole>} />
+                <Route path="/expenses/vendors" element={<RequireRole roles={['Admin','Accountant']}><ExpenseVendorsPage /></RequireRole>} />
+                <Route path="/expenses/edit/:id" element={<RequireRole roles={['Admin','Accountant']}><CreateExpensePage /></RequireRole>} />
+                <Route path="/expenses/:id" element={<RequireRole roles={['Admin','Accountant']}><DocumentDetailPage type="expenses" /></RequireRole>} />
+                <Route path="/products" element={<RequireRole roles={['Admin','Sales']}><ProductsPage /></RequireRole>} />
+                <Route path="/products/new" element={<RequireRole roles={['Admin','Sales']}><CreateProductPage /></RequireRole>} />
+                <Route path="/products/edit/:id" element={<RequireRole roles={['Admin','Sales']}><CreateProductPage /></RequireRole>} />
+                <Route path="/products/categories" element={<RequireRole roles={['Admin','Sales']}><ProductCategoriesPage /></RequireRole>} />
                 <Route path="/documentation" element={<DocumentationPage />} />
-                <Route path="/services" element={<ServicesPage />} />
-                <Route path="/services/categories" element={<ServiceCategoriesPage />} />
-                <Route path="/appearance" element={<AppearancePage />} />
-                <Route path="/reports/finance" element={<FinanceReportsPage />} />
-                <Route path="/reports/finance/print" element={<DocumentDetailPage type="reports" />} />
+                <Route path="/services" element={<RequireRole roles={['Admin','Sales']}><ServicesPage /></RequireRole>} />
+                <Route path="/services/categories" element={<RequireRole roles={['Admin','Sales']}><ServiceCategoriesPage /></RequireRole>} />
+                <Route path="/appearance" element={<RequireRole roles={['Admin','Sales']}><AppearancePage /></RequireRole>} />
+                <Route path="/reports/finance" element={<RequireRole roles={['Admin','Accountant']}><FinanceReportsPage /></RequireRole>} />
+                <Route path="/reports/finance/print" element={<RequireRole roles={['Admin','Accountant']}><DocumentDetailPage type="reports" /></RequireRole>} />
                 <Route path="/reports/health" element={<RequireRole roles={['Admin']}><ReportsPage /></RequireRole>} />
                 <Route path="/insights" element={<Navigate to="/reports/finance" replace />} />
                 <Route path="/users" element={<RequireRole roles={['Admin']}><UsersPage /></RequireRole>} />
-                <Route path="/clients" element={<ClientsPage />} />
-                <Route path="/clients/new" element={<CreateClientPage />} />
-                <Route path="/clients/:id" element={<ClientDetailPage />} />
-                <Route path="/clients/edit/:id" element={<EditClientPage />} />
+                <Route path="/clients" element={<RequireRole roles={['Admin','Sales']}><ClientsPage /></RequireRole>} />
+                <Route path="/clients/new" element={<RequireRole roles={['Admin','Sales']}><CreateClientPage /></RequireRole>} />
+                <Route path="/clients/:id" element={<RequireRole roles={['Admin','Sales']}><ClientDetailPage /></RequireRole>} />
+                <Route path="/clients/edit/:id" element={<RequireRole roles={['Admin','Sales']}><EditClientPage /></RequireRole>} />
                 <Route path="/settings" element={<SettingsPage viewMode="page" setViewMode={()=>{}} />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
