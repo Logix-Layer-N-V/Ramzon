@@ -189,6 +189,44 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   locked_until   TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS bank_accounts (
+  id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  bank        TEXT NOT NULL,
+  currency    TEXT NOT NULL DEFAULT 'SRD',
+  iban        TEXT DEFAULT '',
+  balance     NUMERIC(14,2) DEFAULT 0,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS exchange_rates (
+  id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  date        DATE NOT NULL,
+  usd_srd     NUMERIC(10,4) NOT NULL DEFAULT 0,
+  eur_srd     NUMERIC(10,4) DEFAULT 0,
+  eur_usd     NUMERIC(10,4) DEFAULT 0,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Seed default bank accounts (safe to re-run)
+INSERT INTO bank_accounts (id, bank, currency, iban, balance) VALUES
+  ('dsb_srd',  'DSB Bank',      'SRD', 'SR29DSB0000001234', 45230),
+  ('dsb_usd',  'DSB Bank',      'USD', 'SR29DSB0000001235', 12800),
+  ('dsb_eur',  'DSB Bank',      'EUR', 'SR29DSB0000001236',  9500),
+  ('hkb_srd',  'HKB Hakrinbank','SRD', 'SR29HKB0000005678', 31200),
+  ('hkb_usd',  'HKB Hakrinbank','USD', 'SR29HKB0000005679',  7400),
+  ('hkb_eur',  'HKB Hakrinbank','EUR', 'SR29HKB0000005680',  4100),
+  ('cash_srd', 'Cash',          'SRD', '—',                  1500),
+  ('cash_usd', 'Cash',          'USD', '—',                   300),
+  ('cash_eur', 'Cash',          'EUR', '—',                   150)
+ON CONFLICT (id) DO NOTHING;
+
+-- Seed default exchange rates (safe to re-run)
+INSERT INTO exchange_rates (id, date, usd_srd, eur_srd, eur_usd) VALUES
+  ('r1', '2026-03-05', 36.50, 39.80, 1.09),
+  ('r2', '2026-03-04', 36.45, 39.75, 1.09),
+  ('r3', '2026-03-03', 36.40, 39.70, 1.08)
+ON CONFLICT (id) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ts           TIMESTAMPTZ NOT NULL DEFAULT NOW(),

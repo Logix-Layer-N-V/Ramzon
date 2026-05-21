@@ -192,8 +192,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'credits':       return handleCredits(req, res, id, m);
       case 'expenses':      return handleExpenses(req, res, id, m);
       case 'products':      return handleProducts(req, res, id, m);
-      case 'users':         return handleUsers(req, res, id, m);
-      case 'send-document': return handleSendDocument(req, res, m);
+      case 'users':          return handleUsers(req, res, id, m);
+      case 'bank-accounts':  return handleBankAccounts(req, res, id, m);
+      case 'exchange-rates': return handleExchangeRates(req, res, id, m);
+      case 'send-document':  return handleSendDocument(req, res, m);
       case 'error-logs':    return handleErrorLog(req, res, m);
       case 'system-stats':  return handleSystemStats(req, res, m);
       case 'audit-logs':    return handleAuditLogs(req, res, m);
@@ -279,7 +281,8 @@ async function handleAuditLogs(req: VercelRequest, res: VercelResponse, m: strin
 
 async function handleAuth(req: VercelRequest, res: VercelResponse, sub: string, m: string) {
   if (sub === 'login' && m === 'POST') {
-    const { email, password } = req.body ?? {};
+    const email = ((req.body?.email ?? '') as string).toLowerCase().trim();
+    const { password } = req.body ?? {};
     const sql = getSql();
     const ip = getClientIp(req);
     const rl = await checkRateLimit(sql, `login:${ip}`, 5, 15, 15);
@@ -701,7 +704,8 @@ async function handleUsers(req: VercelRequest, res: VercelResponse, id: string |
     return res.json(rows2camel(rows as unknown[]));
   }
   if (m === 'POST' && !id) {
-    const { name, email, role = 'Sales', status = 'Active', password } = req.body ?? {};
+    const { name, role = 'Sales', status = 'Active', password } = req.body ?? {};
+    const email = ((req.body?.email ?? '') as string).toLowerCase().trim();
     if (!name || !email) return res.status(400).json({ error: 'Name and email required' });
     if (!password || password.trim().length < 8) return res.status(400).json({ error: 'Password required (min 8 characters)' });
     if (!VALID_ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
@@ -724,6 +728,67 @@ async function handleUsers(req: VercelRequest, res: VercelResponse, id: string |
     await sql`DELETE FROM users WHERE id=${id}`;
     logAudit(user, 'delete', 'users', id, getClientIp(req));
     return res.status(204).end();
+  }
+  return res.status(405).json({ error: 'Method not allowed' });
+}
+
+/* ── BANK ACCOUNTS ──────────────────────────────────────────────────────── */
+
+async function handleBankAccounts(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string) {
+  const user = getAuthUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  const sql = getSql();
+  if (!id) {
+    if (m === 'GET') return res.json(rows2camel(await sql`SELECT * FROM bank_accounts ORDER BY bank, currency`));
+    if (m === 'POST') {
+      if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+      const b = fromBody(req.body);
+      const { bank, currency = 'SRD', iban = '', balance = 0 } = b;
+      const rows = await sql`INSERT INTO bank_accounts (bank, currency, iban, balance) VALUES (${bank}, ${currency}, ${iban}, ${balance}) RETURNING *`;
+      logAudit(user, 'create', 'bank-accounts', String((rows[0] as any).id ?? ''), getClientIp(req), { bank, currency });
+      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
+    }
+  } else {
+    if (m === 'PUT') {
+      if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+      const b = fromBody(req.body);
+      const { bank, iban, balance } = b;
+      const rows = await sql`UPDATE bank_accounts SET bank=${bank}, iban=${iban}, balance=${balance} WHERE id=${id} RETURNING *`;
+      if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+      logAudit(user, 'update', 'bank-accounts', id, getClientIp(req));
+      return res.json(row2camel(rows[0] as Record<string, unknown>));
+    }
+    if (m === 'DELETE') {
+      if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+      await sql`DELETE FROM bank_accounts WHERE id=${id}`;
+      logAudit(user, 'delete', 'bank-accounts', id, getClientIp(req));
+      return res.json({ ok: true });
+    }
+  }
+  return res.status(405).json({ error: 'Method not allowed' });
+}
+
+/* ── EXCHANGE RATES ─────────────────────────────────────────────────────── */
+
+async function handleExchangeRates(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string) {
+  const user = getAuthUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  const sql = getSql();
+  if (!id) {
+    if (m === 'GET') return res.json(rows2camel(await sql`SELECT * FROM exchange_rates ORDER BY date DESC`));
+    if (m === 'POST') {
+      if (!hasRole(user, ['Admin', 'Accountant'])) return res.status(403).json({ error: 'Forbidden' });
+      const b = fromBody(req.body);
+      const { date, usd_srd, eur_srd = 0, eur_usd = 0 } = b;
+      const rows = await sql`INSERT INTO exchange_rates (date, usd_srd, eur_srd, eur_usd) VALUES (${date}, ${usd_srd}, ${eur_srd}, ${eur_usd}) RETURNING *`;
+      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
+    }
+  } else {
+    if (m === 'DELETE') {
+      if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+      await sql`DELETE FROM exchange_rates WHERE id=${id}`;
+      return res.json({ ok: true });
+    }
   }
   return res.status(405).json({ error: 'Method not allowed' });
 }

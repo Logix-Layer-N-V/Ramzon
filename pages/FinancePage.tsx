@@ -1,27 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { Landmark, Globe2, Plus, Check, X, TrendingUp, TrendingDown, Wallet, DollarSign, Filter, Download, FileSpreadsheet, FileText, ChevronDown, ArrowDownLeft } from 'lucide-react';
-import { storage, toSRD } from '../lib/storage';
+import { Landmark, Globe2, Plus, Check, X, TrendingUp, TrendingDown, Wallet, DollarSign, Filter, Download, FileSpreadsheet, FileText, ChevronDown, ArrowDownLeft, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { toSRD } from '../lib/storage';
 import { usePayments } from '../lib/hooks/usePayments';
+import { useBankAccounts, useCreateBankAccount, useUpdateBankAccount, useDeleteBankAccount } from '../lib/hooks/useBankAccounts';
+import type { BankAccountRow } from '../lib/hooks/useBankAccounts';
+import { useExchangeRates, useCreateExchangeRate, useDeleteExchangeRate } from '../lib/hooks/useExchangeRates';
 import { exportCSV } from '../lib/csvExport';
-import type { BankAccount, ExchangeRate } from '../types';
 
-const BANK_ACCOUNTS_DEFAULT: BankAccount[] = [
-  { id: 'dsb_srd', bank: 'DSB Bank', currency: 'SRD', iban: 'SR29DSB0000001234', balance: 45230 },
-  { id: 'dsb_usd', bank: 'DSB Bank', currency: 'USD', iban: 'SR29DSB0000001235', balance: 12800 },
-  { id: 'dsb_eur', bank: 'DSB Bank', currency: 'EUR', iban: 'SR29DSB0000001236', balance: 9500 },
-  { id: 'hkb_srd', bank: 'HKB Hakrinbank', currency: 'SRD', iban: 'SR29HKB0000005678', balance: 31200 },
-  { id: 'hkb_usd', bank: 'HKB Hakrinbank', currency: 'USD', iban: 'SR29HKB0000005679', balance: 7400 },
-  { id: 'hkb_eur', bank: 'HKB Hakrinbank', currency: 'EUR', iban: 'SR29HKB0000005680', balance: 4100 },
-  { id: 'cash_srd', bank: 'Cash', currency: 'SRD', iban: '—', balance: 1500 },
-  { id: 'cash_usd', bank: 'Cash', currency: 'USD', iban: '—', balance: 300 },
-  { id: 'cash_eur', bank: 'Cash', currency: 'EUR', iban: '—', balance: 150 },
-];
-
-const EXCHANGE_RATES_DEFAULT: ExchangeRate[] = [
-  { id: 'r1', date: '2026-03-05', usdSrd: 36.50, eurSrd: 39.80, eurUsd: 1.09 },
-  { id: 'r2', date: '2026-03-04', usdSrd: 36.45, eurSrd: 39.75, eurUsd: 1.09 },
-  { id: 'r3', date: '2026-03-03', usdSrd: 36.40, eurSrd: 39.70, eurUsd: 1.08 },
-];
+const KNOWN_BANKS = ['DSB Bank', 'HKB Hakrinbank', 'Cash', 'Other'];
 
 const CURRENCY_COLORS: Record<string, string> = {
   SRD: 'bg-emerald-50 text-emerald-700 border-emerald-100',
@@ -37,24 +23,16 @@ const BANK_COLORS: Record<string, string> = {
 
 type FinanceTab = 'accounts' | 'transactions' | 'rates';
 
-function getAccounts(): BankAccount[] {
-  const saved = storage.bankAccounts.get();
-  if (!saved.length) { storage.bankAccounts.save(BANK_ACCOUNTS_DEFAULT); return BANK_ACCOUNTS_DEFAULT; }
-  // Migrate: rename old "Petty Cash" → "Cash"
-  const migrated = saved.map(a => a.bank === 'Petty Cash' ? { ...a, bank: 'Cash' } : a);
-  if (migrated.some((a, i) => a.bank !== saved[i].bank)) storage.bankAccounts.save(migrated);
-  return migrated;
-}
-function getRates(): ExchangeRate[] {
-  const saved = storage.exchangeRates.get();
-  if (!saved.length) { storage.exchangeRates.save(EXCHANGE_RATES_DEFAULT); return EXCHANGE_RATES_DEFAULT; }
-  return saved;
-}
-
 const FinancePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<FinanceTab>('accounts');
-  const [accounts, setAccounts] = useState<BankAccount[]>(getAccounts);
-  const [rates, setRates] = useState<ExchangeRate[]>(getRates);
+
+  const { data: accounts = [] } = useBankAccounts();
+  const { data: rates = [] } = useExchangeRates();
+  const createAccount = useCreateBankAccount();
+  const updateAccount = useUpdateBankAccount();
+  const deleteAccount = useDeleteBankAccount();
+  const createRate = useCreateExchangeRate();
+  const deleteRate = useDeleteExchangeRate();
 
   // Filter state (accounts tab)
   const [filterBank, setFilterBank] = useState('All');
@@ -68,7 +46,7 @@ const FinancePage: React.FC = () => {
   const [txDateFrom, setTxDateFrom] = useState('');
   const [txDateTo, setTxDateTo] = useState('');
 
-  const uniqueBanks = ['All', ...Array.from(new Set(BANK_ACCOUNTS_DEFAULT.map(a => a.bank)))];
+  const uniqueBanks = useMemo(() => ['All', ...Array.from(new Set(accounts.map(a => a.bank)))], [accounts]);
 
   // Load all payments for transactions tab
   const { data: rawPayments = [] } = usePayments();
@@ -91,6 +69,35 @@ const FinancePage: React.FC = () => {
     return bankOk && currOk && fromOk && toOk;
   }), [allPayments, txFilterBank, txFilterCurrency, txDateFrom, txDateTo, accounts]);
 
+  // Account actions menu
+  const [menuAccId, setMenuAccId] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+
+  // Edit account
+  const [editAccount, setEditAccount] = useState<BankAccountRow | null>(null);
+  const [editBank, setEditBank] = useState('');
+  const [editIban, setEditIban] = useState('');
+  const [editBalance, setEditBalance] = useState('');
+
+  const openEditAccount = (acc: BankAccountRow) => {
+    setEditAccount(acc);
+    setEditBank(acc.bank);
+    setEditIban(acc.iban);
+    setEditBalance(String(acc.balance));
+    setMenuAccId(null);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editAccount) return;
+    updateAccount.mutate({ id: editAccount.id, bank: editBank, currency: editAccount.currency, iban: editIban, balance: +editBalance });
+    setEditAccount(null);
+  };
+
+  const handleDeleteAccount = (id: string) => {
+    setMenuAccId(null);
+    deleteAccount.mutate(id);
+  };
+
   // Add account
   const [addingAccount, setAddingAccount] = useState(false);
   const [newBank, setNewBank] = useState('DSB Bank');
@@ -106,17 +113,15 @@ const FinancePage: React.FC = () => {
   const [rateEurUsd, setRateEurUsd] = useState('');
 
   const handleAddAccount = () => {
-    if (!newIban || !newBalance) return;
-    const updated = [...accounts, { id: `acc_${Date.now()}`, bank: newBank, currency: newCurrency, iban: newIban, balance: +newBalance }];
-    setAccounts(updated); storage.bankAccounts.save(updated);
+    if (!newBalance) return;
+    createAccount.mutate({ bank: newBank, currency: newCurrency, iban: newIban, balance: +newBalance });
     setNewBank('DSB Bank'); setNewCurrency('SRD'); setNewIban(''); setNewBalance('');
     setAddingAccount(false);
   };
 
   const handleAddRate = () => {
     if (!rateDate || !rateUsdSrd) return;
-    const updated = [{ id: `r${Date.now()}`, date: rateDate, usdSrd: +rateUsdSrd, eurSrd: +rateEurSrd, eurUsd: +rateEurUsd }, ...rates];
-    setRates(updated); storage.exchangeRates.save(updated);
+    createRate.mutate({ date: rateDate, usdSrd: +rateUsdSrd, eurSrd: +rateEurSrd, eurUsd: +rateEurUsd });
     setRateDate(''); setRateUsdSrd(''); setRateEurSrd(''); setRateEurUsd('');
     setAddingRate(false);
   };
@@ -217,37 +222,37 @@ const FinancePage: React.FC = () => {
             <div className="flex flex-wrap gap-2 items-center">
               <div className="flex items-center gap-1.5">
                 <Filter size={11} className="text-slate-400"/>
-                <select value={filterBank} onChange={e => setFilterBank(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black outline-none bg-white text-slate-700">
+                <select title="Filter by bank" value={filterBank} onChange={e => setFilterBank(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black outline-none bg-white text-slate-700">
                   {uniqueBanks.map(b => <option key={b}>{b}</option>)}
                 </select>
               </div>
-              <select value={filterCurrency} onChange={e => setFilterCurrency(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black outline-none bg-white text-slate-700">
+              <select title="Filter by currency" value={filterCurrency} onChange={e => setFilterCurrency(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black outline-none bg-white text-slate-700">
                 {['All','SRD','USD','EUR'].map(c => <option key={c}>{c}</option>)}
               </select>
-              <select value={filterType} onChange={e => setFilterType(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black outline-none bg-white text-slate-700">
+              <select title="Filter by type" value={filterType} onChange={e => setFilterType(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black outline-none bg-white text-slate-700">
                 {['All','Bank','Cash'].map(t => <option key={t}>{t}</option>)}
               </select>
               {(filterBank !== 'All' || filterCurrency !== 'All' || filterType !== 'All') && (
-                <button onClick={() => { setFilterBank('All'); setFilterCurrency('All'); setFilterType('All'); }} className="px-2 py-1 bg-brand-primary text-white rounded-lg text-[9px] font-black flex items-center gap-1">
+                <button type="button" onClick={() => { setFilterBank('All'); setFilterCurrency('All'); setFilterType('All'); }} className="px-2 py-1 bg-brand-primary text-white rounded-lg text-[9px] font-black flex items-center gap-1">
                   <X size={10}/> Reset
                 </button>
               )}
               <div className="relative">
-                <button onClick={() => setShowExport(!showExport)} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary text-white rounded-lg text-[10px] font-black hover:opacity-90 transition-all">
+                <button type="button" onClick={() => setShowExport(!showExport)} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary text-white rounded-lg text-[10px] font-black hover:opacity-90 transition-all">
                   <Download size={12}/> Export <ChevronDown size={10}/>
                 </button>
                 {showExport && (
                   <div className="absolute right-0 top-full mt-1 bg-white rounded-xl border border-slate-200 shadow-xl z-10 min-w-[160px] overflow-hidden">
-                    <button onClick={handleExportAccounts} className="w-full flex items-center gap-2 px-4 py-2.5 text-[10px] font-black text-slate-700 hover:bg-slate-50">
+                    <button type="button" onClick={handleExportAccounts} className="w-full flex items-center gap-2 px-4 py-2.5 text-[10px] font-black text-slate-700 hover:bg-slate-50">
                       <FileText size={13} className="text-emerald-600"/> Export CSV
                     </button>
-                    <button onClick={() => setShowExport(false)} className="w-full flex items-center gap-2 px-4 py-2.5 text-[10px] font-black text-slate-400 hover:bg-slate-50">
+                    <button type="button" onClick={() => setShowExport(false)} className="w-full flex items-center gap-2 px-4 py-2.5 text-[10px] font-black text-slate-400 hover:bg-slate-50">
                       <FileSpreadsheet size={13} className="text-blue-500"/> Excel (coming soon)
                     </button>
                   </div>
                 )}
               </div>
-              <button onClick={() => setAddingAccount(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[10px] font-black hover:bg-slate-800">
+              <button type="button" onClick={() => setAddingAccount(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[10px] font-black hover:bg-slate-800">
                 <Plus size={12}/> Account
               </button>
             </div>
@@ -261,13 +266,13 @@ const FinancePage: React.FC = () => {
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3 items-end">
                 <div>
                   <label className="text-[9px] font-black text-slate-400 uppercase">Bank</label>
-                  <select value={newBank} onChange={e => setNewBank(e.target.value)} className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none bg-white">
-                    <option>DSB Bank</option><option>HKB Hakrinbank</option><option>Cash</option><option>Other</option>
+                  <select title="Bank name" value={newBank} onChange={e => setNewBank(e.target.value)} className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none bg-white">
+                    {KNOWN_BANKS.map(b => <option key={b}>{b}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-[9px] font-black text-slate-400 uppercase">Currency</label>
-                  <select value={newCurrency} onChange={e => setNewCurrency(e.target.value)} className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none bg-white">
+                  <select title="Currency" value={newCurrency} onChange={e => setNewCurrency(e.target.value)} className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none bg-white">
                     <option>SRD</option><option>USD</option><option>EUR</option>
                   </select>
                 </div>
@@ -280,8 +285,8 @@ const FinancePage: React.FC = () => {
                   <input type="number" value={newBalance} onChange={e => setNewBalance(e.target.value)} placeholder="0" className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none"/>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={handleAddAccount} className="flex-1 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[10px] font-black"><Check size={14}/></button>
-                  <button onClick={() => setAddingAccount(false)} className="px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black"><X size={14}/></button>
+                  <button type="button" title="Save account" onClick={handleAddAccount} className="flex-1 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[10px] font-black"><Check size={14}/></button>
+                  <button type="button" title="Cancel" onClick={() => setAddingAccount(false)} className="px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black"><X size={14}/></button>
                 </div>
               </div>
             </div>
@@ -294,6 +299,7 @@ const FinancePage: React.FC = () => {
                 <th className="text-left px-4 py-3">IBAN</th>
                 <th className="text-center px-4 py-3">Currency</th>
                 <th className="text-right px-6 py-3">Balance</th>
+                <th className="px-4 py-3 w-12" aria-label="Actions"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -310,6 +316,24 @@ const FinancePage: React.FC = () => {
                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${CURRENCY_COLORS[acc.currency] || 'bg-slate-50 text-slate-700 border-slate-100'}`}>{acc.currency}</span>
                   </td>
                   <td className="px-6 py-3.5 text-right font-black text-slate-900">{acc.currency} {acc.balance.toLocaleString()}</td>
+                  <td className="px-4 py-3.5 text-center">
+                    <button
+                      type="button"
+                      title="Account actions"
+                      onClick={e => {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        const dropW = 180;
+                        const menuH = 90;
+                        const top = rect.bottom + 4 + menuH > window.innerHeight ? rect.top - menuH - 4 : rect.bottom + 4;
+                        const left = Math.max(8, Math.min(rect.right - dropW, window.innerWidth - dropW - 8));
+                        setMenuPos({ top, left });
+                        setMenuAccId(menuAccId === acc.id ? null : acc.id);
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <MoreVertical size={14}/>
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -325,15 +349,15 @@ const FinancePage: React.FC = () => {
               <ArrowDownLeft size={13}/> Transactions
             </h3>
             <div className="flex flex-wrap gap-2 items-center">
-              <select value={txFilterBank} onChange={e => setTxFilterBank(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black outline-none bg-white text-slate-700">
+              <select title="Filter by bank" value={txFilterBank} onChange={e => setTxFilterBank(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black outline-none bg-white text-slate-700">
                 {uniqueBanks.map(b => <option key={b}>{b}</option>)}
               </select>
-              <select value={txFilterCurrency} onChange={e => setTxFilterCurrency(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black outline-none bg-white text-slate-700">
+              <select title="Filter by currency" value={txFilterCurrency} onChange={e => setTxFilterCurrency(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black outline-none bg-white text-slate-700">
                 {['All','SRD','USD','EUR'].map(c => <option key={c}>{c}</option>)}
               </select>
               <input type="date" value={txDateFrom} onChange={e => setTxDateFrom(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none bg-white text-slate-700" placeholder="From"/>
               <input type="date" value={txDateTo} onChange={e => setTxDateTo(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none bg-white text-slate-700" placeholder="To"/>
-              <button onClick={handleExportTransactions} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary text-white rounded-lg text-[10px] font-black hover:opacity-90">
+              <button type="button" onClick={handleExportTransactions} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary text-white rounded-lg text-[10px] font-black hover:opacity-90">
                 <Download size={12}/> CSV
               </button>
             </div>
@@ -406,7 +430,7 @@ const FinancePage: React.FC = () => {
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
               <Globe2 size={13}/> Daily Exchange Rates
             </h3>
-            <button onClick={() => setAddingRate(!addingRate)} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[10px] font-black hover:bg-slate-800">
+            <button type="button" onClick={() => setAddingRate(!addingRate)} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[10px] font-black hover:bg-slate-800">
               <Plus size={12}/> Add Rate
             </button>
           </div>
@@ -416,7 +440,7 @@ const FinancePage: React.FC = () => {
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3 items-end">
                 <div>
                   <label className="text-[9px] font-black text-slate-400 uppercase">Date</label>
-                  <input type="date" value={rateDate} onChange={e => setRateDate(e.target.value)} className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none"/>
+                  <input type="date" title="Rate date" value={rateDate} onChange={e => setRateDate(e.target.value)} className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none"/>
                 </div>
                 <div>
                   <label className="text-[9px] font-black text-slate-400 uppercase">USD → SRD</label>
@@ -431,8 +455,8 @@ const FinancePage: React.FC = () => {
                   <input type="number" step="0.01" value={rateEurUsd} onChange={e => setRateEurUsd(e.target.value)} placeholder="1.09" className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none"/>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={handleAddRate} className="flex-1 px-3 py-1.5 bg-brand-primary text-white rounded-lg text-[10px] font-black hover:opacity-90">Save</button>
-                  <button onClick={() => setAddingRate(false)} className="px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black"><X size={14}/></button>
+                  <button type="button" onClick={handleAddRate} className="flex-1 px-3 py-1.5 bg-brand-primary text-white rounded-lg text-[10px] font-black hover:opacity-90">Save</button>
+                  <button type="button" title="Cancel" onClick={() => setAddingRate(false)} className="px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black"><X size={14}/></button>
                 </div>
               </div>
             </div>
@@ -471,6 +495,97 @@ const FinancePage: React.FC = () => {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+      {/* Account actions dropdown — root level to escape overflow clipping */}
+      {menuAccId && (
+        <>
+          <div className="fixed inset-0 z-[998]" onClick={() => setMenuAccId(null)} />
+          <div
+            className="fixed w-44 bg-white border border-slate-100 rounded-[18px] shadow-2xl z-[999] py-2 animate-in fade-in zoom-in-95 duration-150"
+            style={{ top: menuPos.top, left: menuPos.left }}
+          >
+            {(() => {
+              const acc = accounts.find(a => a.id === menuAccId);
+              if (!acc) return null;
+              return (
+                <>
+                  <button type="button" onClick={() => openEditAccount(acc)}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                    <Pencil size={13} className="text-blue-500"/> Edit Account
+                  </button>
+                  <button type="button" onClick={() => handleDeleteAccount(acc.id)}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[11px] font-bold text-red-600 hover:bg-red-50 transition-colors">
+                    <Trash2 size={13}/> Delete
+                  </button>
+                </>
+              );
+            })()}
+          </div>
+        </>
+      )}
+
+      {/* Edit account modal */}
+      {editAccount && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setEditAccount(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 z-[1001]">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-sm font-black text-slate-900">Edit Account</h2>
+              <button type="button" title="Close" onClick={() => setEditAccount(null)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
+                <X size={15}/>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Bank Name</label>
+                <select
+                  title="Bank name"
+                  value={editBank}
+                  onChange={e => setEditBank(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-brand-primary bg-white"
+                >
+                  {KNOWN_BANKS.map(b => <option key={b}>{b}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">IBAN / Reference</label>
+                <input
+                  value={editIban}
+                  onChange={e => setEditIban(e.target.value)}
+                  placeholder="SR29..."
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-brand-primary"
+                />
+              </div>
+              <div>
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Currency</label>
+                <div className="mt-1 px-3 py-2 border border-slate-100 rounded-xl text-sm font-bold text-slate-400 bg-slate-50">
+                  {editAccount.currency} <span className="text-[10px] font-medium">(cannot change)</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Balance</label>
+                <input
+                  type="number"
+                  value={editBalance}
+                  onChange={e => setEditBalance(e.target.value)}
+                  placeholder="0"
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-brand-primary"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button type="button" onClick={handleSaveEdit}
+                className="flex-1 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-[11px] font-black hover:bg-slate-800 flex items-center justify-center gap-2">
+                <Check size={14}/> Save Changes
+              </button>
+              <button type="button" onClick={() => setEditAccount(null)}
+                className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-[11px] font-black hover:bg-slate-200">
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

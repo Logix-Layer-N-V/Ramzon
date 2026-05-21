@@ -34,6 +34,7 @@ const UsersPage: React.FC = () => {
   const [editUser, setEditUser] = useState<UserRow | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [search, setSearch] = useState('');
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const { data: users = [], isLoading } = useUsers();
   const createUser = useCreateUser();
@@ -45,22 +46,28 @@ const UsersPage: React.FC = () => {
     u.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  const openAdd = () => { setForm(emptyForm); setShowAddUser(true); };
+  const openAdd = () => { setForm(emptyForm); setSaveError(null); setShowAddUser(true); };
   const openEdit = (u: UserRow) => {
     setEditUser(u);
     setForm({ name: u.name, email: u.email, role: u.role, status: u.status, password: '' });
+    setSaveError(null);
     setActiveMenu(null);
   };
-  const closeModal = () => { setShowAddUser(false); setEditUser(null); };
+  const closeModal = () => { setShowAddUser(false); setEditUser(null); setSaveError(null); };
 
   const handleSave = async () => {
     if (!form.name || !form.email) return;
-    if (editUser) {
-      await updateUser.mutateAsync({ id: editUser.id, name: form.name, email: form.email, role: form.role as UserRow['role'], status: form.status });
-    } else {
-      await createUser.mutateAsync({ name: form.name, email: form.email, role: form.role as UserRow['role'], status: form.status, password: form.password || 'ramzon123' });
+    setSaveError(null);
+    try {
+      if (editUser) {
+        await updateUser.mutateAsync({ id: editUser.id, name: form.name, email: form.email, role: form.role as UserRow['role'], status: form.status });
+      } else {
+        await createUser.mutateAsync({ name: form.name, email: form.email, role: form.role as UserRow['role'], status: form.status, password: form.password || 'ramzon123' });
+      }
+      closeModal();
+    } catch (err: any) {
+      setSaveError(err?.response?.data?.error ?? 'Something went wrong. Please try again.');
     }
-    closeModal();
   };
 
   const handleToggleStatus = async (u: UserRow) => {
@@ -298,7 +305,10 @@ const UsersPage: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="flex gap-3 mt-6">
+            {saveError && (
+              <p className="text-red-500 text-xs font-bold text-center py-2 bg-red-50 rounded-xl px-3 mt-4">{saveError}</p>
+            )}
+            <div className="flex gap-3 mt-4">
               <button type="button" onClick={closeModal} className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-black text-slate-600 hover:bg-slate-50 transition-all">Cancel</button>
               <button type="button" onClick={handleSave} disabled={!form.name||!form.email||createUser.isPending||updateUser.isPending}
                 className="flex-1 py-3 rounded-xl bg-slate-900 text-white text-sm font-black hover:bg-slate-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95">
