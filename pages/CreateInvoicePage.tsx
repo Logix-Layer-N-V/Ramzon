@@ -669,17 +669,16 @@ const CreateInvoicePage: React.FC = () => {
                   className="relative flex flex-wrap md:grid md:grid-cols-[64px_76px_1fr_38px_64px_84px_110px_48px_110px] gap-1.5 items-center px-3 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                   <input type="number" value={item.qty} min={0} onChange={e => updateItem(item.id,'qty',+e.target.value)} aria-label="Quantity"
                     className="w-full px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-xs font-bold outline-none text-center hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all"/>
-                  {item.type === 'product' ? (
-                    <div className="flex flex-row items-center gap-0.5 w-full">
-                      <select value={item.houtsoort} onChange={e => updateItem(item.id,'houtsoort',e.target.value)} aria-label="Wood type"
-                        className="flex-1 min-w-0 px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-[10px] font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all">
-                        {RAMZON_HOUTSOORTEN.map(h => <option key={h}>{h}</option>)}
-                      </select>
-                      {item.houtsoort && getMarkup(item.houtsoort) > 0 && (
-                        <span className="shrink-0 px-1 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded text-[8px] font-black">+{getMarkup(item.houtsoort)}%</span>
-                      )}
-                    </div>
-                  ) : <div className="hidden md:block"/>}
+                  <div className="flex flex-row items-center gap-0.5 w-full">
+                    <select value={item.houtsoort} onChange={e => updateItem(item.id,'houtsoort',e.target.value)} aria-label="Wood type"
+                      className="flex-1 min-w-0 px-1.5 py-1 border border-slate-200 bg-transparent rounded-lg text-[10px] font-bold outline-none hover:border-slate-300 focus:border-blue-300 focus:bg-white transition-all">
+                      <option value="">—</option>
+                      {RAMZON_HOUTSOORTEN.map(h => <option key={h}>{h}</option>)}
+                    </select>
+                    {item.houtsoort && getMarkup(item.houtsoort) > 0 && (
+                      <span className="shrink-0 px-1 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded text-[8px] font-black">+{getMarkup(item.houtsoort)}%</span>
+                    )}
+                  </div>
                   <input value={item.description} onChange={e => updateItem(item.id,'description',e.target.value)}
                     placeholder="Description…"
                     className="flex-1 md:flex-none min-w-0 px-2 py-1 bg-transparent border border-transparent hover:border-slate-200 focus:border-blue-300 focus:bg-white rounded-lg text-xs font-medium outline-none transition-all placeholder:text-slate-300"/>
