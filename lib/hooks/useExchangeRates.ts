@@ -12,7 +12,14 @@ export interface ExchangeRateRow {
 export const useExchangeRates = () =>
   useQuery<ExchangeRateRow[]>({
     queryKey: ['exchange-rates'],
-    queryFn: () => api.get('/exchange-rates').then(r => r.data),
+    queryFn: () => api.get('/exchange-rates').then(r =>
+      (r.data as any[]).map((row: any) => ({
+        ...row,
+        usdSrd: Number(row.usdSrd),
+        eurSrd: Number(row.eurSrd),
+        eurUsd: Number(row.eurUsd),
+      }))
+    ),
   });
 
 export const useCreateExchangeRate = () => {

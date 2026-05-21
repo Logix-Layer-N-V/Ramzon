@@ -12,7 +12,9 @@ export interface BankAccountRow {
 export const useBankAccounts = () =>
   useQuery<BankAccountRow[]>({
     queryKey: ['bank-accounts'],
-    queryFn: () => api.get('/bank-accounts').then(r => r.data),
+    queryFn: () => api.get('/bank-accounts').then(r =>
+      (r.data as any[]).map((row: any) => ({ ...row, balance: Number(row.balance) }))
+    ),
   });
 
 export const useCreateBankAccount = () => {
