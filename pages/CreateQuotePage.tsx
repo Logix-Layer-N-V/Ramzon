@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowLeft, Plus, ClipboardList, Send, Save, Trash2, Check, X, Search, FileText, TrendingUp, Ruler, UserPlus } from 'lucide-react';
-import { LanguageContext } from '../lib/context';
 import { QuoteSchema } from '../lib/schemas';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { RAMZON_SERVICES, RAMZON_PRODUCT_CATALOG, RAMZON_HOUTSOORTEN } from '../lib/mock-data';
@@ -39,13 +38,13 @@ const catToDesc = (cat: string) => {
 const CreateQuotePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currencySymbol } = useContext(LanguageContext);
   const { user } = useAuth();
   const { id } = useParams();
   const isEdit = !!id;
   const [client, setClient] = useState('');
   const [showAddClient, setShowAddClient] = useState(false);
   const [currency, setCurrency] = useState('SRD');
+  const currencySymbol = currency === 'USD' ? '$ ' : currency === 'EUR' ? '€ ' : 'SRD ';
   const [exchangeRate, setExchangeRate] = useState<number>(1);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [validUntil, setValidUntil] = useState(() => {
