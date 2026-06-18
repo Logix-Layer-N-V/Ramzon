@@ -179,7 +179,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const segments = Array.isArray(pathParam) ? pathParam
     : typeof pathParam === 'string' ? pathParam.split('/')
     : (req.url || '').replace(/^\/api\/?/, '').split('?')[0].split('/').filter(Boolean);
-  const [resource, id] = segments;
+  const [resource, id, subAction] = segments;
   const m = req.method || 'GET';
 
   try {
@@ -192,7 +192,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'credits':       return handleCredits(req, res, id, m);
       case 'expenses':      return handleExpenses(req, res, id, m);
       case 'products':      return handleProducts(req, res, id, m);
-      case 'users':          return handleUsers(req, res, id, m);
+      case 'users':          return handleUsers(req, res, id, m, subAction);
       case 'bank-accounts':      return handleBankAccounts(req, res, id, m);
       case 'bank-transactions':  return handleBankTransactions(req, res, id, m);
       case 'exchange-rates':     return handleExchangeRates(req, res, id, m);
@@ -695,11 +695,26 @@ async function handleProducts(req: VercelRequest, res: VercelResponse, id: strin
 
 /* ── USERS ──────────────────────────────────────────────────────────────── */
 
-async function handleUsers(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string) {
+async function handleUsers(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string, subAction?: string) {
   const user = getAuthUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
   if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
   const sql = getSql();
+  if (m === 'POST' && id && subAction === 'reset-password') {
+    const { newPassword } = req.body ?? {};
+    if (!newPassword || String(newPassword).trim().length < 8)
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    if (String(newPassword).length > 72)
+      return res.status(400).json({ error: 'Password too long (max 72 characters)' });
+    const rl = await checkRateLimit(sql, `resetpwd:${user.id}`, 10, 15, 15);
+    if (!rl.allowed)
+      return res.status(429).json({ error: `Too many attempts. Try again in ${Math.ceil((rl.retryAfterSeconds ?? 900) / 60)} minutes.` });
+    const hashed = await bcrypt.hash(String(newPassword).trim(), 10);
+    const rows = await sql`UPDATE users SET password=${hashed} WHERE id=${id} RETURNING id`;
+    if (!rows[0]) return res.status(404).json({ error: 'User not found' });
+    logAudit(user, 'reset-password', 'users', id, getClientIp(req));
+    return res.json({ ok: true });
+  }
   if (m === 'GET' && !id) {
     const rows = await sql`SELECT id,name,email,role,status,avatar,joined_date FROM users ORDER BY name`;
     return res.json(rows2camel(rows as unknown[]));

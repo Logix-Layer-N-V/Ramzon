@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { Search, UserPlus, MoreVertical, Shield, CheckCircle2, XCircle, X, Plus, Check, Pencil } from 'lucide-react';
-import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, UserRow } from '../lib/hooks/useUsers';
+import { Search, UserPlus, MoreVertical, Shield, CheckCircle2, XCircle, X, Plus, Check, Pencil, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword, UserRow } from '../lib/hooks/useUsers';
 
 const MODULES = ['Dashboard','Billing','Expenses','Products','CRM','Reports','Settings','Users'];
 
@@ -35,11 +35,19 @@ const UsersPage: React.FC = () => {
   const [form, setForm] = useState(emptyForm);
   const [search, setSearch] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
+  const [resetPwd, setResetPwd] = useState('');
+  const [resetConfirm, setResetConfirm] = useState('');
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [showResetPwd, setShowResetPwd] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const { data: users = [], isLoading } = useUsers();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
+  const resetPassword = useResetPassword();
 
   const filtered = users.filter(u =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -79,6 +87,30 @@ const UsersPage: React.FC = () => {
     if (!confirm('Remove this user?')) return;
     await deleteUser.mutateAsync(id);
     setActiveMenu(null);
+  };
+
+  const openReset = (u: UserRow) => {
+    setResetTarget(u);
+    setResetPwd('');
+    setResetConfirm('');
+    setResetError(null);
+    setResetSuccess(false);
+    setShowResetPwd(false);
+    setShowResetConfirm(false);
+    setActiveMenu(null);
+  };
+  const closeReset = () => { setResetTarget(null); setResetError(null); setResetSuccess(false); };
+
+  const handleReset = async () => {
+    setResetError(null);
+    if (resetPwd.length < 8) { setResetError('Password must be at least 8 characters'); return; }
+    if (resetPwd !== resetConfirm) { setResetError('Passwords do not match'); return; }
+    try {
+      await resetPassword.mutateAsync({ id: resetTarget!.id, newPassword: resetPwd });
+      setResetSuccess(true);
+    } catch (err: any) {
+      setResetError(err?.response?.data?.error ?? 'Something went wrong. Please try again.');
+    }
   };
 
   const togglePerm = (role: string, mod: string) => {
@@ -347,6 +379,86 @@ const UsersPage: React.FC = () => {
         </div>
       )}
 
+      {/* RESET PASSWORD MODAL */}
+      {resetTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-md p-8 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-black text-slate-900">Reset Password</h2>
+              <button type="button" title="Close" onClick={closeReset} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-900 transition-all">
+                <X size={20}/>
+              </button>
+            </div>
+            <p className="text-sm text-slate-500 mb-6">
+              Set a new password for <span className="font-bold text-slate-700">{resetTarget.name}</span>
+            </p>
+            {resetSuccess ? (
+              <div className="text-center py-6 space-y-3">
+                <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle2 size={28} className="text-green-600"/>
+                </div>
+                <p className="font-black text-slate-900">Password Reset!</p>
+                <p className="text-sm text-slate-500">The new password has been saved successfully.</p>
+                <button type="button" onClick={closeReset} className="mt-2 w-full py-3 rounded-xl bg-slate-900 text-white text-sm font-black hover:bg-slate-800 transition-all active:scale-95">
+                  Done
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 block">New Password</label>
+                    <div className="relative">
+                      <input
+                        type={showResetPwd ? 'text' : 'password'}
+                        value={resetPwd}
+                        onChange={e => setResetPwd(e.target.value)}
+                        placeholder="Min. 8 characters"
+                        className="w-full px-4 py-3 pr-11 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                      <button type="button" onClick={() => setShowResetPwd(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                        {showResetPwd ? <EyeOff size={16}/> : <Eye size={16}/>}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 block">Confirm Password</label>
+                    <div className="relative">
+                      <input
+                        type={showResetConfirm ? 'text' : 'password'}
+                        value={resetConfirm}
+                        onChange={e => setResetConfirm(e.target.value)}
+                        placeholder="Repeat new password"
+                        onKeyDown={e => e.key === 'Enter' && handleReset()}
+                        className="w-full px-4 py-3 pr-11 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                      <button type="button" onClick={() => setShowResetConfirm(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                        {showResetConfirm ? <EyeOff size={16}/> : <Eye size={16}/>}
+                      </button>
+                    </div>
+                    {resetPwd && resetConfirm && resetPwd !== resetConfirm && (
+                      <p className="text-[11px] text-red-500 font-bold mt-1.5">Passwords do not match</p>
+                    )}
+                  </div>
+                </div>
+                {resetError && (
+                  <p className="text-red-500 text-xs font-bold text-center py-2 bg-red-50 rounded-xl px-3 mt-4">{resetError}</p>
+                )}
+                <div className="flex gap-3 mt-6">
+                  <button type="button" onClick={closeReset} className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-black text-slate-600 hover:bg-slate-50 transition-all">Cancel</button>
+                  <button type="button" onClick={handleReset}
+                    disabled={!resetPwd || !resetConfirm || resetPassword.isPending}
+                    className="flex-1 py-3 rounded-xl bg-slate-900 text-white text-sm font-black hover:bg-slate-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 flex items-center justify-center gap-2">
+                    <KeyRound size={14}/>
+                    {resetPassword.isPending ? 'Saving…' : 'Reset Password'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Actions dropdown — rendered at root level to escape overflow clipping ── */}
       {activeMenu && menuUser && (
         <>
@@ -357,6 +469,9 @@ const UsersPage: React.FC = () => {
           >
             <button type="button" onClick={() => openEdit(menuUser)} className="w-full px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:text-slate-900 hover:bg-slate-50 flex items-center gap-3 transition-colors">
               <Pencil size={14} className="text-blue-400" /> Edit User
+            </button>
+            <button type="button" onClick={() => openReset(menuUser)} className="w-full px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:text-slate-900 hover:bg-slate-50 flex items-center gap-3 transition-colors">
+              <KeyRound size={14} className="text-amber-400" /> Reset Password
             </button>
             <button type="button" onClick={() => handleToggleStatus(menuUser)} className="w-full px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:text-slate-900 hover:bg-slate-50 flex items-center gap-3 transition-colors">
               {menuUser.status === 'Active' ? <XCircle size={14} className="text-slate-400" /> : <CheckCircle2 size={14} className="text-slate-400" />}

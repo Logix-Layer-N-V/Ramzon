@@ -37,3 +37,9 @@ export const useDeleteUser = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
 };
+
+export const useResetPassword = () =>
+  useMutation({
+    mutationFn: ({ id, newPassword }: { id: string; newPassword: string }) =>
+      api.post(`/users/${id}/reset-password`, { newPassword }).then(r => r.data),
+  });
