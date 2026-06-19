@@ -191,7 +191,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'payments':      return handlePayments(req, res, id, m);
       case 'credits':       return handleCredits(req, res, id, m);
       case 'expenses':      return handleExpenses(req, res, id, m);
-      case 'products':      return handleProducts(req, res, id, m);
+      case 'products':           return handleProducts(req, res, id, m);
+      case 'product-categories': return handleProductCategories(req, res, id, m);
       case 'users':          return handleUsers(req, res, id, m, subAction);
       case 'bank-accounts':      return handleBankAccounts(req, res, id, m);
       case 'bank-transactions':  return handleBankTransactions(req, res, id, m);
@@ -648,6 +649,50 @@ async function handleExpenses(req: VercelRequest, res: VercelResponse, id: strin
       const { status } = b;
       const rows = await sql`UPDATE expenses SET status=${status} WHERE id=${id} RETURNING *`;
       return res.json(row2camel(rows[0] as Record<string, unknown>));
+    }
+  }
+  return res.status(405).json({ error: 'Method not allowed' });
+}
+
+/* ── PRODUCT CATEGORIES ─────────────────────────────────────────────────── */
+
+async function handleProductCategories(req: VercelRequest, res: VercelResponse, id: string | undefined, m: string) {
+  const user = getAuthUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  const sql = getSql();
+
+  if (!id) {
+    if (m === 'GET') {
+      const rows = await sql`SELECT * FROM product_categories ORDER BY sort_order, name`;
+      return res.json(rows2camel(rows));
+    }
+    if (m === 'POST') {
+      if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+      const b = fromBody(req.body);
+      const { name, description = '', pricing_type = 'pcs', sort_order = 0 } = b;
+      if (!name) return res.status(400).json({ error: 'name is required' });
+      const rows = await sql`INSERT INTO product_categories (name, description, pricing_type, sort_order) VALUES (${name}, ${description}, ${pricing_type}, ${sort_order}) RETURNING *`;
+      return res.status(201).json(row2camel(rows[0] as Record<string, unknown>));
+    }
+  } else {
+    if (m === 'PUT') {
+      if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+      const b = fromBody(req.body);
+      const { name, description = '', pricing_type = 'pcs', sort_order = 0 } = b;
+      const rows = await sql`UPDATE product_categories SET name=${name}, description=${description}, pricing_type=${pricing_type}, sort_order=${sort_order} WHERE id=${id} RETURNING *`;
+      if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+      return res.json(row2camel(rows[0] as Record<string, unknown>));
+    }
+    if (m === 'DELETE') {
+      if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+      // Get category name so we can clear it from products
+      const catRows = await sql`SELECT name FROM product_categories WHERE id=${id}`;
+      if (!catRows[0]) return res.status(404).json({ error: 'Not found' });
+      const catName = (catRows[0] as any).name as string;
+      // Clear category on products that referenced this category
+      await sql`UPDATE products SET category='' WHERE category=${catName}`;
+      await sql`DELETE FROM product_categories WHERE id=${id}`;
+      return res.json({ ok: true });
     }
   }
   return res.status(405).json({ error: 'Method not allowed' });

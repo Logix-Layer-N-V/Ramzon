@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Layers, Trees, LayoutGrid, Ruler, Grid2x2,
   Plus, Pencil, Trash2, Save, X, Check, ChevronLeft
@@ -6,6 +6,12 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { storage } from '../lib/storage';
 import type { WoodSpecies, DoorModel, ProfileSize, DoorPriceEntry } from '../types';
+import {
+  useProductCategories,
+  useCreateProductCategory,
+  useUpdateProductCategory,
+  useDeleteProductCategory,
+} from '../lib/hooks/useProductCategories';
 
 // ─── Types & Defaults ─────────────────────────────────────────────────────────
 type PricingType = 'm2' | 'lm' | 'pcs';
@@ -75,16 +81,11 @@ const ProductCategoriesPage: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('categories');
 
-  // ── Categories ──────────────────────────────────────────────────────────────
-  const [categories, setCategories] = useState<any[]>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('erp_product_categories') ?? 'null');
-      // migrate: if any category lacks pricingType, the data is old → reset to defaults
-      if (!saved || saved.some((c: any) => !c.pricingType)) return DEFAULT_CATEGORIES;
-      return saved;
-    } catch { return DEFAULT_CATEGORIES; }
-  });
-  useEffect(() => { localStorage.setItem('erp_product_categories', JSON.stringify(categories)); }, [categories]);
+  // ── Categories (DB-backed via API) ──────────────────────────────────────────
+  const { data: categories = [], isLoading: catsLoading } = useProductCategories();
+  const createCat = useCreateProductCategory();
+  const updateCat = useUpdateProductCategory();
+  const deleteCat = useDeleteProductCategory();
   const [addingCat, setAddingCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatDesc, setNewCatDesc] = useState('');
@@ -187,6 +188,7 @@ const ProductCategoriesPage: React.FC = () => {
                 <Plus size={13} /> Add Category
               </button>
             </div>
+            {catsLoading && <p className="px-8 py-4 text-sm text-slate-400 font-medium">Loading categories…</p>}
             <div className="p-6 space-y-2">
               {/* Add form */}
               {addingCat && (
@@ -212,7 +214,7 @@ const ProductCategoriesPage: React.FC = () => {
                   <div className="flex gap-2">
                     <button onClick={() => {
                       if (!newCatName.trim()) return;
-                      setCategories([...categories, { id: `cat${Date.now()}`, name: newCatName.trim(), description: newCatDesc.trim(), pricingType: newCatPricingType }]);
+                      createCat.mutate({ name: newCatName.trim(), description: newCatDesc.trim(), pricingType: newCatPricingType, sortOrder: categories.length });
                       setNewCatName(''); setNewCatDesc(''); setNewCatPricingType('pcs'); setAddingCat(false);
                     }} className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">Save Category</button>
                     <button onClick={() => { setAddingCat(false); setNewCatName(''); setNewCatDesc(''); }} className="px-4 py-2 text-slate-400 text-xs font-bold hover:text-slate-700">Cancel</button>
@@ -246,7 +248,7 @@ const ProductCategoriesPage: React.FC = () => {
                       <div className="flex gap-2">
                         <button onClick={() => {
                           if (!editCatData.name.trim()) return;
-                          setCategories(categories.map((c: any) => c.id === cat.id ? { ...c, name: editCatData.name.trim(), description: editCatData.description, pricingType: editCatData.pricingType } : c));
+                          updateCat.mutate({ id: cat.id, name: editCatData.name.trim(), description: editCatData.description, pricingType: editCatData.pricingType, sortOrder: cat.sortOrder ?? 0 });
                           setEditCatId(null); setEditCatData(null);
                         }} className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">Save</button>
                         <button onClick={() => { setEditCatId(null); setEditCatData(null); }} className="px-4 py-2 text-slate-400 text-xs font-bold">Cancel</button>
@@ -277,7 +279,7 @@ const ProductCategoriesPage: React.FC = () => {
                         <Pencil size={13} />
                       </button>
                       <button className={`${BTN_ICON} text-slate-300 hover:text-red-500 hover:bg-red-50`}
-                        onClick={() => window.confirm(`Delete "${cat.name}"?`) && setCategories(categories.filter((c: any) => c.id !== cat.id))}>
+                        onClick={() => window.confirm(`Delete "${cat.name}"? Products in this category will be uncategorized.`) && deleteCat.mutate(cat.id)}>
                         <Trash2 size={13} />
                       </button>
                     </div>

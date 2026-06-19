@@ -152,6 +152,23 @@ CREATE TABLE IF NOT EXISTS products (
   created_at       TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS product_categories (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name         TEXT NOT NULL,
+  description  TEXT DEFAULT '',
+  pricing_type TEXT DEFAULT 'pcs',
+  sort_order   INT DEFAULT 0,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO product_categories (name, description, pricing_type, sort_order) VALUES
+  ('Doors',         'Area-based pricing',   'm2',  1),
+  ('Mouldings',     'Length-based pricing', 'lm',  2),
+  ('Frames',        'Length-based pricing', 'lm',  3),
+  ('Window Frames', 'Length-based pricing', 'lm',  4),
+  ('Crating',       'Fixed item pricing',   'pcs', 5)
+ON CONFLICT DO NOTHING;
+
 -- Migration: add columns to existing tables (safe to re-run, IF NOT EXISTS guards)
 ALTER TABLE clients      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE payments     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();

@@ -3,10 +3,9 @@ import { LanguageContext } from '../lib/context';
 import { Search, Plus, Package, Ruler, Pencil, Trash2, Settings2, ChevronUp, ChevronDown, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useProducts, useDeleteProduct, useCreateProduct, ProductRow } from '../lib/hooks/useProducts';
+import { useProductCategories } from '../lib/hooks/useProductCategories';
 import { storage } from '../lib/storage';
 import ProductImportModal from '../components/ProductImportModal';
-
-const CATEGORIES = ['All', 'Doors', 'Mouldings', 'Frames', 'Window Frames', 'Crating'];
 
 const ProductsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,6 +13,7 @@ const ProductsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const { data: products = [], isLoading } = useProducts();
+  const { data: categoryList = [] } = useProductCategories();
   const createProduct = useCreateProduct();
 
   const [sortKey, setSortKey] = useState<string>('name');
@@ -142,7 +142,7 @@ const ProductsPage: React.FC = () => {
 
       {/* Category Tabs */}
       <div className="flex gap-2 flex-wrap">
-        {CATEGORIES.map(cat => (
+        {['All', ...categoryList.map(c => c.name)].map(cat => (
           <button key={cat} onClick={() => setActiveCategory(cat)}
             className={`px-4 py-2 rounded-xl text-xs font-black border transition-all ${
               activeCategory === cat

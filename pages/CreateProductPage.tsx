@@ -3,6 +3,7 @@ import { ArrowLeft, Save, Check, Package, Ruler, Calculator, Box, Plus, Hash, Ch
 import { useNavigate, useParams } from 'react-router-dom';
 import { storage } from '../lib/storage';
 import { useProduct, useCreateProduct, useUpdateProduct } from '../lib/hooks/useProducts';
+import { useProductCategories } from '../lib/hooks/useProductCategories';
 import type { DoorModel, DoorPriceEntry, WoodProduct } from '../types';
 
 // ─── Fallback lists (if localStorage is empty) ────────────────────────────────
@@ -10,14 +11,6 @@ const DEFAULT_DOOR_MODELS: DoorModel[] = [
   { id: 'dm1', name: 'Panel door' },       { id: 'dm2', name: 'Classic door' },
   { id: 'dm3', name: 'Stile & rail door' },{ id: 'dm4', name: 'Sliding door' },
   { id: 'dm5', name: 'Overlay door' },     { id: 'dm6', name: 'Louvre door' },
-];
-
-const DEFAULT_CATEGORIES = [
-  { id: 'cat1', name: 'Doors',         pricingType: 'm2'  },
-  { id: 'cat2', name: 'Mouldings',     pricingType: 'lm'  },
-  { id: 'cat3', name: 'Frames',        pricingType: 'lm'  },
-  { id: 'cat4', name: 'Window Frames', pricingType: 'lm'  },
-  { id: 'cat5', name: 'Crating',       pricingType: 'pcs' },
 ];
 
 function initList<T>(key: string, defaults: T[]): T[] {
@@ -65,15 +58,9 @@ const CreateProductPage: React.FC = () => {
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
 
-  // ── Categories (from localStorage) ──────────────────────────────────────────
-  const [categories] = useState<any[]>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('erp_product_categories') ?? 'null');
-      if (!saved || saved.some((c: any) => !c.pricingType)) return DEFAULT_CATEGORIES;
-      return saved;
-    } catch { return DEFAULT_CATEGORIES; }
-  });
-  const [category, setCategory] = useState(categories[0]?.name ?? 'Doors');
+  // ── Categories (from API / DB) ───────────────────────────────────────────────
+  const { data: categories = [] } = useProductCategories();
+  const [category, setCategory] = useState('');
   const activeCat = categories.find((c: any) => c.name === category) ?? categories[0];
 
   // ── Shared product fields (all categories) ──────────────────────────────────
@@ -133,9 +120,16 @@ const CreateProductPage: React.FC = () => {
     }
   }, [selectedModel, skuManual, category]);
 
+  // ── Set default category once categories load (new product) ─────────────────
+  useEffect(() => {
+    if (!isEdit && categories.length > 0 && !category) {
+      setCategory(categories[0].name);
+    }
+  }, [categories, isEdit]);
+
   // ── Load existing product for edit ──────────────────────────────────────────
   useEffect(() => {
-    if (existingProduct) {
+    if (existingProduct && categories.length > 0) {
       const p = existingProduct as any;
       setProductName(p.name); setHoutsoort(p.woodType || '');
       setCategory(p.category || categories[0]?.name || 'Doors');
@@ -146,7 +140,7 @@ const CreateProductPage: React.FC = () => {
       if (p.description) setDescription(p.description);
       if (p.defaultTaxRate !== undefined) setDefaultTaxRate(p.defaultTaxRate);
     }
-  }, [existingProduct]);
+  }, [existingProduct, categories]);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   const isDoor     = activeCat?.pricingType === 'm2';
