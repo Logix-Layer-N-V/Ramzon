@@ -193,7 +193,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'expenses':      return handleExpenses(req, res, id, m);
       case 'products':           return handleProducts(req, res, id, m);
       case 'product-categories': return handleProductCategories(req, res, id, m);
-      case 'run-migration-categories': return handleRunMigrationCategories(req, res, m);
       case 'users':          return handleUsers(req, res, id, m, subAction);
       case 'bank-accounts':      return handleBankAccounts(req, res, id, m);
       case 'bank-transactions':  return handleBankTransactions(req, res, id, m);
@@ -653,35 +652,6 @@ async function handleExpenses(req: VercelRequest, res: VercelResponse, id: strin
     }
   }
   return res.status(405).json({ error: 'Method not allowed' });
-}
-
-/* ── ONE-TIME MIGRATION: product_categories ─────────────────────────────── */
-
-async function handleRunMigrationCategories(req: VercelRequest, res: VercelResponse, m: string) {
-  if (m !== 'POST') return res.status(405).end();
-  const user = getAuthUser(req);
-  if (!user || user.role !== 'Admin') return res.status(403).json({ error: 'Forbidden' });
-  const sql = getSql();
-  await sql`
-    CREATE TABLE IF NOT EXISTS product_categories (
-      id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      name         TEXT NOT NULL,
-      description  TEXT DEFAULT '',
-      pricing_type TEXT DEFAULT 'pcs',
-      sort_order   INT DEFAULT 0,
-      created_at   TIMESTAMPTZ DEFAULT NOW()
-    )
-  `;
-  await sql`
-    INSERT INTO product_categories (name, description, pricing_type, sort_order) VALUES
-      ('Doors',         'Area-based pricing',   'm2',  1),
-      ('Mouldings',     'Length-based pricing', 'lm',  2),
-      ('Frames',        'Length-based pricing', 'lm',  3),
-      ('Window Frames', 'Length-based pricing', 'lm',  4),
-      ('Crating',       'Fixed item pricing',   'pcs', 5)
-    ON CONFLICT DO NOTHING
-  `;
-  return res.json({ ok: true, message: 'product_categories table created and seeded' });
 }
 
 /* ── PRODUCT CATEGORIES ─────────────────────────────────────────────────── */
