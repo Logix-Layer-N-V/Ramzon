@@ -50,8 +50,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAccessToken(data.accessToken);
       setUser(data.user);
     } catch (err: any) {
-      // Dev fallback: if backend is unreachable on localhost, allow any login
-      if (import.meta.env.DEV && (err?.code === 'ERR_NETWORK' || err?.code === 'ECONNREFUSED' || err?.response == null)) {
+      // Dev fallback: only when VITE_ENABLE_DEV_LOGIN=true is set AND password is 'devmode'
+      if (
+        import.meta.env.DEV &&
+        import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' &&
+        password === 'devmode' &&
+        (err?.code === 'ERR_NETWORK' || err?.code === 'ECONNREFUSED')
+      ) {
         setAccessToken('dev-token');
         setUser({ id: 'dev', role: 'Admin', name: email.split('@')[0] });
         return;
