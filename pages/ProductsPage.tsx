@@ -50,16 +50,19 @@ const ProductsPage: React.FC = () => {
         id: p.id,
         name: p.name,
         woodType: p.woodType || '',
+        thickness: p.thickness || 0,
+        width: p.width || 0,
+        length: p.length || 0,
         unit: p.unit || 'pcs',
         pricePerUnit: p.pricePerUnit || 0,
         stock: p.stock || 0,
-        category: (p as any).category || '',
-        sku: (p as any).sku || '',
+        category: p.category || '',
+        sku: p.sku || '',
+        calculationType: p.calculationType || 'pcs',
+        description: p.description || '',
+        defaultTaxRate: p.defaultTaxRate || 10,
         createdAt: '',
-        thickness: p.thickness,
-        width: p.width,
-        length: p.length,
-      } as ProductRow & { thickness?: number; width?: number; length?: number }));
+      } as ProductRow));
     return [...products, ...localOnly];
   }, [products, localProducts]);
 
@@ -199,13 +202,13 @@ const ProductsPage: React.FC = () => {
                   </td>
                   <td className="px-6 py-4">
                     <span className="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-[10px] font-black">
-                      {(p as any).category || 'Doors'}
+                      {p.category || 'Doors'}
                     </span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1 rounded-lg w-fit">
                       <Ruler size={12} />
-                      {(p as any).thickness > 0 ? `${(p as any).thickness} × ` : ''}{(p as any).width ?? '—'} × {(p as any).length ?? '—'}
+                      {p.thickness > 0 ? `${p.thickness} × ` : ''}{p.width || '—'} × {p.length || '—'}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-center font-black text-slate-400 italic">{p.unit}</td>

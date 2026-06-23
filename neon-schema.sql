@@ -188,6 +188,8 @@ ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS price_by_area BOOLEAN DEFAUL
 ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS price_by_area BOOLEAN DEFAULT false;
 ALTER TABLE invoice_items  ADD COLUMN IF NOT EXISTS item_type TEXT DEFAULT 'item';
 ALTER TABLE estimate_items ADD COLUMN IF NOT EXISTS item_type TEXT DEFAULT 'item';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS default_tax_rate NUMERIC(5,2) DEFAULT 10;
 
 CREATE TABLE IF NOT EXISTS error_logs (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),

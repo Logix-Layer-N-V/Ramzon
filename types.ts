@@ -51,9 +51,11 @@ export interface WoodProduct {
   unit: 'm³' | 'm²' | 'lm' | 'pcs' | 'PCS';
   pricePerUnit: number;
   stock: number;
-  category?: string;          // e.g. 'Doors' | 'Mouldings' | 'Frames' | 'Window Frames' | 'Crating'
-  sku?: string;               // product SKU code
-  calculationType?: 'pcs' | 'm2' | 'lm'; // drives price calculation in quotes/invoices
+  category?: string;
+  sku?: string;
+  calculationType?: 'pcs' | 'm2' | 'lm';
+  description?: string;
+  defaultTaxRate?: number;
 }
 
 export interface InvoiceItem {

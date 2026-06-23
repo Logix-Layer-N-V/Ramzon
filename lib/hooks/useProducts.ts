@@ -5,11 +5,17 @@ export interface ProductRow {
   id: string;
   name: string;
   woodType: string;
+  thickness: number;
+  width: number;
+  length: number;
   unit: string;
   pricePerUnit: number;
   stock: number;
   category: string;
   sku: string;
+  calculationType: string;
+  description: string;
+  defaultTaxRate: number;
   createdAt: string;
 }
 

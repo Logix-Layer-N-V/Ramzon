@@ -147,7 +147,7 @@ function fromBody(body: unknown): Record<string, unknown> {
   return out;
 }
 
-const NUMERIC_KEYS = /^(total|subtotal|quantity|qty|price|stock|amount|tax|paid|spent|rate|balance|cost|pricePerUnit)$|(Amount|Total|Price|Stock|Qty|Tax|Paid|Spent|Rate|Balance|Cost|Quantity)$/;
+const NUMERIC_KEYS = /^(total|subtotal|quantity|qty|price|stock|amount|tax|paid|spent|rate|balance|cost|pricePerUnit|thickness|width|length|defaultTaxRate)$|(Amount|Total|Price|Stock|Qty|Tax|Paid|Spent|Rate|Balance|Cost|Quantity)$/;
 
 function sanitizeNulls(obj: Record<string, unknown>): Record<string, unknown> {
   for (const k of Object.keys(obj)) {
@@ -709,8 +709,8 @@ async function handleProducts(req: VercelRequest, res: VercelResponse, id: strin
     if (m === 'POST') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
-      const { name, wood_type = '', unit = 'pcs', price_per_unit, stock = 0, category = '', sku = '' } = b;
-      const rows = await sql`INSERT INTO products (name,wood_type,unit,price_per_unit,stock,category,sku) VALUES (${name},${wood_type},${unit},${price_per_unit},${stock},${category},${sku}) RETURNING *`;
+      const { name, wood_type = '', thickness = 0, width = 0, length = 0, unit = 'pcs', price_per_unit, stock = 0, category = '', sku = '', calculation_type = 'pcs', description = '', default_tax_rate = 10 } = b;
+      const rows = await sql`INSERT INTO products (name,wood_type,thickness,width,length,unit,price_per_unit,stock,category,sku,calculation_type,description,default_tax_rate) VALUES (${name},${wood_type},${thickness},${width},${length},${unit},${price_per_unit},${stock},${category},${sku},${calculation_type},${description},${default_tax_rate}) RETURNING *`;
       const created = row2camel(rows[0] as Record<string, unknown>);
       logAudit(user, 'create', 'products', String(created.id ?? ''), getClientIp(req), { name });
       return res.status(201).json(created);
@@ -723,8 +723,8 @@ async function handleProducts(req: VercelRequest, res: VercelResponse, id: strin
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
-      const { name, wood_type, unit, price_per_unit, stock, category, sku } = b;
-      const rows = await sql`UPDATE products SET name=${name},wood_type=${wood_type},unit=${unit},price_per_unit=${price_per_unit},stock=${stock},category=${category},sku=${sku} WHERE id=${id} RETURNING *`;
+      const { name, wood_type, thickness = 0, width = 0, length = 0, unit, price_per_unit, stock, category, sku, calculation_type = 'pcs', description = '', default_tax_rate = 10 } = b;
+      const rows = await sql`UPDATE products SET name=${name},wood_type=${wood_type},thickness=${thickness},width=${width},length=${length},unit=${unit},price_per_unit=${price_per_unit},stock=${stock},category=${category},sku=${sku},calculation_type=${calculation_type},description=${description},default_tax_rate=${default_tax_rate} WHERE id=${id} RETURNING *`;
       logAudit(user, 'update', 'products', id, getClientIp(req));
       return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
