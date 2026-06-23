@@ -35,3 +35,4 @@ LXL Documentatie.md
 *.njsproj
 *.sln
 *.sw?
+.claude/settings.json
