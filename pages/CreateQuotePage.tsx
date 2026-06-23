@@ -15,7 +15,7 @@ import { useProducts } from '../lib/hooks/useProducts';
 
 type ItemType = 'product' | 'service' | 'item';
 interface LineItem { id: string; type: ItemType; description: string; houtsoort: string; spec: string; qty: number; unit: string; price: number; taxRate: number; mmW?: number; mmH?: number; }
-interface CatalogItem { id: string; type: ItemType; name: string; desc: string; price: number; unit: string; }
+interface CatalogItem { id: string; type: ItemType; name: string; desc: string; price: number; unit: string; width?: number; length?: number; defaultTaxRate?: number; }
 
 const SERVICE_ITEMS = RAMZON_SERVICES.map(s => ({
   id: s.id, type: 'service' as ItemType, name: s.name, desc: s.description, price: s.price, unit: s.unit,
@@ -84,6 +84,9 @@ const CreateQuotePage: React.FC = () => {
       name: p.name, desc: catToDesc(p.category ?? ''),
       price: p.pricePerUnit,
       unit: (p.unit === 'pcs' || p.unit === 'PCS') ? 'PCS' : p.unit,
+      width: p.width || 0,
+      length: p.length || 0,
+      defaultTaxRate: p.defaultTaxRate || 10,
     }));
     const products: CatalogItem[] = storedMapped.length > 0 ? storedMapped : STATIC_PRODUCT_ITEMS;
     return [...SERVICE_ITEMS, ...products] as CatalogItem[];
@@ -197,9 +200,9 @@ const CreateQuotePage: React.FC = () => {
       description: item.type === 'product' ? `${item.desc} — ${item.name}` : item.name,
       houtsoort: item.type === 'product' ? RAMZON_HOUTSOORTEN[0] : '',
       spec: '',
-      qty: 1, unit: item.unit, price: item.price, taxRate: 10,
-      mmW: item.unit === 'm²' ? 800 : undefined,
-      mmH: item.unit === 'm²' ? 2100 : undefined,
+      qty: 1, unit: item.unit, price: item.price, taxRate: item.defaultTaxRate ?? 10,
+      mmW: item.width && item.width > 0 ? item.width : (item.unit === 'm²' ? 800 : undefined),
+      mmH: item.length && item.length > 0 ? item.length : (item.unit === 'm²' ? 2100 : undefined),
     }]);
     setItemSearch('');
     setShowItemSearch(false);

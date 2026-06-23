@@ -436,6 +436,28 @@ const CreateProductPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Default dimensions */}
+            {(isDoor || activeCat?.pricingType === 'lm') && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1.5"><Ruler size={11}/> Default Dimensions (mm)</label>
+                <div className="flex gap-2">
+                  <div className="flex-1 space-y-1">
+                    <span className="text-[9px] text-white/30 font-bold">Width</span>
+                    <input type="number" value={breedte} min={0} onChange={e => setBreedte(+e.target.value)}
+                      aria-label="Default width in mm" placeholder="800"
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs font-black text-white outline-none"/>
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <span className="text-[9px] text-white/30 font-bold">{isDoor ? 'Height' : 'Length'}</span>
+                    <input type="number" value={isDoor ? hoogte : lengte} min={0}
+                      onChange={e => isDoor ? setHoogte(+e.target.value) : setLengte(+e.target.value)}
+                      aria-label={isDoor ? 'Default height in mm' : 'Default length in mm'} placeholder={isDoor ? '2100' : '2400'}
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs font-black text-white outline-none"/>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Price calculator */}
             <div className="bg-white/5 rounded-2xl p-4 space-y-3">
               <div className="flex items-center gap-2">
