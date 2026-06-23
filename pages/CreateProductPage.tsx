@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { ArrowLeft, Save, Check, Package, Ruler, Calculator, Box, Plus, Hash, ChevronRight, Pencil, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { storage } from '../lib/storage';
 import { useProduct, useCreateProduct, useUpdateProduct } from '../lib/hooks/useProducts';
 import { useProductCategories } from '../lib/hooks/useProductCategories';
 import type { DoorModel, DoorPriceEntry, WoodProduct } from '../types';
+import { LanguageContext } from '../lib/context';
 
 // ─── Fallback lists (if localStorage is empty) ────────────────────────────────
 const DEFAULT_DOOR_MODELS: DoorModel[] = [
@@ -53,6 +54,7 @@ const CreateProductPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = !!id;
+  const { currencySymbol } = useContext(LanguageContext);
   const [saved, setSaved] = useState(false);
   const { data: existingProduct } = useProduct(id ?? '');
   const createProduct = useCreateProduct();
@@ -443,20 +445,20 @@ const CreateProductPage: React.FC = () => {
               {isDoor && (
                 <>
                   <div className="flex justify-between text-xs font-bold opacity-60"><span>{breedte}×{hoogte}mm</span><span>{oppervlakte.toFixed(4)} m²</span></div>
-                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Price / m²</span><span>SRD {pricePerM2.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Price / m²</span><span>{currencySymbol} {pricePerM2.toFixed(2)}</span></div>
                 </>
               )}
               {activeCat?.pricingType === 'lm' && (
                 <>
                   <div className="flex justify-between text-xs font-bold opacity-60"><span>Length</span><span>{(lengte/1000).toFixed(2)} lm</span></div>
-                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Price / lm</span><span>SRD {pricePerUnit}</span></div>
+                  <div className="flex justify-between text-xs font-bold opacity-60"><span>Price / lm</span><span>{currencySymbol} {pricePerUnit}</span></div>
                 </>
               )}
               <div className="flex justify-between text-xs font-bold opacity-60"><span>BTW</span><span>{defaultTaxRate}%</span></div>
               <div className="h-px bg-white/10"/>
               <div className="flex justify-between items-center">
                 <span className="text-xs font-black text-white/60">Unit price</span>
-                <span className="text-2xl font-black text-amber-400">SRD {totalPrice.toFixed(2)}</span>
+                <span className="text-2xl font-black text-amber-400">{currencySymbol} {totalPrice.toFixed(2)}</span>
               </div>
             </div>
 
