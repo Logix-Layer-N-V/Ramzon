@@ -271,10 +271,6 @@ const CreateProductPage: React.FC = () => {
     if (isDoor) return renderDoorWizard();
     return (
       <div className="space-y-4">
-        <div className="space-y-1.5">
-          <label className={LABEL}>Wood Type / Material</label>
-          <input value={houtsoort} onChange={e => setHoutsoort(e.target.value)} className={INPUT}/>
-        </div>
         {activeCat?.pricingType === 'lm' && (
           <div className="space-y-1.5">
             <label className={LABEL}>Length (mm)</label>
