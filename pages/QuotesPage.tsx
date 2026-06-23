@@ -88,7 +88,7 @@ const QuotesPage: React.FC = () => {
           paidAmount: (q as any).paidAmount ?? 0,
           currency: q.currency || 'SRD',
           currencySymbol,
-          items: (q.items || []).map(it => ({
+          items: ((q as any).items || []).map((it: any) => ({
             description: it.description,
             qty: it.quantity,
             unit: 'pcs',

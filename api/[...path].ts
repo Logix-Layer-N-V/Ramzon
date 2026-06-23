@@ -147,7 +147,7 @@ function fromBody(body: unknown): Record<string, unknown> {
   return out;
 }
 
-const NUMERIC_KEYS = /^(total|subtotal|quantity|qty|price|stock|amount|tax|paid|spent|rate|balance|cost|pricePerUnit|thickness|width|length|defaultTaxRate)$|(Amount|Total|Price|Stock|Qty|Tax|Paid|Spent|Rate|Balance|Cost|Quantity)$/;
+const NUMERIC_KEYS = /^(total|subtotal|quantity|qty|price|stock|amount|tax|paid|spent|rate|balance|cost|pricePerUnit|thickness|width|length|defaultTaxRate|mmW|mmH|exchangeRate)$|(Amount|Total|Price|Stock|Qty|Tax|Paid|Spent|Rate|Balance|Cost|Quantity)$/;
 
 function sanitizeNulls(obj: Record<string, unknown>): Record<string, unknown> {
   for (const k of Object.keys(obj)) {
@@ -400,11 +400,11 @@ async function handleInvoices(req: VercelRequest, res: VercelResponse, id: strin
       const b = fromBody(req.body);
       const {
         invoice_number, client_id, client_name, date, due_date,
-        currency = 'USD', subtotal = 0, tax_amount = 0, total_amount = 0,
+        currency = 'USD', exchange_rate = 1, subtotal = 0, tax_amount = 0, total_amount = 0,
         status = 'Draft', notes = '', rep = '', paid_amount = 0,
       } = b;
       const items = (req.body as any)?.items ?? [];
-      const rows = await sql`INSERT INTO invoices (invoice_number,client_id,client_name,date,due_date,currency,subtotal,tax_amount,total_amount,status,notes,rep,paid_amount) VALUES (${invoice_number},${client_id},${client_name},${date},${due_date},${currency},${subtotal},${tax_amount},${total_amount},${status},${notes},${rep},${paid_amount}) RETURNING *`;
+      const rows = await sql`INSERT INTO invoices (invoice_number,client_id,client_name,date,due_date,currency,exchange_rate,subtotal,tax_amount,total_amount,status,notes,rep,paid_amount) VALUES (${invoice_number},${client_id},${client_name},${date},${due_date},${currency},${exchange_rate},${subtotal},${tax_amount},${total_amount},${status},${notes},${rep},${paid_amount}) RETURNING *`;
       const inv = rows[0] as any;
       for (const item of items) {
         const desc = item.description ?? '';
@@ -479,11 +479,11 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
       const b = fromBody(req.body);
       const {
         estimate_number, client_id, client_name, date, valid_until,
-        currency = 'USD', subtotal = 0, tax_amount = 0, total = 0,
+        currency = 'USD', exchange_rate = 1, subtotal = 0, tax_amount = 0, total = 0,
         status = 'Draft', notes = '', rep = '',
       } = b;
       const items = (req.body as any)?.items ?? [];
-      const rows = await sql`INSERT INTO estimates (estimate_number,client_id,client_name,date,valid_until,currency,subtotal,tax_amount,total,status,notes,rep) VALUES (${estimate_number},${client_id},${client_name},${date},${valid_until},${currency},${subtotal},${tax_amount},${total},${status},${notes},${rep}) RETURNING *`;
+      const rows = await sql`INSERT INTO estimates (estimate_number,client_id,client_name,date,valid_until,currency,exchange_rate,subtotal,tax_amount,total,status,notes,rep) VALUES (${estimate_number},${client_id},${client_name},${date},${valid_until},${currency},${exchange_rate},${subtotal},${tax_amount},${total},${status},${notes},${rep}) RETURNING *`;
       const est = rows[0] as any;
       for (const item of items) {
         const desc = item.description ?? '';

@@ -15,7 +15,7 @@ const INPUT = 'w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl t
 
 const CreateCreditPage: React.FC = () => {
   const navigate = useNavigate();
-  const { currencySymbol } = useContext(LanguageContext);
+  const { currencySymbol, defaultCurrency } = useContext(LanguageContext);
   const { id: editId } = useParams();
   const isEdit = !!editId;
   const [showAddClient, setShowAddClient] = useState(false);
@@ -262,8 +262,8 @@ const CreateCreditPage: React.FC = () => {
           clientAddress={selectedClient?.address}
           clientPhone={selectedClient?.phone}
           clientEmail={selectedClient?.email}
-          currency="SRD"
-          currencySymbol="SRD"
+          currency={defaultCurrency}
+          currencySymbol={currencySymbol}
           items={[{
             id: 'cn-1',
             description: reason || 'Credit Note',

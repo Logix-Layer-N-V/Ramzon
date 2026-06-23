@@ -10,6 +10,7 @@ export interface EstimateRow {
   date: string;
   validUntil: string;
   currency: string;
+  exchangeRate: number;
   subtotal: number;
   taxAmount: number;
   total: number;
@@ -17,16 +18,21 @@ export interface EstimateRow {
   notes: string;
   rep: string;
   createdAt: string;
-  items?: EstimateItemRow[];
 }
 
 export interface EstimateItemRow {
   id: string;
   estimateId?: string;
   description: string;
+  houtsoort: string;
+  spec: string;
   quantity: number;
+  unit: string;
   unitPrice: number;
+  taxRate: number;
   total: number;
+  priceByArea: boolean;
+  itemType: string;
 }
 
 export const useEstimates = () =>
@@ -39,11 +45,12 @@ export const useEstimate = (id: string) =>
     enabled: !!id,
   });
 
+type EstimatePayload = Partial<EstimateRow> & { items?: Partial<EstimateItemRow>[] };
+
 export const useCreateEstimate = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: Partial<EstimateRow> & { items?: Partial<EstimateItemRow>[] }) =>
-      api.post('/estimates', data).then(r => r.data),
+    mutationFn: (data: EstimatePayload) => api.post('/estimates', data).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['estimates'] }),
   });
 };
@@ -51,7 +58,7 @@ export const useCreateEstimate = () => {
 export const useUpdateEstimate = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...data }: Partial<EstimateRow> & { id: string }) =>
+    mutationFn: ({ id, ...data }: EstimatePayload & { id: string }) =>
       api.put(`/estimates/${id}`, data).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['estimates'] }),
   });

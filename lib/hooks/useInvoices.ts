@@ -10,6 +10,7 @@ export interface InvoiceRow {
   date: string;
   dueDate: string;
   currency: string;
+  exchangeRate: number;
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
@@ -24,9 +25,15 @@ export interface InvoiceItemRow {
   id: string;
   invoiceId: string;
   description: string;
+  houtsoort: string;
+  spec: string;
   quantity: number;
+  unit: string;
   unitPrice: number;
+  taxRate: number;
   total: number;
+  priceByArea: boolean;
+  itemType: string;
 }
 
 export const useInvoices = () =>

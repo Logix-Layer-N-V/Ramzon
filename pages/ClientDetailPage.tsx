@@ -238,10 +238,10 @@ const ClientDetailPage: React.FC = () => {
             {activeTab === 'overview' && (() => {
               try {
               const allTx = [
-                ...clientEstimates.map(e => ({ id: e.id, path: `/estimates/${e.id}`, type: 'Quote', number: e.estimateNumber, date: e.date, amount: e.total, status: e.status, currency: 'EUR', icon: ClipboardList, color: 'blue' })),
-                ...clientInvoices.map(i => ({ id: i.id, path: `/invoices/${i.id}`, type: 'Invoice', number: i.invoiceNumber, date: i.date, amount: i.totalAmount, status: i.status, currency: 'EUR', icon: Receipt, color: 'emerald' })),
-                ...clientPayments.map(p => ({ id: p.id, path: `/payments/${p.id}`, type: 'Payment', number: p.reference, date: p.date, amount: p.amount, status: 'Received', currency: 'EUR', icon: Wallet, color: 'indigo' })),
-                ...clientCredits.map(c => ({ id: c.id, path: `/credits/${c.id}`, type: 'Credit', number: c.id, date: c.date, amount: c.amount, status: c.status, currency: 'EUR', icon: CreditCard, color: 'amber' })),
+                ...clientEstimates.map(e => ({ id: e.id, path: `/estimates/${e.id}`, type: 'Quote', number: e.estimateNumber, date: e.date, amount: e.total, status: e.status, currency: e.currency ?? 'USD', icon: ClipboardList, color: 'blue' })),
+                ...clientInvoices.map(i => ({ id: i.id, path: `/invoices/${i.id}`, type: 'Invoice', number: i.invoiceNumber, date: i.date, amount: i.totalAmount, status: i.status, currency: i.currency ?? 'USD', icon: Receipt, color: 'emerald' })),
+                ...clientPayments.map(p => ({ id: p.id, path: `/payments/${p.id}`, type: 'Payment', number: p.reference, date: p.date, amount: p.amount, status: 'Received', currency: (p as any).currency ?? 'USD', icon: Wallet, color: 'indigo' })),
+                ...clientCredits.map(c => ({ id: c.id, path: `/credits/${c.id}`, type: 'Credit', number: c.id, date: c.date, amount: c.amount, status: c.status, currency: (c as any).currency ?? 'USD', icon: CreditCard, color: 'amber' })),
               ].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                .filter(tx => {
                  const q = searchQuery.toLowerCase();

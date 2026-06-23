@@ -32,11 +32,17 @@ const ProductsPage: React.FC = () => {
       createProduct.mutate({
         name: p.name,
         woodType: p.woodType || '',
+        thickness: p.thickness || 0,
+        width: p.width || 0,
+        length: p.length || 0,
         unit: p.unit || 'pcs',
         pricePerUnit: p.pricePerUnit || 0,
         stock: p.stock || 0,
-        category: (p as any).category || '',
-        sku: (p as any).sku || '',
+        category: p.category || '',
+        sku: p.sku || '',
+        calculationType: p.calculationType || 'pcs',
+        description: p.description || '',
+        defaultTaxRate: p.defaultTaxRate || 10,
       });
     });
   }, [isLoading]);
