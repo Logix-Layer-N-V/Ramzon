@@ -17,6 +17,7 @@ export interface EstimateRow {
   status: EstimateStatus;
   notes: string;
   rep: string;
+  paidAmount: number;
   createdAt: string;
 }
 

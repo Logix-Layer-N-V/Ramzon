@@ -3,6 +3,7 @@ import { ArrowLeft, User, Building, Mail, Phone, MapPin, Save, Hash, Info, FileT
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
 import { useCreateClient } from '../lib/hooks/useClients';
+import { alertMutationError } from '../lib/mutationError';
 
 const CreateClientPage: React.FC = () => {
   const navigate = useNavigate();
@@ -38,6 +39,7 @@ const CreateClientPage: React.FC = () => {
       preferredCurrency,
     }, {
       onSuccess: () => navigate('/clients'),
+      onError: alertMutationError,
     });
   };
 

@@ -78,11 +78,24 @@ const CreateProductPage: React.FC = () => {
   // Models: load all, filter by category
   const [allModels, setAllModels] = useState<any[]>(() => {
     const m = storage.doorModels.get();
-    const base = m.length ? m : DEFAULT_DOOR_MODELS;
-    // migrate orphaned models to first category
-    return base.map((x: any) => x.categoryId ? x : { ...x, categoryId: 'cat1' });
+    return m.length ? m : DEFAULT_DOOR_MODELS;
   });
   const [selectedModel, setSelectedModel] = useState<DoorModel | null>(null);
+
+  // Migrate orphaned models (no categoryId, from the pre-DB prototype) to the real "Doors"
+  // category once categories have loaded — categories now have real DB UUIDs, not the
+  // hardcoded 'cat1' literal this used to fall back to.
+  useEffect(() => {
+    if (categories.length === 0) return;
+    const doorsCat = (categories as any[]).find(c => c.name === 'Doors') ?? categories[0];
+    if (!doorsCat) return;
+    setAllModels(prev => {
+      if (!prev.some((x: any) => !x.categoryId)) return prev;
+      const migrated = prev.map((x: any) => x.categoryId ? x : { ...x, categoryId: doorsCat.id });
+      storage.doorModels.save(migrated);
+      return migrated;
+    });
+  }, [categories]);
 
   const [breedte, setBreedte]     = useState<number>(800);
   const [hoogte, setHoogte]       = useState<number>(2100);

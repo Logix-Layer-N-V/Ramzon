@@ -6,6 +6,7 @@ import type { BankAccountRow } from '../lib/hooks/useBankAccounts';
 import { useBankTransactions, useCreateBankTransaction, useDeleteBankTransaction } from '../lib/hooks/useBankTransactions';
 import { useExchangeRates, useCreateExchangeRate, useDeleteExchangeRate } from '../lib/hooks/useExchangeRates';
 import { exportCSV } from '../lib/csvExport';
+import { alertMutationError } from '../lib/mutationError';
 
 const KNOWN_BANKS = ['DSB Bank', 'HKB Hakrinbank', 'Cash', 'Other'];
 
@@ -109,13 +110,13 @@ const FinancePage: React.FC = () => {
 
   const handleSaveEdit = () => {
     if (!editAccount) return;
-    updateAccount.mutate({ id: editAccount.id, bank: editBank, currency: editAccount.currency, iban: editIban, balance: +editBalance });
+    updateAccount.mutate({ id: editAccount.id, bank: editBank, currency: editAccount.currency, iban: editIban, balance: +editBalance }, { onError: alertMutationError });
     setEditAccount(null);
   };
 
   const handleDeleteAccount = (id: string) => {
     setMenuAccId(null);
-    deleteAccount.mutate(id);
+    deleteAccount.mutate(id, { onError: alertMutationError });
   };
 
   // Add account
@@ -151,7 +152,7 @@ const FinancePage: React.FC = () => {
       description: txDesc,
       reference: txRef,
       toAccountId: txType === 'transfer' ? txToAccId : '',
-    });
+    }, { onError: alertMutationError });
     setAddingTx(false);
     setTxAmount(''); setTxDesc(''); setTxRef(''); setTxToAccId('');
     setTxType('deposit');
@@ -159,14 +160,14 @@ const FinancePage: React.FC = () => {
 
   const handleAddAccount = () => {
     if (!newBalance) return;
-    createAccount.mutate({ bank: newBank, currency: newCurrency, iban: newIban, balance: +newBalance });
+    createAccount.mutate({ bank: newBank, currency: newCurrency, iban: newIban, balance: +newBalance }, { onError: alertMutationError });
     setNewBank('DSB Bank'); setNewCurrency('SRD'); setNewIban(''); setNewBalance('');
     setAddingAccount(false);
   };
 
   const handleAddRate = () => {
     if (!rateDate || !rateUsdSrd) return;
-    createRate.mutate({ date: rateDate, usdSrd: +rateUsdSrd, eurSrd: +rateEurSrd, eurUsd: +rateEurUsd });
+    createRate.mutate({ date: rateDate, usdSrd: +rateUsdSrd, eurSrd: +rateEurSrd, eurUsd: +rateEurUsd }, { onError: alertMutationError });
     setRateDate(''); setRateUsdSrd(''); setRateEurSrd(''); setRateEurUsd('');
     setAddingRate(false);
   };
@@ -703,7 +704,7 @@ const FinancePage: React.FC = () => {
                           <p className={`text-sm font-black flex-shrink-0 ${meta.sign === '+' ? 'text-emerald-700' : meta.sign === '-' ? 'text-red-500' : 'text-blue-600'}`}>
                             {meta.sign}{detailAccount.currency} {tx.amount.toFixed(2)}
                           </p>
-                          <button type="button" title="Delete transaction" onClick={() => deleteTx.mutate(tx.id)}
+                          <button type="button" title="Delete transaction" onClick={() => deleteTx.mutate(tx.id, { onError: alertMutationError })}
                             className="p-1 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
                             <Trash2 size={12} />
                           </button>

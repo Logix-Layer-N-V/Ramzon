@@ -12,6 +12,7 @@ import { sendDocumentEmail } from '../lib/sendDocument';
 import { useEstimates, useUpdateEstimate, useDeleteEstimate } from '../lib/hooks/useEstimates';
 import { useClients } from '../lib/hooks/useClients';
 import { useCreateInvoice } from '../lib/hooks/useInvoices';
+import { alertMutationError } from '../lib/mutationError';
 
 const STATUS_OPTIONS: EstimateStatus[] = ['Accepted', 'Sent', 'Draft', 'Expired'];
 
@@ -110,7 +111,7 @@ const QuotesPage: React.FC = () => {
 
   const handleApprove = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    updateEstimate.mutate({ id, status: 'Accepted' });
+    updateEstimate.mutate({ id, status: 'Accepted' }, { onError: alertMutationError });
   };
 
   const handleConvert = async (e: React.MouseEvent, estimate: any) => {
@@ -133,7 +134,7 @@ const QuotesPage: React.FC = () => {
         paidAmount: 0,
         items: (estimate as any).items ?? [],
       });
-      updateEstimate.mutate({ id: estimate.id, status: 'Accepted' });
+      updateEstimate.mutate({ id: estimate.id, status: 'Accepted' }, { onError: alertMutationError });
       navigate('/invoices');
     } catch { alert('Failed to convert estimate'); }
   };

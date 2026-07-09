@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import { ArrowLeft, Save, Check, Wallet, Users, Calendar, FileText, CreditCard, Landmark, TrendingUp, Building2, Banknote, UserPlus } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
 import { commitDocNumber } from '../lib/docNumbering';
 import { useClients } from '../lib/hooks/useClients';
 import { useInvoices, useUpdateInvoice } from '../lib/hooks/useInvoices';
-import { usePayment, useCreatePayment, useUpdatePayment } from '../lib/hooks/usePayments';
+import { usePayment, usePayments, useCreatePayment, useUpdatePayment } from '../lib/hooks/usePayments';
 import { useBankAccounts } from '../lib/hooks/useBankAccounts';
 import { useCreateBankTransaction } from '../lib/hooks/useBankTransactions';
 import { useLatestExchangeRate } from '../lib/hooks/useExchangeRates';
+import { alertMutationError } from '../lib/mutationError';
 import QuickAddClientModal from '../components/QuickAddClientModal';
 
 const LABEL = 'text-[10px] font-black text-slate-400 uppercase tracking-widest';
@@ -25,6 +26,7 @@ const CreatePaymentPage: React.FC = () => {
 
   const { data: allClients = [] } = useClients();
   const { data: allInvoices = [] } = useInvoices();
+  const { data: allPayments = [] } = usePayments();
   const { data: existingPayment } = usePayment(editId || '');
   const createPayment = useCreatePayment();
   const updatePayment = useUpdatePayment();
@@ -46,6 +48,12 @@ const CreatePaymentPage: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [saved, setSaved] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Loading an existing payment sets currency/methodType/invoiceId, which would
+  // otherwise trigger the "smart default" effects below (bank auto-select, rate
+  // reset, invoice-balance amount prefill) and clobber the payment's real historical
+  // values. Each ref skips exactly the one synthetic trigger caused by the load.
+  const skipRateOverrideReset = useRef(false);
+  const skipAmountPrefill = useRef(false);
 
   const filteredBanks = bankAccounts.filter(b =>
     b.currency === currency &&
@@ -71,29 +79,49 @@ const CreatePaymentPage: React.FC = () => {
   const amountSRD = currency === 'SRD' ? parseFloat(amount || '0') : parseFloat(amount || '0') * activeRate;
 
   const selectedInvoice = useMemo(() => clientInvoices.find(i => i.id === invoiceId), [clientInvoices, invoiceId]);
-  // Balance due, in the invoice's own currency.
-  const invoiceBalance = useMemo(() => {
+  // invoice.paidAmount is only ever set at creation time and never kept in sync —
+  // sum the live payments list instead (excluding this payment itself when editing it).
+  const invoicePaidSRD = useMemo(() => {
     if (!selectedInvoice) return 0;
-    return selectedInvoice.totalAmount - (selectedInvoice.paidAmount ?? 0);
-  }, [selectedInvoice]);
-  // Same balance normalized to SRD, using the rate locked in on the invoice itself —
+    return allPayments
+      .filter(p => p.invoiceId === selectedInvoice.id && (!isEdit || p.id !== editId))
+      .reduce((sum, p) => sum + (p.currency === 'SRD' ? p.amount : p.amount * (p.exchangeRate || 1)), 0);
+  }, [allPayments, selectedInvoice, isEdit, editId]);
+  // Balance due, normalized to SRD using the rate locked in on the invoice itself —
   // needed to compare against a payment recorded in a different currency.
   const invoiceBalanceSRD = useMemo(() => {
     if (!selectedInvoice) return 0;
-    return selectedInvoice.currency === 'SRD' ? invoiceBalance : invoiceBalance * (selectedInvoice.exchangeRate || 1);
-  }, [selectedInvoice, invoiceBalance]);
+    const totalSRD = selectedInvoice.currency === 'SRD' ? selectedInvoice.totalAmount : selectedInvoice.totalAmount * (selectedInvoice.exchangeRate || 1);
+    return Math.max(0, totalSRD - invoicePaidSRD);
+  }, [selectedInvoice, invoicePaidSRD]);
+  // Same balance, in the invoice's own currency (for display).
+  const invoiceBalance = useMemo(() => {
+    if (!selectedInvoice) return 0;
+    return selectedInvoice.currency === 'SRD' ? invoiceBalanceSRD : invoiceBalanceSRD / (selectedInvoice.exchangeRate || 1);
+  }, [selectedInvoice, invoiceBalanceSRD]);
 
+  // Auto-select a bank account for the current currency/method, but never clobber an
+  // already-valid selection — this avoids a race with the existingPayment query on
+  // edit-load (bank accounts and the payment can resolve in either order).
   useEffect(() => {
     const banks = bankAccounts.filter(b =>
       b.currency === currency &&
       (methodType === 'bank' ? b.bank !== 'Cash' : b.bank === 'Cash')
     );
-    if (banks.length > 0) setBankAccountId(banks[0].id);
-    else setBankAccountId('');
+    if (!banks.some(b => b.id === bankAccountId)) {
+      setBankAccountId(banks[0]?.id || '');
+    }
+  }, [currency, methodType, bankAccounts, bankAccountId]);
+
+  // A genuine currency/method change should clear a manual rate override from the
+  // previous currency — but not the one synthetic change caused by loading a payment.
+  useEffect(() => {
+    if (skipRateOverrideReset.current) { skipRateOverrideReset.current = false; return; }
     setRateOverride(null);
-  }, [currency, methodType, bankAccounts]);
+  }, [currency, methodType]);
 
   useEffect(() => {
+    if (skipAmountPrefill.current) { skipAmountPrefill.current = false; return; }
     if (selectedInvoice && invoiceBalanceSRD > 0) {
       const inDocCurrency = currency === 'SRD' ? invoiceBalanceSRD : invoiceBalanceSRD / activeRate;
       setAmount(inDocCurrency.toFixed(2));
@@ -111,10 +139,14 @@ const CreatePaymentPage: React.FC = () => {
 
   useEffect(() => {
     if (existingPayment) {
+      skipRateOverrideReset.current = true;
+      skipAmountPrefill.current = true;
       setClientId(existingPayment.clientId);
       setInvoiceId(existingPayment.invoiceId || '');
       setAmount(existingPayment.amount.toString());
       setCurrency(existingPayment.currency);
+      setBankAccountId(existingPayment.bankAccountId || '');
+      if (existingPayment.currency !== 'SRD' && existingPayment.exchangeRate) setRateOverride(existingPayment.exchangeRate);
       setDate(existingPayment.date);
       setMethodType(existingPayment.method === 'Cash' ? 'cash' : 'bank');
       setReference(existingPayment.reference || '');
@@ -149,11 +181,6 @@ const CreatePaymentPage: React.FC = () => {
       status: 'Completed',
     };
 
-    const onError = (err: any) => {
-      const msg = err?.response?.data?.error || err?.message || 'Er is een fout opgetreden. Probeer opnieuw.';
-      alert(`Opslaan mislukt: ${msg}`);
-    };
-
     const onSuccess = () => {
       // Move the real bank/cash account balance via a proper transaction (audit trail included) —
       // only when creating a new payment, not when editing an existing one.
@@ -166,13 +193,13 @@ const CreatePaymentPage: React.FC = () => {
           description: `Payment ${reference || paymentNumber}`,
           reference: reference || paymentNumber,
           toAccountId: '',
-        });
+        }, { onError: alertMutationError });
       }
 
       // Update invoice status if payment covers remaining balance (compared in SRD so
       // a payment in a different currency than the invoice doesn't misfire this).
       if (!isEdit && invoiceId && selectedInvoice && amountSRD >= invoiceBalanceSRD) {
-        updateInvoice.mutate({ id: invoiceId, status: 'Paid' });
+        updateInvoice.mutate({ id: invoiceId, status: 'Paid' }, { onError: alertMutationError });
       }
 
       setSaved(true);
@@ -180,9 +207,9 @@ const CreatePaymentPage: React.FC = () => {
     };
 
     if (isEdit && editId) {
-      updatePayment.mutate({ id: editId, ...paymentData }, { onSuccess, onError });
+      updatePayment.mutate({ id: editId, ...paymentData }, { onSuccess, onError: alertMutationError });
     } else {
-      createPayment.mutate(paymentData, { onSuccess, onError });
+      createPayment.mutate(paymentData, { onSuccess, onError: alertMutationError });
     }
   };
 

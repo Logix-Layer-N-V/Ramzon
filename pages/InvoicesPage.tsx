@@ -11,6 +11,7 @@ import { exportCSV } from '../lib/csvExport';
 import { sendDocumentEmail } from '../lib/sendDocument';
 import { useInvoices, useDeleteInvoice } from '../lib/hooks/useInvoices';
 import { useClients } from '../lib/hooks/useClients';
+import { alertMutationError } from '../lib/mutationError';
 
 const STATUS_OPTIONS: InvoiceStatus[] = ['Paid', 'Pending', 'Overdue', 'Draft'];
 
@@ -92,7 +93,7 @@ const InvoicesPage: React.FC = () => {
   const deleteInvoice = useDeleteInvoice();
   const handleDeleteInvoice = (id: string) => {
     if (!window.confirm('Factuur verwijderen?')) return;
-    deleteInvoice.mutate(id);
+    deleteInvoice.mutate(id, { onError: alertMutationError });
   };
 
   const [search, setSearch] = useState('');

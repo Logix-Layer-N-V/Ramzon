@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useProducts, useDeleteProduct, ProductRow } from '../lib/hooks/useProducts';
 import { useProductCategories } from '../lib/hooks/useProductCategories';
 import { useAuth } from '../lib/auth';
+import { alertMutationError } from '../lib/mutationError';
 import ProductImportModal from '../components/ProductImportModal';
 
 const ProductsPage: React.FC = () => {
@@ -33,7 +34,7 @@ const ProductsPage: React.FC = () => {
   const deleteProduct = useDeleteProduct();
   const handleDelete = (id: string) => {
     if (!window.confirm('Delete this product?')) return;
-    deleteProduct.mutate(id);
+    deleteProduct.mutate(id, { onError: alertMutationError });
   };
 
   const filtered = mergedProducts.filter(p => {
@@ -207,7 +208,7 @@ const ProductsPage: React.FC = () => {
               <p className="font-bold text-sm text-slate-400">
                 {mergedProducts.length === 0 ? 'No products yet' : 'No products match your filter'}
               </p>
-              {mergedProducts.length === 0 && (
+              {canManage && mergedProducts.length === 0 && (
                 <button
                   onClick={() => navigate('/products/new')}
                   className="mt-4 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black hover:bg-slate-800 transition-all"

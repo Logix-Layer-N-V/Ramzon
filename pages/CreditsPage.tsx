@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
 import { useCredits, useDeleteCredit } from '../lib/hooks/useCredits';
 import { useClients } from '../lib/hooks/useClients';
+import { alertMutationError } from '../lib/mutationError';
 
 const STATUS_OPTIONS = ['Available', 'Used'] as const;
 
@@ -32,7 +33,7 @@ const CreditsPage: React.FC = () => {
   const deleteCredit = useDeleteCredit();
   const handleDeleteCredit = (id: string) => {
     if (!window.confirm('Credit note verwijderen?')) return;
-    deleteCredit.mutate(id);
+    deleteCredit.mutate(id, { onError: alertMutationError });
   };
 
   const filteredCredits = allCredits.filter(c => {

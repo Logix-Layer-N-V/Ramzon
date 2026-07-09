@@ -59,7 +59,10 @@ const CreateInvoicePage: React.FC = () => {
     return d.toISOString().split('T')[0];
   });
   const [docNumber] = useState(() => isEdit ? '' : previewDocNumber('inv'));
-  const selectedRep = user?.name ?? '';
+  // Defaults to the current user for a new invoice, but must not be reassigned to
+  // whoever opens an existing invoice to fix something unrelated — restored from
+  // existingInvoice.rep in the load effect below for edits.
+  const [selectedRep, setSelectedRep] = useState(user?.name ?? '');
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [itemSearch, setItemSearch] = useState('');
@@ -68,6 +71,12 @@ const CreateInvoicePage: React.FC = () => {
   const [highlightedIdx, setHighlightedIdx] = useState(-1);
   const searchRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // Loading an existing invoice sets currency/selectedClient, which would otherwise
+  // trigger the "smart default" effects below and clobber the historically locked-in
+  // exchange rate / client-preferred currency with today's values. Each ref skips
+  // exactly the one synthetic trigger caused by the load, not genuine user changes.
+  const skipClientCurrencyEffect = useRef(false);
+  const skipRateEffect = useRef(false);
 
   const { data: allClients = [] } = useClients();
   const { data: existingInvoice } = useInvoice(editId || '');
@@ -125,8 +134,13 @@ const CreateInvoicePage: React.FC = () => {
 
   useEffect(() => {
     if (existingInvoice) {
+      skipClientCurrencyEffect.current = true;
+      skipRateEffect.current = true;
       setSelectedClient(existingInvoice.clientId);
       if (existingInvoice.currency) setCurrency(existingInvoice.currency);
+      if (existingInvoice.exchangeRate) setExchangeRate(existingInvoice.exchangeRate);
+      if (existingInvoice.paidAmount != null) setPaidAmount(existingInvoice.paidAmount);
+      if (existingInvoice.rep) setSelectedRep(existingInvoice.rep);
       if (existingInvoice.items?.length > 0) {
         setItems(existingInvoice.items.map(i => {
           const anyI = i as any;
@@ -161,7 +175,26 @@ const CreateInvoicePage: React.FC = () => {
       if (est.currency) setCurrency(est.currency);
       if (est.exchangeRate) setExchangeRate(est.exchangeRate);
       if (est.items?.length > 0) {
-        setItems(est.items.map(i => ({ id: i.id, type: 'item' as ItemType, description: i.description, houtsoort: '', qty: i.quantity, unit: 'PCS', price: i.unitPrice, discount: 0, taxRate: (i as any).taxRate ?? 10 })));
+        setItems(est.items.map(i => {
+          const anyI = i as any;
+          const specParts = (anyI.spec || '').split('x').map(Number);
+          const mmW = specParts[0] > 0 ? specParts[0] : undefined;
+          const mmH = specParts[1] > 0 ? specParts[1] : undefined;
+          return {
+            id: anyI.id || Math.random().toString(36).slice(2),
+            type: (anyI.itemType ?? anyI.item_type ?? (anyI.houtsoort ? 'product' : 'item')) as ItemType,
+            description: anyI.description || '',
+            houtsoort: anyI.houtsoort || '',
+            qty: anyI.quantity ?? anyI.qty ?? 1,
+            unit: anyI.unit || 'PCS',
+            price: anyI.unitPrice ?? anyI.price ?? 0,
+            discount: 0,
+            taxRate: anyI.taxRate ?? 10,
+            mmW,
+            mmH,
+            priceByArea: anyI.priceByArea ?? (!!mmW && !!mmH && (anyI.itemType ?? anyI.item_type) === 'product'),
+          };
+        }));
       }
     } else if (state?.fromDuplicate) {
       const dup = state.fromDuplicate;
@@ -184,6 +217,7 @@ const CreateInvoicePage: React.FC = () => {
   }, [location.state]);
 
   useEffect(() => {
+    if (skipClientCurrencyEffect.current) { skipClientCurrencyEffect.current = false; return; }
     if (selectedClient) {
       const c = allClients.find(cl => cl.id === selectedClient);
       if (c?.preferredCurrency) setCurrency(c.preferredCurrency);
@@ -191,6 +225,7 @@ const CreateInvoicePage: React.FC = () => {
   }, [selectedClient, allClients]);
 
   useEffect(() => {
+    if (skipRateEffect.current) { skipRateEffect.current = false; return; }
     if (!latestRate) return;
     if (currency === 'USD') setExchangeRate(latestRate.usdSrd);
     else if (currency === 'EUR') setExchangeRate(latestRate.eurSrd);

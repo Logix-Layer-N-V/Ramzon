@@ -6,6 +6,7 @@ import { LanguageContext } from '../lib/context';
 import { exportCSV } from '../lib/csvExport';
 import { usePayments, useDeletePayment } from '../lib/hooks/usePayments';
 import { useClients } from '../lib/hooks/useClients';
+import { alertMutationError } from '../lib/mutationError';
 
 const METHOD_OPTIONS = ['Bank Transfer', 'Cash', 'Credit Card'] as const;
 
@@ -34,7 +35,7 @@ const PaymentsPage: React.FC = () => {
   const deletePayment = useDeletePayment();
   const handleDeletePayment = (id: string) => {
     if (!window.confirm('Betaling verwijderen?')) return;
-    deletePayment.mutate(id);
+    deletePayment.mutate(id, { onError: alertMutationError });
   };
 
   const filteredPayments = allPayments.filter(p => {

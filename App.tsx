@@ -46,14 +46,18 @@ import { AuthProvider, useAuth } from './lib/auth';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
-  // Safety net: many mutations don't set their own onError, which made failed
-  // saves fail completely silently (button does nothing, user assumes it worked).
-  // Skip this when a mutation already has its own onError to avoid double-alerting.
+  // Safety net for mutations with no call-site error handling: log to the console so a
+  // failure is at least visible during debugging. NOT a user-facing alert — React Query
+  // v5 gives a MutationCache global handler no way to detect whether the specific
+  // mutate(vars, { onError }) call already has its own handler (mutation.options only
+  // reflects the hook-level useMutation() config, never per-call .mutate() options), so
+  // alerting here would double-fire alongside every call-site alert AND pop a blocking
+  // dialog per row during loops like CSV import. Every user-facing save flow in this
+  // app sets its own onError explicitly instead.
   mutationCache: new MutationCache({
-    onError: (error: any, _variables, _context, mutation) => {
-      if (mutation.options.onError) return;
-      const msg = error?.response?.data?.error || error?.message || 'Er is een fout opgetreden. Probeer opnieuw.';
-      alert(`Opslaan mislukt: ${msg}`);
+    onError: (error: any) => {
+      const msg = error?.response?.data?.error || error?.message || String(error);
+      console.error('[mutation failed]', msg);
     },
   }),
 });

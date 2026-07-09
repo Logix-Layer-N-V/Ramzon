@@ -59,13 +59,18 @@ const CreateQuotePage: React.FC = () => {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [committedDocNumber, setCommittedDocNumber] = useState('');
   const [docNumber] = useState(() => isEdit ? '' : previewDocNumber('est'));
-  const selectedRep = user?.name ?? '';
+  // See CreateInvoicePage.tsx — must not be reassigned to whoever opens an existing quote.
+  const [selectedRep, setSelectedRep] = useState(user?.name ?? '');
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [itemSearch, setItemSearch] = useState('');
   const [showItemSearch, setShowItemSearch] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const searchRef = useRef<HTMLDivElement>(null);
+  // See CreateInvoicePage.tsx — skips exactly the one synthetic currency change
+  // caused by loading an existing estimate, so the locked-in rate isn't clobbered.
+  const skipClientCurrencyEffect = useRef(false);
+  const skipRateEffect = useRef(false);
 
   const { data: allClients = [] } = useClients();
   const { data: existingEstimate } = useEstimate(id || '');
@@ -117,10 +122,15 @@ const CreateQuotePage: React.FC = () => {
 
   useEffect(() => {
     if (existingEstimate) {
+      skipClientCurrencyEffect.current = true;
+      skipRateEffect.current = true;
       setClient(existingEstimate.clientId || '');
       setDate(existingEstimate.date || new Date().toISOString().split('T')[0]);
       setValidUntil(existingEstimate.validUntil || '');
       if (existingEstimate.currency) setCurrency(existingEstimate.currency);
+      if (existingEstimate.exchangeRate) setExchangeRate(existingEstimate.exchangeRate);
+      if (existingEstimate.paidAmount != null) setPaidAmount(existingEstimate.paidAmount);
+      if (existingEstimate.rep) setSelectedRep(existingEstimate.rep);
       if (existingEstimate.items && existingEstimate.items.length > 0) {
         setItems(existingEstimate.items.map(i => {
           const anyI = i as any;
@@ -168,6 +178,7 @@ const CreateQuotePage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (skipClientCurrencyEffect.current) { skipClientCurrencyEffect.current = false; return; }
     if (client) {
       const c = allClients.find(cl => cl.id === client);
       if (c?.preferredCurrency) setCurrency(c.preferredCurrency);
@@ -175,6 +186,7 @@ const CreateQuotePage: React.FC = () => {
   }, [client]);
 
   useEffect(() => {
+    if (skipRateEffect.current) { skipRateEffect.current = false; return; }
     if (!latestRate) return;
     if (currency === 'USD') setExchangeRate(latestRate.usdSrd);
     else if (currency === 'EUR') setExchangeRate(latestRate.eurSrd);
@@ -317,6 +329,8 @@ const CreateQuotePage: React.FC = () => {
         amount: i.qty * i.price,
         mmW: i.mmW,
         mmH: i.mmH,
+        priceByArea: i.type === 'product' && !!i.mmW && !!i.mmH,
+        itemType: i.type,
       })),
       totalAmount: total,
     };

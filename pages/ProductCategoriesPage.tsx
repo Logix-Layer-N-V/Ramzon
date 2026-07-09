@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Layers, Trees, LayoutGrid, Ruler, Grid2x2,
   Plus, Pencil, Trash2, Save, X, Check, ChevronLeft
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { storage } from '../lib/storage';
+import { alertMutationError } from '../lib/mutationError';
 import type { WoodSpecies, DoorModel, ProfileSize, DoorPriceEntry } from '../types';
 import {
   useProductCategories,
@@ -113,12 +114,26 @@ const ProductCategoriesPage: React.FC = () => {
   // ── Models (per category) ────────────────────────────────────────────────────
   const [models, setModels] = useState<any[]>(() => {
     const m = storage.doorModels.get();
-    const base = m.length ? m : DEFAULT_MODELS;
-    // migrate: assign orphaned models (no categoryId) to 'cat1'
-    return base.map((x: any) => x.categoryId ? x : { ...x, categoryId: 'cat1' });
+    return m.length ? m : DEFAULT_MODELS;
   });
   const saveModels = (updated: any[]) => { setModels(updated); storage.doorModels.save(updated); };
-  const [selectedCatForModels, setSelectedCatForModels] = useState<string>(() => categories[0]?.id ?? 'cat1');
+  // Resolves the real "Doors" category id once categories load from the DB — replaces the
+  // hardcoded 'cat1' literal left over from the pre-DB-migration prototype, which never
+  // matched a real category (categories.id is a Postgres UUID).
+  const doorsCategoryId = (categories as any[]).find(c => c.name === 'Doors')?.id ?? categories[0]?.id;
+  useEffect(() => {
+    if (!doorsCategoryId) return;
+    setModels(prev => {
+      if (!prev.some((x: any) => !x.categoryId)) return prev;
+      const migrated = prev.map((x: any) => x.categoryId ? x : { ...x, categoryId: doorsCategoryId });
+      storage.doorModels.save(migrated);
+      return migrated;
+    });
+  }, [doorsCategoryId]);
+  const [selectedCatForModels, setSelectedCatForModels] = useState<string>('');
+  useEffect(() => {
+    if (!selectedCatForModels && categories.length > 0) setSelectedCatForModels(categories[0].id);
+  }, [categories, selectedCatForModels]);
   const [addingModel, setAddingModel] = useState(false);
   const [editModelId, setEditModelId] = useState<string | null>(null);
 
@@ -138,7 +153,7 @@ const ProductCategoriesPage: React.FC = () => {
   // ── Price Matrix ─────────────────────────────────────────────────────────────
   const [matrix, setMatrix] = useState<DoorPriceEntry[]>(() => storage.doorPriceMatrix.get());
   const [matrixSaved, setMatrixSaved] = useState(false);
-  const doorModelsForMatrix = models.filter((m: any) => m.categoryId === 'cat1');
+  const doorModelsForMatrix = models.filter((m: any) => m.categoryId === doorsCategoryId);
   const getPrice = (modelId: string, speciesId: string) =>
     matrix.find(e => e.modelId === modelId && e.woodSpeciesId === speciesId)?.pricePerM2 ?? 0;
   const setPrice = (modelId: string, speciesId: string, price: number) => {
@@ -220,7 +235,7 @@ const ProductCategoriesPage: React.FC = () => {
                   <div className="flex gap-2">
                     <button onClick={() => {
                       if (!newCatName.trim()) return;
-                      createCat.mutate({ name: newCatName.trim(), description: newCatDesc.trim(), pricingType: newCatPricingType, sortOrder: categories.length });
+                      createCat.mutate({ name: newCatName.trim(), description: newCatDesc.trim(), pricingType: newCatPricingType, sortOrder: categories.length }, { onError: alertMutationError });
                       setNewCatName(''); setNewCatDesc(''); setNewCatPricingType('pcs'); setAddingCat(false);
                     }} className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">Save Category</button>
                     <button onClick={() => { setAddingCat(false); setNewCatName(''); setNewCatDesc(''); }} className="px-4 py-2 text-slate-400 text-xs font-bold hover:text-slate-700">Cancel</button>
@@ -254,7 +269,7 @@ const ProductCategoriesPage: React.FC = () => {
                       <div className="flex gap-2">
                         <button onClick={() => {
                           if (!editCatData.name.trim()) return;
-                          updateCat.mutate({ id: cat.id, name: editCatData.name.trim(), description: editCatData.description, pricingType: editCatData.pricingType, sortOrder: cat.sortOrder ?? 0 });
+                          updateCat.mutate({ id: cat.id, name: editCatData.name.trim(), description: editCatData.description, pricingType: editCatData.pricingType, sortOrder: cat.sortOrder ?? 0 }, { onError: alertMutationError });
                           setEditCatId(null); setEditCatData(null);
                         }} className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">Save</button>
                         <button onClick={() => { setEditCatId(null); setEditCatData(null); }} className="px-4 py-2 text-slate-400 text-xs font-bold">Cancel</button>
@@ -285,7 +300,7 @@ const ProductCategoriesPage: React.FC = () => {
                         <Pencil size={13} />
                       </button>
                       <button className={`${BTN_ICON} text-slate-300 hover:text-red-500 hover:bg-red-50`}
-                        onClick={() => window.confirm(`Delete "${cat.name}"? Products in this category will be uncategorized.`) && deleteCat.mutate(cat.id)}>
+                        onClick={() => window.confirm(`Delete "${cat.name}"? Products in this category will be uncategorized.`) && deleteCat.mutate(cat.id, { onError: alertMutationError })}>
                         <Trash2 size={13} />
                       </button>
                     </div>

@@ -3,6 +3,7 @@ import { ArrowLeft, Wallet, Tag, DollarSign, Calendar, Save, Check, Trash2, Pape
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
 import { useCreateExpense } from '../lib/hooks/useExpenses';
+import { alertMutationError } from '../lib/mutationError';
 
 interface Attachment {
   name: string;
@@ -75,6 +76,7 @@ const CreateExpensePage: React.FC = () => {
       status: 'Paid',
     }, {
       onSuccess: () => { setSaved(true); setTimeout(() => navigate('/expenses'), 1200); },
+      onError: alertMutationError,
     });
   };
 

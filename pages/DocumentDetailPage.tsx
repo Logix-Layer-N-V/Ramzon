@@ -36,6 +36,7 @@ import { useExpense, useDeleteExpense } from '../lib/hooks/useExpenses';
 import { useBankAccounts } from '../lib/hooks/useBankAccounts';
 import { useCreateBankTransaction } from '../lib/hooks/useBankTransactions';
 import { useLatestExchangeRate } from '../lib/hooks/useExchangeRates';
+import { alertMutationError } from '../lib/mutationError';
 import DocPDFModal from '../components/DocPDFModal';
 import DeliveryNoteModal from '../components/DeliveryNoteModal';
 
@@ -71,7 +72,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
   const [paymentCurrency, setPaymentCurrency] = useState('SRD');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer');
-  const [paymentBankId, setPaymentBankId] = useState('dsb_srd');
+  const [paymentBankId, setPaymentBankId] = useState('');
   const [showDeliveryNote, setShowDeliveryNote] = useState(false);
 
   const { data: allClients = [] } = useClients();
@@ -100,17 +101,26 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
     if (!id || !window.confirm('Delete this document? This cannot be undone.')) return;
     const onSuccess = () => navigate(-1);
     switch (type) {
-      case 'invoices':  deleteInvoice.mutate(id, { onSuccess }); break;
-      case 'estimates': deleteEstimate.mutate(id, { onSuccess }); break;
-      case 'payments':  deletePayment.mutate(id, { onSuccess }); break;
-      case 'credits':   deleteCredit.mutate(id, { onSuccess }); break;
-      case 'expenses':  deleteExpense.mutate(id, { onSuccess }); break;
+      case 'invoices':  deleteInvoice.mutate(id, { onSuccess, onError: alertMutationError }); break;
+      case 'estimates': deleteEstimate.mutate(id, { onSuccess, onError: alertMutationError }); break;
+      case 'payments':  deletePayment.mutate(id, { onSuccess, onError: alertMutationError }); break;
+      case 'credits':   deleteCredit.mutate(id, { onSuccess, onError: alertMutationError }); break;
+      case 'expenses':  deleteExpense.mutate(id, { onSuccess, onError: alertMutationError }); break;
     }
   }, [type, id, navigate, deleteInvoice, deleteEstimate, deletePayment, deleteCredit, deleteExpense]);
 
   const { data: bankAccounts = [] } = useBankAccounts();
   const createBankTransaction = useCreateBankTransaction();
   const latestRate = useLatestExchangeRate();
+
+  // Keep the quick-pay bank selection valid for the chosen currency — was previously
+  // hardcoded to a specific seed account id that no longer exists once renamed/deleted.
+  useEffect(() => {
+    const valid = bankAccounts.some(b => b.id === paymentBankId && b.currency === paymentCurrency);
+    if (!valid) {
+      setPaymentBankId(bankAccounts.find(b => b.currency === paymentCurrency)?.id || '');
+    }
+  }, [paymentCurrency, bankAccounts, paymentBankId]);
 
   // Payments for this invoice from the API
   const linkedPayments = useMemo(() => {
@@ -657,17 +667,14 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
                 description: `Payment ${paymentRef}`,
                 reference: paymentRef,
                 toAccountId: '',
-              });
+              }, { onError: alertMutationError });
               if (newTotalPaidSRD >= invoiceTotal && id) {
-                updateInvoice.mutate({ id, status: 'Paid' });
+                updateInvoice.mutate({ id, status: 'Paid' }, { onError: alertMutationError });
               }
               setShowPaymentModal(false);
               setPaymentAmount('');
             },
-            onError: (err: any) => {
-              const msg = err?.response?.data?.error || err?.message || 'Er is een fout opgetreden. Probeer opnieuw.';
-              alert(`Betaling opslaan mislukt: ${msg}`);
-            },
+            onError: alertMutationError,
           });
         };
 

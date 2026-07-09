@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Building, Mail, Phone, MapPin, Save, Hash, Info, FileText } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
 import { useClient, useUpdateClient } from '../lib/hooks/useClients';
+import { alertMutationError } from '../lib/mutationError';
 
 const EditClientPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -67,8 +68,10 @@ const EditClientPage: React.FC = () => {
       vatNumber: btw.trim(),
       address: address.trim(),
       preferredCurrency,
+      status: client.status,
     }, {
       onSuccess: () => navigate(`/clients/${id}`),
+      onError: alertMutationError,
     });
   };
 

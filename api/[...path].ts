@@ -408,8 +408,8 @@ async function handleClients(req: VercelRequest, res: VercelResponse, id: string
     if (m === 'POST') {
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
-      const { name, company = '', email = '', vat_number = '', address = '', phone = '', preferred_currency = 'USD' } = b;
-      const rows = await sql`INSERT INTO clients (name,company,email,vat_number,address,phone,preferred_currency) VALUES (${name},${company},${email},${vat_number},${address},${phone},${preferred_currency}) RETURNING *`;
+      const { name, company = '', email = '', vat_number = '', address = '', phone = '', preferred_currency = 'USD', status = 'Active' } = b;
+      const rows = await sql`INSERT INTO clients (name,company,email,vat_number,address,phone,preferred_currency,status) VALUES (${name},${company},${email},${vat_number},${address},${phone},${preferred_currency},${status}) RETURNING *`;
       const created = row2camel(rows[0] as Record<string, unknown>);
       logAudit(user, 'create', 'clients', String(created.id ?? ''), getClientIp(req), { name });
       return res.status(201).json(created);
@@ -422,8 +422,21 @@ async function handleClients(req: VercelRequest, res: VercelResponse, id: string
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
-      const { name, company, email, vat_number, address, phone, preferred_currency, status } = b;
-      const rows = await sql`UPDATE clients SET name=${name},company=${company},email=${email},vat_number=${vat_number},address=${address},phone=${phone},preferred_currency=${preferred_currency ?? 'USD'},status=${status ?? 'Active'} WHERE id=${id} RETURNING *`;
+      const {
+        name = null, company = null, email = null, vat_number = null, address = null,
+        phone = null, preferred_currency = null, status = null,
+      } = b;
+      const rows = await sql`UPDATE clients SET
+        name=COALESCE(${name}, name),
+        company=COALESCE(${company}, company),
+        email=COALESCE(${email}, email),
+        vat_number=COALESCE(${vat_number}, vat_number),
+        address=COALESCE(${address}, address),
+        phone=COALESCE(${phone}, phone),
+        preferred_currency=COALESCE(${preferred_currency}, preferred_currency),
+        status=COALESCE(${status}, status)
+        WHERE id=${id} RETURNING *`;
+      if (!rows[0]) return res.status(404).json({ error: 'Not found' });
       logAudit(user, 'update', 'clients', id, getClientIp(req));
       return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
@@ -566,14 +579,14 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
       const {
         client_id, client_name, date, valid_until,
         currency = 'USD', exchange_rate = 1, subtotal = 0, tax_amount = 0, total = 0,
-        status = 'Draft', notes = '', rep = '',
+        status = 'Draft', notes = '', rep = '', paid_amount = 0,
       } = b;
       const items = (req.body as any)?.items ?? [];
       let est: any = null;
       for (let attempt = 0; attempt < 3 && !est; attempt++) {
         const estimate_number = await nextDocNumber(sql, 'estimates', 'estimate_number', 'EST');
         try {
-          const rows = await sql`INSERT INTO estimates (estimate_number,client_id,client_name,date,valid_until,currency,exchange_rate,subtotal,tax_amount,total,status,notes,rep) VALUES (${estimate_number},${client_id},${client_name},${date},${valid_until},${currency},${exchange_rate},${subtotal},${tax_amount},${total},${status},${notes},${rep}) RETURNING *`;
+          const rows = await sql`INSERT INTO estimates (estimate_number,client_id,client_name,date,valid_until,currency,exchange_rate,subtotal,tax_amount,total,status,notes,rep,paid_amount) VALUES (${estimate_number},${client_id},${client_name},${date},${valid_until},${currency},${exchange_rate},${subtotal},${tax_amount},${total},${status},${notes},${rep},${paid_amount}) RETURNING *`;
           est = rows[0] as any;
         } catch (e: any) {
           if (e?.code !== '23505' || attempt === 2) throw e;
@@ -608,7 +621,7 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
       const {
         estimate_number = null, client_id = null, client_name = null, date = null, valid_until = null,
         currency = null, exchange_rate = null, subtotal = null, tax_amount = null, total = null,
-        status = null, notes = null, rep = null,
+        status = null, notes = null, rep = null, paid_amount = null,
       } = b;
       const rows = await sql`UPDATE estimates SET
         estimate_number=COALESCE(${estimate_number}, estimate_number),
@@ -623,7 +636,8 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
         total=COALESCE(${total}, total),
         status=COALESCE(${status}, status),
         notes=COALESCE(${notes}, notes),
-        rep=COALESCE(${rep}, rep)
+        rep=COALESCE(${rep}, rep),
+        paid_amount=COALESCE(${paid_amount}, paid_amount)
         WHERE id=${id} RETURNING *`;
       if (!rows[0]) return res.status(404).json({ error: 'Not found' });
       if (Array.isArray((req.body as any)?.items)) {
@@ -702,7 +716,26 @@ async function handlePayments(req: VercelRequest, res: VercelResponse, id: strin
     }
     if (m === 'DELETE') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+      const payRows = await sql`SELECT * FROM payments WHERE id=${id}`;
+      const payment = payRows[0] as any;
+      if (!payment) return res.status(404).json({ error: 'Not found' });
+      // Payments have no FK to the bank_transactions row they created (recorded separately
+      // by the frontend as a 'deposit' transaction) — reverse it by matching on the fields
+      // that uniquely identified it, so the balance doesn't stay permanently inflated.
+      if (payment.bank_account_id) {
+        const txRows = await sql`
+          SELECT * FROM bank_transactions
+          WHERE account_id = ${payment.bank_account_id} AND type = 'deposit'
+            AND amount = ${payment.amount} AND reference = ${payment.reference}
+          ORDER BY created_at DESC LIMIT 1`;
+        const tx = txRows[0] as any;
+        if (tx) {
+          await sql`UPDATE bank_accounts SET balance = balance - ${Number(tx.amount)} WHERE id = ${tx.account_id}`;
+          await sql`DELETE FROM bank_transactions WHERE id = ${tx.id}`;
+        }
+      }
       await sql`DELETE FROM payments WHERE id=${id}`;
+      logAudit(user, 'delete', 'payments', id, getClientIp(req));
       return res.json({ ok: true });
     }
   }
