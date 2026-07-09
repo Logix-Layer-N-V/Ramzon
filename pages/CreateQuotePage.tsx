@@ -3,8 +3,9 @@ import { ArrowLeft, Plus, ClipboardList, Send, Save, Trash2, Check, X, Search, F
 import { QuoteSchema } from '../lib/schemas';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { RAMZON_SERVICES, RAMZON_PRODUCT_CATALOG, RAMZON_HOUTSOORTEN } from '../lib/mock-data';
-import { previewDocNumber, commitDocNumber } from '../lib/docNumbering';
-import { getLatestExchangeRate, storage } from '../lib/storage';
+import { previewDocNumber } from '../lib/docNumbering';
+import { storage } from '../lib/storage';
+import { useLatestExchangeRate } from '../lib/hooks/useExchangeRates';
 import { Estimate, WoodSpecies } from '../types';
 import DocPDFModal from '../components/DocPDFModal';
 import { useAuth } from '../lib/auth';
@@ -71,6 +72,7 @@ const CreateQuotePage: React.FC = () => {
   const { data: dbProducts = [] } = useProducts();
   const createEstimate = useCreateEstimate();
   const updateEstimate = useUpdateEstimate();
+  const latestRate = useLatestExchangeRate();
 
   const [woodSpeciesList] = useState<WoodSpecies[]>(() => {
     const s = storage.woodSpecies.get();
@@ -120,17 +122,25 @@ const CreateQuotePage: React.FC = () => {
       setValidUntil(existingEstimate.validUntil || '');
       if (existingEstimate.currency) setCurrency(existingEstimate.currency);
       if (existingEstimate.items && existingEstimate.items.length > 0) {
-        setItems(existingEstimate.items.map(i => ({
-          id: (i as any).id || Math.random().toString(36).slice(2),
-          type: 'item' as ItemType,
-          description: (i as any).description || '',
-          houtsoort: (i as any).houtsoort || '',
-          spec: (i as any).spec || '',
-          qty: (i as any).quantity || 1,
-          unit: (i as any).unit || 'PCS',
-          price: (i as any).unitPrice || 0,
-          taxRate: (i as any).taxRate ?? 10,
-        })));
+        setItems(existingEstimate.items.map(i => {
+          const anyI = i as any;
+          const specParts = (anyI.spec || '').split('x').map(Number);
+          const mmW = specParts[0] > 0 ? specParts[0] : undefined;
+          const mmH = specParts[1] > 0 ? specParts[1] : undefined;
+          return {
+            id: anyI.id || Math.random().toString(36).slice(2),
+            type: (anyI.itemType ?? anyI.item_type ?? (anyI.houtsoort ? 'product' : 'item')) as ItemType,
+            description: anyI.description || '',
+            houtsoort: anyI.houtsoort || '',
+            spec: anyI.spec || '',
+            qty: anyI.quantity || 1,
+            unit: anyI.unit || 'PCS',
+            price: anyI.unitPrice || 0,
+            taxRate: anyI.taxRate ?? 10,
+            mmW,
+            mmH,
+          };
+        }));
       }
     }
   }, [existingEstimate]);
@@ -165,12 +175,11 @@ const CreateQuotePage: React.FC = () => {
   }, [client]);
 
   useEffect(() => {
-    const latest = getLatestExchangeRate();
-    if (!latest) return;
-    if (currency === 'USD') setExchangeRate(latest.usdSrd);
-    else if (currency === 'EUR') setExchangeRate(latest.eurSrd);
+    if (!latestRate) return;
+    if (currency === 'USD') setExchangeRate(latestRate.usdSrd);
+    else if (currency === 'EUR') setExchangeRate(latestRate.eurSrd);
     else setExchangeRate(1);
-  }, [currency]);
+  }, [currency, latestRate]);
 
   const isSlashMode = itemSearch.startsWith('/');
   const slashCmd   = isSlashMode ? itemSearch.slice(1).toLowerCase() : '';
@@ -237,8 +246,8 @@ const CreateQuotePage: React.FC = () => {
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
-    const num = isEdit ? (existingEstimate?.estimateNumber || docNumber) : commitDocNumber('est');
-    setCommittedDocNumber(num);
+    // On create, the API generates the authoritative estimate number.
+    const num = isEdit ? (existingEstimate?.estimateNumber || docNumber) : docNumber;
     const clientObj = allClients.find(c => c.id === client);
 
     const estimateData = {
@@ -259,20 +268,31 @@ const CreateQuotePage: React.FC = () => {
       items: items.map(i => ({
         id: i.id,
         description: i.description,
+        houtsoort: i.houtsoort,
         quantity: i.qty,
+        unit: i.unit,
         unitPrice: i.price,
         total: itemTotal(i),
         taxRate: i.taxRate,
+        spec: i.mmW && i.mmH ? `${i.mmW}x${i.mmH}` : '',
+        itemType: i.type,
       })),
+    };
+
+    const onError = (err: any) => {
+      const msg = err?.response?.data?.error || err?.message || 'Er is een fout opgetreden. Probeer opnieuw.';
+      alert(`Opslaan mislukt: ${msg}`);
     };
 
     if (isEdit && id) {
       updateEstimate.mutate({ id, ...estimateData }, {
-        onSuccess: () => { setSaved(true); setShowPdfModal(true); },
+        onSuccess: (saved) => { setCommittedDocNumber(saved?.estimateNumber || num); setSaved(true); setShowPdfModal(true); },
+        onError,
       });
     } else {
       createEstimate.mutate(estimateData, {
-        onSuccess: () => { setSaved(true); setShowPdfModal(true); },
+        onSuccess: (saved) => { setCommittedDocNumber(saved?.estimateNumber || num); setSaved(true); setShowPdfModal(true); },
+        onError,
       });
     }
   };

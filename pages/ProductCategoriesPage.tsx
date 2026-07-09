@@ -56,6 +56,12 @@ const TABS: { id: Tab; label: string; icon: React.ComponentType<any> }[] = [
   { id: 'categories', label: 'Categories',   icon: Layers     },
   { id: 'models',     label: 'Models',       icon: LayoutGrid },
   { id: 'species',    label: 'Wood Species', icon: Trees      },
+  // These were unreachable — no button ever set activeTab to 'profiles'/'matrix' — even
+  // though the underlying data/editors below are intact. Restored as reference tools for
+  // pricing lookups; the product wizard no longer auto-applies them (species is picked
+  // per line item on invoices/quotes instead of at product-creation time).
+  { id: 'profiles',   label: 'Profile Sizes', icon: Ruler     },
+  { id: 'matrix',     label: 'Price Matrix',  icon: Grid2x2   },
 ];
 
 function EditableRow({ value, onSave, onCancel }: {

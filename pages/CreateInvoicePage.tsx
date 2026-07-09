@@ -6,8 +6,9 @@ import { InvoiceSchema } from '../lib/schemas';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { RAMZON_SERVICES, RAMZON_PRODUCT_CATALOG, RAMZON_HOUTSOORTEN } from '../lib/mock-data';
 import { Estimate, WoodSpecies } from '../types';
-import { previewDocNumber, commitDocNumber } from '../lib/docNumbering';
-import { getLatestExchangeRate, storage } from '../lib/storage';
+import { previewDocNumber } from '../lib/docNumbering';
+import { storage } from '../lib/storage';
+import { useLatestExchangeRate } from '../lib/hooks/useExchangeRates';
 import DocPDFModal from '../components/DocPDFModal';
 import QuickAddClientModal from '../components/QuickAddClientModal';
 import { useClients } from '../lib/hooks/useClients';
@@ -73,6 +74,7 @@ const CreateInvoicePage: React.FC = () => {
   const { data: dbProducts = [] } = useProducts();
   const createInvoice = useCreateInvoice();
   const updateInvoice = useUpdateInvoice();
+  const latestRate = useLatestExchangeRate();
 
   const [woodSpeciesList] = useState<WoodSpecies[]>(() => {
     const s = storage.woodSpecies.get();
@@ -189,12 +191,11 @@ const CreateInvoicePage: React.FC = () => {
   }, [selectedClient, allClients]);
 
   useEffect(() => {
-    const latest = getLatestExchangeRate();
-    if (!latest) return;
-    if (currency === 'USD') setExchangeRate(latest.usdSrd);
-    else if (currency === 'EUR') setExchangeRate(latest.eurSrd);
+    if (!latestRate) return;
+    if (currency === 'USD') setExchangeRate(latestRate.usdSrd);
+    else if (currency === 'EUR') setExchangeRate(latestRate.eurSrd);
     else setExchangeRate(1);
-  }, [currency]);
+  }, [currency, latestRate]);
 
   const isSlashMode = itemSearch.startsWith('/');
   const slashCmd   = isSlashMode ? itemSearch.slice(1).toLowerCase() : '';
@@ -273,8 +274,9 @@ const CreateInvoicePage: React.FC = () => {
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
-    const num = isEdit ? (existingInvoice?.invoiceNumber || docNumber) : commitDocNumber('inv');
-    setCommittedDocNumber(num);
+    // On create, the API generates the authoritative invoice number (server-side,
+    // collision-safe across devices/users) — this is only a placeholder for edits.
+    const num = isEdit ? (existingInvoice?.invoiceNumber || docNumber) : docNumber;
     const clientObj = allClients.find(c => c.id === selectedClient);
 
     const invoiceData = {
@@ -314,12 +316,12 @@ const CreateInvoicePage: React.FC = () => {
 
     if (isEdit && editId) {
       updateInvoice.mutate({ id: editId, ...invoiceData }, {
-        onSuccess: () => { setSaved(true); setShowPdfModal(true); },
+        onSuccess: (saved) => { setCommittedDocNumber(saved?.invoiceNumber || num); setSaved(true); setShowPdfModal(true); },
         onError,
       });
     } else {
       createInvoice.mutate(invoiceData, {
-        onSuccess: () => { setSaved(true); setShowPdfModal(true); },
+        onSuccess: (saved) => { setCommittedDocNumber(saved?.invoiceNumber || num); setSaved(true); setShowPdfModal(true); },
         onError,
       });
     }

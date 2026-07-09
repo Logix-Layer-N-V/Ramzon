@@ -25,24 +25,19 @@ import {
   Truck,
 } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
-import { storage, getLatestExchangeRate, toSRD, NoteTemplate } from '../lib/storage';
+import { storage, NoteTemplate } from '../lib/storage';
 import { commitDocNumber } from '../lib/docNumbering';
-import type { BankAccount } from '../types';
 import { useClients } from '../lib/hooks/useClients';
 import { useInvoice, useUpdateInvoice, useDeleteInvoice } from '../lib/hooks/useInvoices';
 import { useEstimate, useDeleteEstimate } from '../lib/hooks/useEstimates';
 import { usePayments, usePayment, useCreatePayment, useDeletePayment } from '../lib/hooks/usePayments';
 import { useCredit, useDeleteCredit } from '../lib/hooks/useCredits';
 import { useExpense, useDeleteExpense } from '../lib/hooks/useExpenses';
+import { useBankAccounts } from '../lib/hooks/useBankAccounts';
+import { useCreateBankTransaction } from '../lib/hooks/useBankTransactions';
+import { useLatestExchangeRate } from '../lib/hooks/useExchangeRates';
 import DocPDFModal from '../components/DocPDFModal';
 import DeliveryNoteModal from '../components/DeliveryNoteModal';
-
-const BANK_ACCOUNTS_DEFAULT: BankAccount[] = [
-  { id: 'dsb_srd', bank: 'DSB Bank', currency: 'SRD', iban: 'SR29DSB0000001234', balance: 45230 },
-  { id: 'dsb_usd', bank: 'DSB Bank', currency: 'USD', iban: 'SR29DSB0000001235', balance: 12800 },
-  { id: 'hkb_srd', bank: 'HKB Hakrinbank', currency: 'SRD', iban: 'SR29HKB0000005678', balance: 31200 },
-  { id: 'cash_srd', bank: 'Cash', currency: 'SRD', iban: '—', balance: 1500 },
-];
 
 interface DocumentDetailPageProps {
   type: 'invoices' | 'estimates' | 'payments' | 'credits' | 'recurring' | 'expenses' | 'reports';
@@ -113,10 +108,9 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
     }
   }, [type, id, navigate, deleteInvoice, deleteEstimate, deletePayment, deleteCredit, deleteExpense]);
 
-  const bankAccounts: BankAccount[] = useMemo(() => {
-    const saved = storage.bankAccounts.get();
-    return saved.length ? saved : BANK_ACCOUNTS_DEFAULT;
-  }, []);
+  const { data: bankAccounts = [] } = useBankAccounts();
+  const createBankTransaction = useCreateBankTransaction();
+  const latestRate = useLatestExchangeRate();
 
   // Payments for this invoice from the API
   const linkedPayments = useMemo(() => {
@@ -124,8 +118,13 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
     return allPayments.filter(p => p.invoiceId === id);
   }, [allPayments, type, id]);
 
+  // Each payment already carries the SRD rate that was locked in when it was recorded —
+  // use that instead of "today's" rate so historical totals don't drift.
+  const paymentToSRD = (amount: number, currency: string, exchangeRate: number) =>
+    currency === 'SRD' ? amount : amount * (exchangeRate || 1);
+
   const totalPaid = useMemo(() =>
-    linkedPayments.reduce((s, p) => s + toSRD(p.amount, p.currency), 0),
+    linkedPayments.reduce((s, p) => s + paymentToSRD(p.amount, p.currency, p.exchangeRate), 0),
   [linkedPayments]);
 
   // Derive document data from the appropriate hook
@@ -300,9 +299,16 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
         const docLabel = customTitles[typeToKey[type] ?? type] ?? defaultTitles[type] ?? 'Document';
         const d = docData as any;
         const invoiceTotal = d.totalAmount || d.total || 0;
-        const balance = invoiceTotal - totalPaid;
+        // Balance due is compared/displayed in SRD (totalPaid already is); normalize
+        // the invoice's own total using the rate that was locked in when it was created.
+        const invoiceTotalSRD = (d.currency || 'SRD') === 'SRD' ? invoiceTotal : invoiceTotal * (d.exchangeRate || 1);
+        const balance = invoiceTotalSRD - totalPaid;
         const cur = d.currency || currencySymbol;
         const fmt = (n: number) => `${cur} ${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+        // Use the actual stored subtotal/tax when available (per-line tax rates can vary),
+        // falling back to a flat-21% approximation only for docs that don't carry them (credits).
+        const displaySubtotal = d.subtotal != null ? d.subtotal : invoiceTotal / 1.21;
+        const displayTax = d.taxAmount != null ? d.taxAmount : invoiceTotal - displaySubtotal;
         const fmtDate = (s: string) => { if (!s) return '—'; const p = s.split('-'); return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : s; };
 
         const tableItems = d.items || (type === 'expenses' ? [
@@ -409,11 +415,11 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
               <div className="w-64">
                 <div className="flex justify-between py-2 text-sm border-t border-slate-200">
                   <span className="text-slate-500 font-medium">Subtotal</span>
-                  <span className="font-bold">{fmt(invoiceTotal / 1.21)}</span>
+                  <span className="font-bold">{fmt(displaySubtotal)}</span>
                 </div>
                 <div className="flex justify-between py-2 text-sm border-b border-slate-100">
                   <span className="text-slate-500 font-medium">BTW</span>
-                  <span className="font-bold">{fmt(invoiceTotal - invoiceTotal / 1.21)}</span>
+                  <span className="font-bold">{fmt(displayTax)}</span>
                 </div>
                 <div className="flex justify-between py-3 border-t-2" style={{ borderColor: accentColor }}>
                   <span className="font-black text-base" style={{ color: accentColor }}>TOTAL ({cur})</span>
@@ -478,7 +484,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
                   <div className="text-right">
                     <p className="text-sm font-black text-emerald-700">{p.currency} {p.amount.toFixed(2)}</p>
                     {p.currency !== 'SRD' && p.exchangeRate && (
-                      <p className="text-[10px] text-slate-400">= SRD {toSRD(p.amount, p.currency).toFixed(2)} @ {p.exchangeRate}</p>
+                      <p className="text-[10px] text-slate-400">= SRD {paymentToSRD(p.amount, p.currency, p.exchangeRate).toFixed(2)} @ {p.exchangeRate}</p>
                     )}
                   </div>
                 </div>
@@ -601,9 +607,13 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
 
       {/* Payment Modal */}
       {showPaymentModal && type === 'invoices' && (() => {
-        const invoiceTotal = (docData as any).totalAmount || (docData as any).total || 0;
+        // Normalize the invoice's own total to SRD (using the rate locked in when it
+        // was created) so it can be compared against totalPaid, which is also in SRD.
+        const invCurrency = (docData as any).currency || 'SRD';
+        const invExchangeRate = (docData as any).exchangeRate || 1;
+        const invoiceTotalRaw = (docData as any).totalAmount || (docData as any).total || 0;
+        const invoiceTotal = invCurrency === 'SRD' ? invoiceTotalRaw : invoiceTotalRaw * invExchangeRate;
         const balance = invoiceTotal - totalPaid;
-        const latestRate = getLatestExchangeRate();
 
         const getRateSRD = (cur: string) => {
           if (!latestRate) return 1;
@@ -621,8 +631,9 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
           const capped = Math.min(amtSRD, balance);
           const rate = getRateSRD(paymentCurrency);
           const payAmt = paymentCurrency === 'SRD' ? capped : capped / rate;
-          const bankId = paymentBankId || (filteredBanks[0]?.id || 'cash_srd');
-          const invoiceTotal = (docData as any).totalAmount || (docData as any).total || 0;
+          const bankId = paymentBankId || filteredBanks[0]?.id;
+          if (!bankId) { alert(`No ${paymentCurrency} bank/cash account exists yet — add one on the Finance page first.`); return; }
+          const paymentRef = commitDocNumber('pay');
           const newTotalPaidSRD = totalPaid + capped;
 
           createPayment.mutate({
@@ -630,20 +641,32 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
             invoiceId: id,
             amount: payAmt,
             currency: paymentCurrency,
+            exchangeRate: rate,
+            bankAccountId: bankId,
             date: paymentDate,
             method: paymentMethod,
-            reference: commitDocNumber('pay'),
+            reference: paymentRef,
             notes: '',
           }, {
             onSuccess: () => {
-              const accts = storage.bankAccounts.get().length ? storage.bankAccounts.get() : BANK_ACCOUNTS_DEFAULT;
-              const ai = accts.findIndex(a => a.id === bankId);
-              if (ai >= 0) { accts[ai] = { ...accts[ai], balance: accts[ai].balance + payAmt }; storage.bankAccounts.save(accts); }
+              createBankTransaction.mutate({
+                accountId: bankId,
+                type: 'deposit',
+                amount: payAmt,
+                date: paymentDate,
+                description: `Payment ${paymentRef}`,
+                reference: paymentRef,
+                toAccountId: '',
+              });
               if (newTotalPaidSRD >= invoiceTotal && id) {
                 updateInvoice.mutate({ id, status: 'Paid' });
               }
               setShowPaymentModal(false);
               setPaymentAmount('');
+            },
+            onError: (err: any) => {
+              const msg = err?.response?.data?.error || err?.message || 'Er is een fout opgetreden. Probeer opnieuw.';
+              alert(`Betaling opslaan mislukt: ${msg}`);
             },
           });
         };
@@ -749,7 +772,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ type }) => {
         const docNumber = d.invoiceNumber || d.estimateNumber || d.id || '—';
         // credits use d.amount; invoices/estimates use d.totalAmount or d.total
         const rawTotal  = type === 'credits' ? (d.amount || 0) : (d.totalAmount || d.total || 0);
-        const subtotal  = rawTotal / 1.21;
+        const subtotal  = d.subtotal != null ? d.subtotal : rawTotal / 1.21;
         const total     = rawTotal;
         const tax       = total - subtotal;
         const cur       = d.currency || 'SRD';

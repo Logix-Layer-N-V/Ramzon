@@ -17,21 +17,14 @@ import {
   Download
 } from 'lucide-react';
 import { LanguageContext } from '../lib/context';
-import { storage } from '../lib/storage';
-import type { ExchangeRate } from '../types';
+import { useExchangeRates, useCreateExchangeRate, useDeleteExchangeRate, ExchangeRateRow } from '../lib/hooks/useExchangeRates';
 
-// Convert storage ExchangeRate → display row format
-const rateToRow = (r: ExchangeRate) => ({
+// Convert DB ExchangeRateRow → display row format
+const rateToRow = (r: ExchangeRateRow) => ({
   id: r.id, date: r.date,
   usd: r.usdSrd.toString(), srd: '1.00',
   eur: r.eurSrd.toString(),
 });
-
-const DEFAULT_RATES: ExchangeRate[] = [
-  { id: 'r1', date: '2026-03-05', usdSrd: 36.50, eurSrd: 39.80, eurUsd: 1.09 },
-  { id: 'r2', date: '2026-03-04', usdSrd: 36.40, eurSrd: 39.70, eurUsd: 1.09 },
-  { id: 'r3', date: '2026-03-03', usdSrd: 36.35, eurSrd: 39.60, eurUsd: 1.09 },
-];
 
 const CurrencyManagementPage: React.FC = () => {
   const { t, availableCurrencies, setAvailableCurrencies } = useContext(LanguageContext);
@@ -43,13 +36,11 @@ const CurrencyManagementPage: React.FC = () => {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
 
-  // Daily tracking history — loaded from storage, falls back to defaults
-  const initRates = () => {
-    const saved = storage.exchangeRates.get();
-    if (saved.length === 0) { storage.exchangeRates.save(DEFAULT_RATES); return DEFAULT_RATES.map(rateToRow); }
-    return saved.sort((a, b) => b.date.localeCompare(a.date)).map(rateToRow);
-  };
-  const [dailyRates, setDailyRates] = useState(initRates);
+  // Daily tracking history — shared across every user/device via the database.
+  const { data: rates = [] } = useExchangeRates();
+  const createRate = useCreateExchangeRate();
+  const deleteRate = useDeleteExchangeRate();
+  const dailyRates = [...rates].sort((a, b) => b.date.localeCompare(a.date)).map(rateToRow);
 
   const [newEntry, setNewEntry] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -84,25 +75,22 @@ const CurrencyManagementPage: React.FC = () => {
     if (!newEntry.usd || !newEntry.eur) return;
     const usdSrd = parseFloat(newEntry.usd);
     const eurSrd = parseFloat(newEntry.eur);
-    const newRate: ExchangeRate = {
-      id: Math.random().toString(36).substr(2, 9),
+    createRate.mutate({
       date: newEntry.date,
       usdSrd,
       eurSrd,
       eurUsd: usdSrd > 0 ? eurSrd / usdSrd : 1.09,
-    };
-    // Persist to storage — replace if same date already exists
-    const existing = storage.exchangeRates.get();
-    storage.exchangeRates.save([newRate, ...existing.filter(r => r.date !== newEntry.date)]);
-    // Update display list
-    setDailyRates([rateToRow(newRate), ...dailyRates.filter(r => r.date !== newEntry.date)]);
-    setShowEntryForm(false);
-    setNewEntry({ date: new Date().toISOString().split('T')[0], usd: '', srd: '1.00', eur: '' });
+    }, {
+      onSuccess: () => {
+        setShowEntryForm(false);
+        setNewEntry({ date: new Date().toISOString().split('T')[0], usd: '', srd: '1.00', eur: '' });
+      },
+      onError: () => alert('Failed to save exchange rate. Please try again.'),
+    });
   };
 
   const handleDeleteRate = (rateId: string) => {
-    storage.exchangeRates.save(storage.exchangeRates.get().filter(r => r.id !== rateId));
-    setDailyRates(prev => prev.filter(r => r.id !== rateId));
+    deleteRate.mutate(rateId, { onError: () => alert('Failed to delete exchange rate. Please try again.') });
   };
 
   const handleAddCurrency = () => {

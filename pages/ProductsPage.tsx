@@ -2,75 +2,28 @@ import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { LanguageContext } from '../lib/context';
 import { Search, Plus, Package, Ruler, Pencil, Trash2, Settings2, ChevronUp, ChevronDown, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useProducts, useDeleteProduct, useCreateProduct, ProductRow } from '../lib/hooks/useProducts';
+import { useProducts, useDeleteProduct, ProductRow } from '../lib/hooks/useProducts';
 import { useProductCategories } from '../lib/hooks/useProductCategories';
-import { storage } from '../lib/storage';
+import { useAuth } from '../lib/auth';
 import ProductImportModal from '../components/ProductImportModal';
 
 const ProductsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // Product create/edit/delete is Admin-only on the API — hide the affordances
+  // for other roles instead of letting them hit a silent 403 on save.
+  const canManage = user?.role === 'Admin';
   const { t, currencySymbol } = useContext(LanguageContext);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const { data: products = [], isLoading } = useProducts();
   const { data: categoryList = [] } = useProductCategories();
-  const createProduct = useCreateProduct();
 
   const [sortKey, setSortKey] = useState<string>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [showImport, setShowImport] = useState(false);
 
-  const localProducts = useMemo(() => storage.products.get(), []);
-
-  // One-time migration: push localStorage products to DB
-  useEffect(() => {
-    if (isLoading || localStorage.getItem('erp_products_migrated')) return;
-    const local = storage.products.get();
-    if (local.length === 0) return;
-    localStorage.setItem('erp_products_migrated', '1');
-    local.forEach(p => {
-      createProduct.mutate({
-        name: p.name,
-        woodType: p.woodType || '',
-        thickness: p.thickness || 0,
-        width: p.width || 0,
-        length: p.length || 0,
-        unit: p.unit || 'pcs',
-        pricePerUnit: p.pricePerUnit || 0,
-        stock: p.stock || 0,
-        category: p.category || '',
-        sku: p.sku || '',
-        calculationType: p.calculationType || 'pcs',
-        description: p.description || '',
-        defaultTaxRate: p.defaultTaxRate || 10,
-      });
-    });
-  }, [isLoading]);
-
-  // Merge: DB products + any localStorage-only products not yet in DB
-  const mergedProducts = useMemo(() => {
-    const dbNames = new Set(products.map(p => (p.name ?? '').toLowerCase()));
-    const localOnly = localProducts
-      .filter(p => !dbNames.has((p.name ?? '').toLowerCase()))
-      .map(p => ({
-        id: p.id,
-        name: p.name,
-        woodType: p.woodType || '',
-        thickness: p.thickness || 0,
-        width: p.width || 0,
-        length: p.length || 0,
-        unit: p.unit || 'pcs',
-        pricePerUnit: p.pricePerUnit || 0,
-        stock: p.stock || 0,
-        category: p.category || '',
-        sku: p.sku || '',
-        calculationType: p.calculationType || 'pcs',
-        description: p.description || '',
-        defaultTaxRate: p.defaultTaxRate || 10,
-        createdAt: '',
-      } as ProductRow));
-    return [...products, ...localOnly];
-  }, [products, localProducts]);
+  const mergedProducts: ProductRow[] = products;
 
   const handleSort = (key: string) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -128,24 +81,24 @@ const ProductsPage: React.FC = () => {
           <p className="text-sm font-medium text-slate-500 italic">{t('manageProducts')}</p>
         </div>
         <div className="flex gap-2">
-          <button
+          {canManage && <button
             onClick={() => navigate('/products/categories')}
             className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 bg-white text-slate-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
           >
             <Settings2 size={14} /> Configure Types
-          </button>
-          <button
+          </button>}
+          {canManage && <button
             onClick={() => setShowImport(true)}
             className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 bg-white text-slate-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
           >
             <Upload size={14} /> Import CSV
-          </button>
-          <button
+          </button>}
+          {canManage && <button
             onClick={() => navigate('/products/new')}
             className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-black hover:bg-slate-800 transition-all flex items-center gap-2 shadow-xl active:scale-95"
           >
             <Plus size={18} /> {t('newProductBtn')}
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -227,7 +180,7 @@ const ProductsPage: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 text-right font-black text-slate-900 italic">{currencySymbol}{p.pricePerUnit.toFixed(2)}</td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center justify-center gap-1">
+                    {canManage && <div className="flex items-center justify-center gap-1">
                       <button
                         title="Edit"
                         onClick={() => navigate(`/products/edit/${p.id}`)}
@@ -242,7 +195,7 @@ const ProductsPage: React.FC = () => {
                       >
                         <Trash2 size={15} />
                       </button>
-                    </div>
+                    </div>}
                   </td>
                 </tr>
               ))}

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Analytics } from '@vercel/analytics/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -42,11 +42,20 @@ import { LocationAwareErrorBoundary } from './components/ErrorBoundary';
 import { Language, translations } from './lib/translations';
 import { LanguageContext, Currency, TaxRate } from './lib/context';
 import { storage } from './lib/storage';
-import { DEMO_PRODUCTS } from './lib/mock-data';
 import { AuthProvider, useAuth } from './lib/auth';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
+  // Safety net: many mutations don't set their own onError, which made failed
+  // saves fail completely silently (button does nothing, user assumes it worked).
+  // Skip this when a mutation already has its own onError to avoid double-alerting.
+  mutationCache: new MutationCache({
+    onError: (error: any, _variables, _context, mutation) => {
+      if (mutation.options.onError) return;
+      const msg = error?.response?.data?.error || error?.message || 'Er is een fout opgetreden. Probeer opnieuw.';
+      alert(`Opslaan mislukt: ${msg}`);
+    },
+  }),
 });
 
 const Layout: React.FC<{ 
@@ -138,10 +147,12 @@ const AppRoutes: React.FC<{
                 <Route path="/expenses/vendors" element={<RequireRole roles={['Admin','Accountant']}><ExpenseVendorsPage /></RequireRole>} />
                 <Route path="/expenses/edit/:id" element={<RequireRole roles={['Admin','Accountant']}><CreateExpensePage /></RequireRole>} />
                 <Route path="/expenses/:id" element={<RequireRole roles={['Admin','Accountant']}><DocumentDetailPage type="expenses" /></RequireRole>} />
+                {/* Product create/edit/delete is Admin-only on the API — keep the route guard in sync
+                    so Sales never sees a form whose save silently 403s. */}
                 <Route path="/products" element={<RequireRole roles={['Admin','Sales']}><ProductsPage /></RequireRole>} />
-                <Route path="/products/new" element={<RequireRole roles={['Admin','Sales']}><CreateProductPage /></RequireRole>} />
-                <Route path="/products/edit/:id" element={<RequireRole roles={['Admin','Sales']}><CreateProductPage /></RequireRole>} />
-                <Route path="/products/categories" element={<RequireRole roles={['Admin','Sales']}><ProductCategoriesPage /></RequireRole>} />
+                <Route path="/products/new" element={<RequireRole roles={['Admin']}><CreateProductPage /></RequireRole>} />
+                <Route path="/products/edit/:id" element={<RequireRole roles={['Admin']}><CreateProductPage /></RequireRole>} />
+                <Route path="/products/categories" element={<RequireRole roles={['Admin']}><ProductCategoriesPage /></RequireRole>} />
                 <Route path="/documentation" element={<DocumentationPage />} />
                 <Route path="/services" element={<RequireRole roles={['Admin','Sales']}><ServicesPage /></RequireRole>} />
                 <Route path="/services/categories" element={<RequireRole roles={['Admin','Sales']}><ServiceCategoriesPage /></RequireRole>} />
@@ -281,13 +292,6 @@ const App: React.FC = () => {
     if (companyLogo) localStorage.setItem('companyLogo', companyLogo);
     else localStorage.removeItem('companyLogo');
   }, [companyLogo]);
-
-  // Seed demo products into storage if empty (first load / fresh install)
-  useEffect(() => {
-    if (storage.products.get().length === 0) {
-      storage.products.save(DEMO_PRODUCTS);
-    }
-  }, []);
 
   // One-time migration: rename "Petty Cash" → "Cash" in stored bank accounts
   useEffect(() => {

@@ -16,6 +16,7 @@ import { useEstimates } from '../lib/hooks/useEstimates';
 import { useExpenses } from '../lib/hooks/useExpenses';
 import { useCredits } from '../lib/hooks/useCredits';
 import { useClients } from '../lib/hooks/useClients';
+import { useLatestExchangeRate } from '../lib/hooks/useExchangeRates';
 import { LanguageContext } from '../lib/context';
 
 const DashboardPage: React.FC = () => {
@@ -27,15 +28,26 @@ const DashboardPage: React.FC = () => {
   const { data: expenses = [] } = useExpenses();
   const { data: credits = [] } = useCredits();
   const { data: clients = [] } = useClients();
+  const latestRate = useLatestExchangeRate();
+
+  // KPIs are totalled in SRD — records that carry their own locked-in exchangeRate
+  // (invoices, payments) use that; credits/expenses fall back to today's rate.
+  const rateFor = (currency: string, ownRate?: number) => {
+    if (currency === 'SRD') return 1;
+    if (ownRate) return ownRate;
+    if (!latestRate) return 1;
+    return currency === 'USD' ? latestRate.usdSrd : currency === 'EUR' ? latestRate.eurSrd : 1;
+  };
+  const toSRD = (amount: number, currency: string, ownRate?: number) => amount * rateFor(currency, ownRate);
 
   // KPI computations
-  const totalRevenue   = payments.reduce((sum, p) => sum + (p.amount ?? 0), 0);
-  const totalExpenses  = expenses.reduce((sum, e) => sum + (e.amount ?? 0), 0);
-  const creditNotes    = credits.reduce((sum, c) => sum + (c.amount ?? 0), 0);
+  const totalRevenue   = payments.reduce((sum, p) => sum + toSRD(p.amount ?? 0, p.currency, p.exchangeRate), 0);
+  const totalExpenses  = expenses.reduce((sum, e) => sum + toSRD(e.amount ?? 0, e.currency), 0);
+  const creditNotes    = credits.reduce((sum, c) => sum + toSRD(c.amount ?? 0, c.currency), 0);
   const netProfit      = totalRevenue - totalExpenses - creditNotes;
 
   const openInvoices   = invoices.filter(i => i.status !== 'Paid' && i.status !== 'Cancelled');
-  const openInvoiceTotal = openInvoices.reduce((sum, i) => sum + (i.totalAmount ?? 0), 0);
+  const openInvoiceTotal = openInvoices.reduce((sum, i) => sum + toSRD(i.totalAmount ?? 0, i.currency, i.exchangeRate), 0);
 
   const openEstimates  = estimates.filter(e => e.status === 'Sent' || e.status === 'Draft');
 
@@ -79,15 +91,15 @@ const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <KpiCard
           title="Net Revenue"
-          value={`${currencySymbol}${totalRevenue.toLocaleString()}`}
+          value={`SRD ${totalRevenue.toLocaleString()}`}
           trend={`${payments.length} payments`}
           isPositive={true}
-          subtitle={`Net profit: ${currencySymbol}${netProfit.toLocaleString()}`}
+          subtitle={`Net profit: SRD ${netProfit.toLocaleString()}`}
           icon={DollarSign}
         />
         <KpiCard
           title="Outstanding"
-          value={`${currencySymbol}${openInvoiceTotal.toLocaleString()}`}
+          value={`SRD ${openInvoiceTotal.toLocaleString()}`}
           trend={`${openInvoices.length} invoices`}
           isPositive={false}
           subtitle={`${pendingInvoices.length} invoices pending`}
@@ -95,7 +107,7 @@ const DashboardPage: React.FC = () => {
         />
         <KpiCard
           title="Expenses"
-          value={`${currencySymbol}${totalExpenses.toLocaleString()}`}
+          value={`SRD ${totalExpenses.toLocaleString()}`}
           trend={`${expenses.length} records`}
           isPositive={false}
           subtitle={`${clients.length} active clients · ${openEstimates.length} open estimates`}
@@ -142,7 +154,7 @@ const DashboardPage: React.FC = () => {
             <div className="absolute top-0 right-0 w-32 h-32 bg-brand-accent/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
             <div className="relative z-10">
               <h4 className="text-brand-accent text-[10px] font-black uppercase tracking-[0.2em] mb-4">Ramzon Intelligence</h4>
-              <p className="text-lg font-bold leading-tight mb-6">You have {currencySymbol}{openInvoiceTotal.toLocaleString()} outstanding across {openInvoices.length} open invoice{openInvoices.length !== 1 ? 's' : ''}.</p>
+              <p className="text-lg font-bold leading-tight mb-6">You have SRD {openInvoiceTotal.toLocaleString()} outstanding across {openInvoices.length} open invoice{openInvoices.length !== 1 ? 's' : ''}.</p>
               <button className="w-full py-3 bg-white text-slate-900 rounded-xl text-xs font-black shadow-lg hover:bg-brand-accent-light transition-all">
                 Send Reminders
               </button>
@@ -154,7 +166,7 @@ const DashboardPage: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-500 font-bold italic">Open Estimates Pipeline</span>
-                <span className="text-slate-900 font-black">{currencySymbol}{openEstimates.reduce((s, e) => s + (e.total ?? 0), 0).toLocaleString()}</span>
+                <span className="text-slate-900 font-black">SRD {openEstimates.reduce((s, e) => s + toSRD(e.total ?? 0, e.currency, e.exchangeRate), 0).toLocaleString()}</span>
               </div>
               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                 <div className="h-full bg-brand-accent w-3/4" />

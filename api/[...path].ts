@@ -91,6 +91,25 @@ function hasRole(u: AuthUser, roles: string[]): boolean {
   return roles.includes(u.role);
 }
 
+/**
+ * DELETEs with no ON DELETE CASCADE (clients ← invoices/estimates/payments/credits,
+ * invoices ← payments) throw a raw Postgres FK violation that the top-level catch
+ * turns into an opaque 500. Wrap those deletes so the real reason surfaces as a 409.
+ */
+async function deleteOrConflict(
+  res: VercelResponse,
+  fn: () => Promise<unknown>,
+  conflictMessage: string
+): Promise<boolean> {
+  try {
+    await fn();
+    return true;
+  } catch (e: any) {
+    if (e?.code === '23503') { res.status(409).json({ error: conflictMessage }); return false; }
+    throw e;
+  }
+}
+
 function logAudit(
   user: AuthUser,
   action: string,
@@ -169,12 +188,37 @@ function rows2camel(rows: unknown): Record<string, unknown>[] {
   return (rows as unknown[]).map(row2camel);
 }
 
+/**
+ * Server-side document number generation. Numbers used to be generated from a
+ * per-browser localStorage counter, which guaranteed collisions the moment two
+ * people worked from different devices on the same day (and, since invoice/estimate
+ * numbers are UNIQUE NOT NULL, a silent failed save). Deriving the next number from
+ * the table itself keeps generation authoritative and shared across every user.
+ */
+function todayDatePart(): string {
+  const now = new Date();
+  return `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, '0')}${String(now.getUTCDate()).padStart(2, '0')}`;
+}
+
+async function nextDocNumber(
+  sql: ReturnType<typeof getSql>,
+  table: 'invoices' | 'estimates',
+  column: 'invoice_number' | 'estimate_number',
+  prefix: string
+): Promise<string> {
+  const datePrefix = `${prefix}-${todayDatePart()}-`;
+  const rows = table === 'invoices'
+    ? await sql`SELECT invoice_number AS num FROM invoices WHERE invoice_number LIKE ${datePrefix + '%'} ORDER BY invoice_number DESC LIMIT 1`
+    : await sql`SELECT estimate_number AS num FROM estimates WHERE estimate_number LIKE ${datePrefix + '%'} ORDER BY estimate_number DESC LIMIT 1`;
+  const last = (rows[0] as any)?.num as string | undefined;
+  const lastSeq = last ? parseInt(last.slice(datePrefix.length), 10) : 0;
+  const seq = (isNaN(lastSeq) ? 0 : lastSeq) + 1;
+  return `${datePrefix}${String(seq).padStart(3, '0')}`;
+}
+
 /* ── Main handler ───────────────────────────────────────────────────────── */
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  cors(res);
-  if (req.method === 'OPTIONS') return res.status(204).end();
-
   const pathParam = req.query['...path'] || req.query.path;
   const segments = Array.isArray(pathParam) ? pathParam
     : typeof pathParam === 'string' ? pathParam.split('/')
@@ -183,6 +227,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const m = req.method || 'GET';
 
   try {
+    // Inside the try block: a misconfigured/missing CLIENT_URL used to throw before
+    // any error handling ran, crashing the whole function with an opaque
+    // FUNCTION_INVOCATION_FAILED instead of a normal JSON error response.
+    cors(res);
+    if (req.method === 'OPTIONS') return res.status(204).end();
+
     switch (resource) {
       case 'auth':          return handleAuth(req, res, id, m);
       case 'clients':       return handleClients(req, res, id, m);
@@ -379,7 +429,10 @@ async function handleClients(req: VercelRequest, res: VercelResponse, id: string
     }
     if (m === 'DELETE') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
-      await sql`DELETE FROM clients WHERE id=${id}`;
+      const ok = await deleteOrConflict(res,
+        () => sql`DELETE FROM clients WHERE id=${id}`,
+        'Cannot delete: this client still has invoices, estimates, payments, or credits on record.');
+      if (!ok) return;
       logAudit(user, 'delete', 'clients', id, getClientIp(req));
       return res.json({ ok: true });
     }
@@ -399,13 +452,23 @@ async function handleInvoices(req: VercelRequest, res: VercelResponse, id: strin
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
       const {
-        invoice_number, client_id, client_name, date, due_date,
+        client_id, client_name, date, due_date,
         currency = 'USD', exchange_rate = 1, subtotal = 0, tax_amount = 0, total_amount = 0,
         status = 'Draft', notes = '', rep = '', paid_amount = 0,
       } = b;
       const items = (req.body as any)?.items ?? [];
-      const rows = await sql`INSERT INTO invoices (invoice_number,client_id,client_name,date,due_date,currency,exchange_rate,subtotal,tax_amount,total_amount,status,notes,rep,paid_amount) VALUES (${invoice_number},${client_id},${client_name},${date},${due_date},${currency},${exchange_rate},${subtotal},${tax_amount},${total_amount},${status},${notes},${rep},${paid_amount}) RETURNING *`;
-      const inv = rows[0] as any;
+      // The invoice number is authoritative server-side (see nextDocNumber) — a client-supplied
+      // one would race across devices/users and hit the invoice_number UNIQUE constraint.
+      let inv: any = null;
+      for (let attempt = 0; attempt < 3 && !inv; attempt++) {
+        const invoice_number = await nextDocNumber(sql, 'invoices', 'invoice_number', 'INV');
+        try {
+          const rows = await sql`INSERT INTO invoices (invoice_number,client_id,client_name,date,due_date,currency,exchange_rate,subtotal,tax_amount,total_amount,status,notes,rep,paid_amount) VALUES (${invoice_number},${client_id},${client_name},${date},${due_date},${currency},${exchange_rate},${subtotal},${tax_amount},${total_amount},${status},${notes},${rep},${paid_amount}) RETURNING *`;
+          inv = rows[0] as any;
+        } catch (e: any) {
+          if (e?.code !== '23505' || attempt === 2) throw e;
+        }
+      }
       for (const item of items) {
         const desc = item.description ?? '';
         const houtsoort = item.houtsoort ?? '';
@@ -433,32 +496,55 @@ async function handleInvoices(req: VercelRequest, res: VercelResponse, id: strin
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
       const {
-        invoice_number, client_id, client_name, date, due_date,
-        currency = 'USD', exchange_rate = 1, subtotal = 0, tax_amount = 0, total_amount = 0,
-        status = 'Pending', notes = '', rep = '', paid_amount = 0,
+        invoice_number = null, client_id = null, client_name = null, date = null, due_date = null,
+        currency = null, exchange_rate = null, subtotal = null, tax_amount = null, total_amount = null,
+        status = null, notes = null, rep = null, paid_amount = null,
       } = b;
-      const items = (req.body as any)?.items ?? [];
-      const rows = await sql`UPDATE invoices SET invoice_number=${invoice_number},client_id=${client_id},client_name=${client_name},date=${date},due_date=${due_date},currency=${currency},exchange_rate=${exchange_rate},subtotal=${subtotal},tax_amount=${tax_amount},total_amount=${total_amount},status=${status},notes=${notes},rep=${rep},paid_amount=${paid_amount} WHERE id=${id} RETURNING *`;
-      await sql`DELETE FROM invoice_items WHERE invoice_id=${id}`;
-      for (const item of items) {
-        const desc = item.description ?? '';
-        const houtsoort = item.houtsoort ?? '';
-        const spec = item.spec ?? '';
-        const qty = item.quantity ?? 0;
-        const unit = item.unit ?? 'PCS';
-        const price = item.unitPrice ?? item.unit_price ?? 0;
-        const tot = item.total ?? 0;
-        const taxRate = item.taxRate ?? item.tax_rate ?? 10;
-        const priceByArea = item.priceByArea ?? item.price_by_area ?? false;
-        const itemType = item.itemType ?? item.item_type ?? 'item';
-        await sql`INSERT INTO invoice_items (invoice_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area,item_type) VALUES (${id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea},${itemType})`;
+      // COALESCE so a partial payload (e.g. just { status: 'Paid' }) only touches the fields it sends.
+      const rows = await sql`UPDATE invoices SET
+        invoice_number=COALESCE(${invoice_number}, invoice_number),
+        client_id=COALESCE(${client_id}, client_id),
+        client_name=COALESCE(${client_name}, client_name),
+        date=COALESCE(${date}, date),
+        due_date=COALESCE(${due_date}, due_date),
+        currency=COALESCE(${currency}, currency),
+        exchange_rate=COALESCE(${exchange_rate}, exchange_rate),
+        subtotal=COALESCE(${subtotal}, subtotal),
+        tax_amount=COALESCE(${tax_amount}, tax_amount),
+        total_amount=COALESCE(${total_amount}, total_amount),
+        status=COALESCE(${status}, status),
+        notes=COALESCE(${notes}, notes),
+        rep=COALESCE(${rep}, rep),
+        paid_amount=COALESCE(${paid_amount}, paid_amount)
+        WHERE id=${id} RETURNING *`;
+      if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+      // Only replace line items when the caller actually sent an items array.
+      if (Array.isArray((req.body as any)?.items)) {
+        const items = (req.body as any).items;
+        await sql`DELETE FROM invoice_items WHERE invoice_id=${id}`;
+        for (const item of items) {
+          const desc = item.description ?? '';
+          const houtsoort = item.houtsoort ?? '';
+          const spec = item.spec ?? '';
+          const qty = item.quantity ?? 0;
+          const unit = item.unit ?? 'PCS';
+          const price = item.unitPrice ?? item.unit_price ?? 0;
+          const tot = item.total ?? 0;
+          const taxRate = item.taxRate ?? item.tax_rate ?? 10;
+          const priceByArea = item.priceByArea ?? item.price_by_area ?? false;
+          const itemType = item.itemType ?? item.item_type ?? 'item';
+          await sql`INSERT INTO invoice_items (invoice_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area,item_type) VALUES (${id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea},${itemType})`;
+        }
       }
       logAudit(user, 'update', 'invoices', id, getClientIp(req));
       return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
       if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
-      await sql`DELETE FROM invoices WHERE id=${id}`;
+      const ok = await deleteOrConflict(res,
+        () => sql`DELETE FROM invoices WHERE id=${id}`,
+        'Cannot delete: this invoice still has payments recorded against it.');
+      if (!ok) return;
       logAudit(user, 'delete', 'invoices', id, getClientIp(req));
       return res.json({ ok: true });
     }
@@ -478,13 +564,21 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
       const {
-        estimate_number, client_id, client_name, date, valid_until,
+        client_id, client_name, date, valid_until,
         currency = 'USD', exchange_rate = 1, subtotal = 0, tax_amount = 0, total = 0,
         status = 'Draft', notes = '', rep = '',
       } = b;
       const items = (req.body as any)?.items ?? [];
-      const rows = await sql`INSERT INTO estimates (estimate_number,client_id,client_name,date,valid_until,currency,exchange_rate,subtotal,tax_amount,total,status,notes,rep) VALUES (${estimate_number},${client_id},${client_name},${date},${valid_until},${currency},${exchange_rate},${subtotal},${tax_amount},${total},${status},${notes},${rep}) RETURNING *`;
-      const est = rows[0] as any;
+      let est: any = null;
+      for (let attempt = 0; attempt < 3 && !est; attempt++) {
+        const estimate_number = await nextDocNumber(sql, 'estimates', 'estimate_number', 'EST');
+        try {
+          const rows = await sql`INSERT INTO estimates (estimate_number,client_id,client_name,date,valid_until,currency,exchange_rate,subtotal,tax_amount,total,status,notes,rep) VALUES (${estimate_number},${client_id},${client_name},${date},${valid_until},${currency},${exchange_rate},${subtotal},${tax_amount},${total},${status},${notes},${rep}) RETURNING *`;
+          est = rows[0] as any;
+        } catch (e: any) {
+          if (e?.code !== '23505' || attempt === 2) throw e;
+        }
+      }
       for (const item of items) {
         const desc = item.description ?? '';
         const houtsoort = item.houtsoort ?? '';
@@ -512,25 +606,42 @@ async function handleEstimates(req: VercelRequest, res: VercelResponse, id: stri
       if (!hasRole(user, ['Admin', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
       const {
-        estimate_number, client_id, client_name, date, valid_until,
-        currency = 'USD', exchange_rate = 1, subtotal = 0, tax_amount = 0, total = 0,
-        status = 'Draft', notes = '', rep = '',
+        estimate_number = null, client_id = null, client_name = null, date = null, valid_until = null,
+        currency = null, exchange_rate = null, subtotal = null, tax_amount = null, total = null,
+        status = null, notes = null, rep = null,
       } = b;
-      const items = (req.body as any)?.items ?? [];
-      const rows = await sql`UPDATE estimates SET estimate_number=${estimate_number},client_id=${client_id},client_name=${client_name},date=${date},valid_until=${valid_until},currency=${currency},exchange_rate=${exchange_rate},subtotal=${subtotal},tax_amount=${tax_amount},total=${total},status=${status},notes=${notes},rep=${rep} WHERE id=${id} RETURNING *`;
-      await sql`DELETE FROM estimate_items WHERE estimate_id=${id}`;
-      for (const item of items) {
-        const desc = item.description ?? '';
-        const houtsoort = item.houtsoort ?? '';
-        const spec = item.spec ?? '';
-        const qty = item.quantity ?? 0;
-        const unit = item.unit ?? 'PCS';
-        const price = item.unitPrice ?? item.unit_price ?? 0;
-        const tot = item.total ?? 0;
-        const taxRate = item.taxRate ?? item.tax_rate ?? 10;
-        const priceByArea = item.priceByArea ?? item.price_by_area ?? false;
-        const itemType = item.itemType ?? item.item_type ?? 'item';
-        await sql`INSERT INTO estimate_items (estimate_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area,item_type) VALUES (${id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea},${itemType})`;
+      const rows = await sql`UPDATE estimates SET
+        estimate_number=COALESCE(${estimate_number}, estimate_number),
+        client_id=COALESCE(${client_id}, client_id),
+        client_name=COALESCE(${client_name}, client_name),
+        date=COALESCE(${date}, date),
+        valid_until=COALESCE(${valid_until}, valid_until),
+        currency=COALESCE(${currency}, currency),
+        exchange_rate=COALESCE(${exchange_rate}, exchange_rate),
+        subtotal=COALESCE(${subtotal}, subtotal),
+        tax_amount=COALESCE(${tax_amount}, tax_amount),
+        total=COALESCE(${total}, total),
+        status=COALESCE(${status}, status),
+        notes=COALESCE(${notes}, notes),
+        rep=COALESCE(${rep}, rep)
+        WHERE id=${id} RETURNING *`;
+      if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+      if (Array.isArray((req.body as any)?.items)) {
+        const items = (req.body as any).items;
+        await sql`DELETE FROM estimate_items WHERE estimate_id=${id}`;
+        for (const item of items) {
+          const desc = item.description ?? '';
+          const houtsoort = item.houtsoort ?? '';
+          const spec = item.spec ?? '';
+          const qty = item.quantity ?? 0;
+          const unit = item.unit ?? 'PCS';
+          const price = item.unitPrice ?? item.unit_price ?? 0;
+          const tot = item.total ?? 0;
+          const taxRate = item.taxRate ?? item.tax_rate ?? 10;
+          const priceByArea = item.priceByArea ?? item.price_by_area ?? false;
+          const itemType = item.itemType ?? item.item_type ?? 'item';
+          await sql`INSERT INTO estimate_items (estimate_id,description,houtsoort,spec,quantity,unit,unit_price,tax_rate,total,price_by_area,item_type) VALUES (${id},${desc},${houtsoort},${spec},${qty},${unit},${price},${taxRate},${tot},${priceByArea},${itemType})`;
+        }
       }
       logAudit(user, 'update', 'estimates', id, getClientIp(req));
       return res.json(row2camel(rows[0] as Record<string, unknown>));
@@ -556,8 +667,8 @@ async function handlePayments(req: VercelRequest, res: VercelResponse, id: strin
     if (m === 'POST') {
       if (!hasRole(user, ['Admin', 'Sales', 'Accountant'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
-      const { client_id, invoice_id, amount, currency = 'USD', date, method = '', reference = '', notes = '' } = b;
-      const rows = await sql`INSERT INTO payments (client_id,invoice_id,amount,currency,date,method,reference,notes) VALUES (${client_id},${invoice_id},${amount},${currency},${date},${method},${reference},${notes}) RETURNING *`;
+      const { client_id, invoice_id, amount, currency = 'USD', exchange_rate = 1, bank_account_id = '', date, method = '', reference = '', notes = '' } = b;
+      const rows = await sql`INSERT INTO payments (client_id,invoice_id,amount,currency,exchange_rate,bank_account_id,date,method,reference,notes) VALUES (${client_id},${invoice_id},${amount},${currency},${exchange_rate},${bank_account_id},${date},${method},${reference},${notes}) RETURNING *`;
       const created = row2camel(rows[0] as Record<string, unknown>);
       logAudit(user, 'create', 'payments', String(created.id ?? ''), getClientIp(req), { amount, currency });
       return res.status(201).json(created);
@@ -570,8 +681,23 @@ async function handlePayments(req: VercelRequest, res: VercelResponse, id: strin
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin', 'Sales', 'Accountant'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
-      const { method, reference, notes } = b;
-      const rows = await sql`UPDATE payments SET method=${method},reference=${reference},notes=${notes} WHERE id=${id} RETURNING *`;
+      const {
+        client_id = null, invoice_id = null, amount = null, currency = null, exchange_rate = null,
+        bank_account_id = null, date = null, method = null, reference = null, notes = null,
+      } = b;
+      const rows = await sql`UPDATE payments SET
+        client_id=COALESCE(${client_id}, client_id),
+        invoice_id=COALESCE(${invoice_id}, invoice_id),
+        amount=COALESCE(${amount}, amount),
+        currency=COALESCE(${currency}, currency),
+        exchange_rate=COALESCE(${exchange_rate}, exchange_rate),
+        bank_account_id=COALESCE(${bank_account_id}, bank_account_id),
+        date=COALESCE(${date}, date),
+        method=COALESCE(${method}, method),
+        reference=COALESCE(${reference}, reference),
+        notes=COALESCE(${notes}, notes)
+        WHERE id=${id} RETURNING *`;
+      if (!rows[0]) return res.status(404).json({ error: 'Not found' });
       return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
@@ -608,8 +734,17 @@ async function handleCredits(req: VercelRequest, res: VercelResponse, id: string
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin', 'Accountant'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
-      const { amount, reason, status } = b;
-      const rows = await sql`UPDATE credits SET amount=${amount},reason=${reason},status=${status} WHERE id=${id} RETURNING *`;
+      const { client_id = null, amount = null, currency = null, date = null, reason = null, notes = null, status = null } = b;
+      const rows = await sql`UPDATE credits SET
+        client_id=COALESCE(${client_id}, client_id),
+        amount=COALESCE(${amount}, amount),
+        currency=COALESCE(${currency}, currency),
+        date=COALESCE(${date}, date),
+        reason=COALESCE(${reason}, reason),
+        notes=COALESCE(${notes}, notes),
+        status=COALESCE(${status}, status)
+        WHERE id=${id} RETURNING *`;
+      if (!rows[0]) return res.status(404).json({ error: 'Not found' });
       return res.json(row2camel(rows[0] as Record<string, unknown>));
     }
     if (m === 'DELETE') {
@@ -847,7 +982,8 @@ async function handleBankTransactions(req: VercelRequest, res: VercelResponse, i
       return res.json(rows2camel(rows as unknown[]));
     }
     if (m === 'POST') {
-      if (!hasRole(user, ['Admin', 'Accountant'])) return res.status(403).json({ error: 'Forbidden' });
+      // Sales can create deposits as a side effect of recording a client payment (see handlePayments).
+      if (!hasRole(user, ['Admin', 'Accountant', 'Sales'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
       const { account_id, type, amount, date, description = '', reference = '', to_account_id = '' } = b;
       if (!account_id || !type || !amount || !date) return res.status(400).json({ error: 'account_id, type, amount and date required' });

@@ -2,29 +2,14 @@ import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { ArrowLeft, Save, Check, Wallet, Users, Calendar, FileText, CreditCard, Landmark, TrendingUp, Building2, Banknote, UserPlus } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
-import { getLatestExchangeRate, storage } from '../lib/storage';
 import { commitDocNumber } from '../lib/docNumbering';
-import type { BankAccount, ExchangeRate } from '../types';
 import { useClients } from '../lib/hooks/useClients';
 import { useInvoices, useUpdateInvoice } from '../lib/hooks/useInvoices';
 import { usePayment, useCreatePayment, useUpdatePayment } from '../lib/hooks/usePayments';
+import { useBankAccounts } from '../lib/hooks/useBankAccounts';
+import { useCreateBankTransaction } from '../lib/hooks/useBankTransactions';
+import { useLatestExchangeRate } from '../lib/hooks/useExchangeRates';
 import QuickAddClientModal from '../components/QuickAddClientModal';
-
-const BANK_ACCOUNTS_DEFAULT: BankAccount[] = [
-  { id: 'dsb_srd', bank: 'DSB Bank', currency: 'SRD', iban: 'SR29DSB0000001234', balance: 45230 },
-  { id: 'dsb_usd', bank: 'DSB Bank', currency: 'USD', iban: 'SR29DSB0000001235', balance: 12800 },
-  { id: 'dsb_eur', bank: 'DSB Bank', currency: 'EUR', iban: 'SR29DSB0000001236', balance: 9500 },
-  { id: 'hkb_srd', bank: 'HKB Hakrinbank', currency: 'SRD', iban: 'SR29HKB0000005678', balance: 31200 },
-  { id: 'hkb_usd', bank: 'HKB Hakrinbank', currency: 'USD', iban: 'SR29HKB0000005679', balance: 7400 },
-  { id: 'hkb_eur', bank: 'HKB Hakrinbank', currency: 'EUR', iban: 'SR29HKB0000005680', balance: 4100 },
-  { id: 'cash_srd', bank: 'Cash', currency: 'SRD', iban: '—', balance: 1500 },
-  { id: 'cash_usd', bank: 'Cash', currency: 'USD', iban: '—', balance: 300 },
-  { id: 'cash_eur', bank: 'Cash', currency: 'EUR', iban: '—', balance: 150 },
-];
-
-const EXCHANGE_RATES_DEFAULT: ExchangeRate[] = [
-  { id: 'r1', date: '2026-03-05', usdSrd: 36.50, eurSrd: 39.80, eurUsd: 1.09 },
-];
 
 const LABEL = 'text-[10px] font-black text-slate-400 uppercase tracking-widest';
 const INPUT = 'w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-slate-400';
@@ -44,23 +29,9 @@ const CreatePaymentPage: React.FC = () => {
   const createPayment = useCreatePayment();
   const updatePayment = useUpdatePayment();
   const updateInvoice = useUpdateInvoice();
-
-  const bankAccounts = useMemo(() => {
-    const saved = storage.bankAccounts.get();
-    if (saved.length === 0) { storage.bankAccounts.save(BANK_ACCOUNTS_DEFAULT); return BANK_ACCOUNTS_DEFAULT; }
-    return saved.map(a => a.bank === 'Petty Cash' ? { ...a, bank: 'Cash' } : a);
-  }, []);
-
-  const exchangeRates = useMemo(() => {
-    const saved = storage.exchangeRates.get();
-    if (saved.length === 0) { storage.exchangeRates.save(EXCHANGE_RATES_DEFAULT); return EXCHANGE_RATES_DEFAULT; }
-    return saved;
-  }, []);
-
-  const latestRate: ExchangeRate | null = useMemo(() => {
-    if (!exchangeRates.length) return null;
-    return [...exchangeRates].sort((a, b) => b.date.localeCompare(a.date))[0];
-  }, [exchangeRates]);
+  const { data: bankAccounts = [] } = useBankAccounts();
+  const createBankTransaction = useCreateBankTransaction();
+  const latestRate = useLatestExchangeRate();
 
   const [showAddClient, setShowAddClient] = useState(false);
   const [clientId, setClientId] = useState('');
@@ -100,10 +71,17 @@ const CreatePaymentPage: React.FC = () => {
   const amountSRD = currency === 'SRD' ? parseFloat(amount || '0') : parseFloat(amount || '0') * activeRate;
 
   const selectedInvoice = useMemo(() => clientInvoices.find(i => i.id === invoiceId), [clientInvoices, invoiceId]);
+  // Balance due, in the invoice's own currency.
   const invoiceBalance = useMemo(() => {
     if (!selectedInvoice) return 0;
     return selectedInvoice.totalAmount - (selectedInvoice.paidAmount ?? 0);
   }, [selectedInvoice]);
+  // Same balance normalized to SRD, using the rate locked in on the invoice itself —
+  // needed to compare against a payment recorded in a different currency.
+  const invoiceBalanceSRD = useMemo(() => {
+    if (!selectedInvoice) return 0;
+    return selectedInvoice.currency === 'SRD' ? invoiceBalance : invoiceBalance * (selectedInvoice.exchangeRate || 1);
+  }, [selectedInvoice, invoiceBalance]);
 
   useEffect(() => {
     const banks = bankAccounts.filter(b =>
@@ -116,10 +94,11 @@ const CreatePaymentPage: React.FC = () => {
   }, [currency, methodType, bankAccounts]);
 
   useEffect(() => {
-    if (selectedInvoice && invoiceBalance > 0) {
-      const inDocCurrency = currency === 'SRD' ? invoiceBalance : invoiceBalance / activeRate;
+    if (selectedInvoice && invoiceBalanceSRD > 0) {
+      const inDocCurrency = currency === 'SRD' ? invoiceBalanceSRD : invoiceBalanceSRD / activeRate;
       setAmount(inDocCurrency.toFixed(2));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceId]);
 
   useEffect(() => {
@@ -150,6 +129,7 @@ const CreatePaymentPage: React.FC = () => {
     if (!amount || amt <= 0) newErrors.amount = 'Vul een geldig bedrag in';
     if (!date) newErrors.date = 'Vul een datum in';
     if (!methodType) newErrors.methodType = 'Please select a payment method';
+    if (!bankAccountId) newErrors.bankAccountId = `No ${currency} ${methodType === 'cash' ? 'cash' : 'bank'} account exists yet — add one on the Finance page first`;
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
@@ -161,7 +141,7 @@ const CreatePaymentPage: React.FC = () => {
       amount: amt,
       currency,
       exchangeRate: activeRate,
-      bankAccountId: bankAccountId || 'cash_srd',
+      bankAccountId,
       date,
       method: methodType === 'cash' ? 'Cash' : 'Bank Transfer',
       reference: reference || paymentNumber,
@@ -169,17 +149,29 @@ const CreatePaymentPage: React.FC = () => {
       status: 'Completed',
     };
 
+    const onError = (err: any) => {
+      const msg = err?.response?.data?.error || err?.message || 'Er is een fout opgetreden. Probeer opnieuw.';
+      alert(`Opslaan mislukt: ${msg}`);
+    };
+
     const onSuccess = () => {
-      // Update bank account balance in localStorage
-      const accts = storage.bankAccounts.get().length ? storage.bankAccounts.get() : [...BANK_ACCOUNTS_DEFAULT];
-      const acctIdx = accts.findIndex(a => a.id === (bankAccountId || 'cash_srd'));
-      if (acctIdx >= 0) {
-        accts[acctIdx] = { ...accts[acctIdx], balance: accts[acctIdx].balance + amt };
-        storage.bankAccounts.save(accts);
+      // Move the real bank/cash account balance via a proper transaction (audit trail included) —
+      // only when creating a new payment, not when editing an existing one.
+      if (!isEdit) {
+        createBankTransaction.mutate({
+          accountId: bankAccountId,
+          type: 'deposit',
+          amount: amt,
+          date,
+          description: `Payment ${reference || paymentNumber}`,
+          reference: reference || paymentNumber,
+          toAccountId: '',
+        });
       }
 
-      // Update invoice status if payment covers remaining balance
-      if (invoiceId && selectedInvoice && amt >= invoiceBalance) {
+      // Update invoice status if payment covers remaining balance (compared in SRD so
+      // a payment in a different currency than the invoice doesn't misfire this).
+      if (!isEdit && invoiceId && selectedInvoice && amountSRD >= invoiceBalanceSRD) {
         updateInvoice.mutate({ id: invoiceId, status: 'Paid' });
       }
 
@@ -188,9 +180,9 @@ const CreatePaymentPage: React.FC = () => {
     };
 
     if (isEdit && editId) {
-      updatePayment.mutate({ id: editId, ...paymentData }, { onSuccess });
+      updatePayment.mutate({ id: editId, ...paymentData }, { onSuccess, onError });
     } else {
-      createPayment.mutate(paymentData, { onSuccess });
+      createPayment.mutate(paymentData, { onSuccess, onError });
     }
   };
 
@@ -343,6 +335,7 @@ const CreatePaymentPage: React.FC = () => {
                   <option key={b.id} value={b.id}>{b.bank} — {b.currency} {b.balance.toLocaleString()} ({b.iban !== '—' ? b.iban : 'Cash'})</option>
                 ))}
               </select>
+              {errors.bankAccountId && <p className="text-red-500 text-xs mt-1">{errors.bankAccountId}</p>}
             </div>
 
             {/* Reference */}

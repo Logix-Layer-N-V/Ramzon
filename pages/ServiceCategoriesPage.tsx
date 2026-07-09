@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { Plus, Pencil, Trash2, Check, X, Settings2 } from 'lucide-react';
+import { getList, saveList } from '../lib/storage';
+
+const LS_KEY = 'erp_service_categories';
 
 const DEFAULT_CATEGORIES = [
   { id: 'sc1', name: 'Drogen', unit: 'm³', price: 80, description: 'Kiln drying van hout - prijs per m³' },
@@ -7,10 +10,18 @@ const DEFAULT_CATEGORIES = [
   { id: 'sc3', name: 'Schaverij', unit: 'm²', price: 8, description: 'Schaven en profileren - prijs per m²' },
 ];
 
+type ServiceCategory = typeof DEFAULT_CATEGORIES[number];
+
+function loadCategories(): ServiceCategory[] {
+  const saved = getList<ServiceCategory>(LS_KEY);
+  return saved.length ? saved : DEFAULT_CATEGORIES;
+}
+
 const UNITS = ['m³', 'm²', 'lm', 'pcs', 'uur', 'lot'];
 
 const ServiceCategoriesPage: React.FC = () => {
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [categories, setCategories] = useState<ServiceCategory[]>(loadCategories);
+  const updateCategories = (next: ServiceCategory[]) => { setCategories(next); saveList(LS_KEY, next); };
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
@@ -20,7 +31,7 @@ const ServiceCategoriesPage: React.FC = () => {
 
   const handleAdd = () => {
     if (!newName.trim()) return;
-    setCategories([...categories, {
+    updateCategories([...categories, {
       id: `sc${Date.now()}`,
       name: newName.trim(),
       unit: newUnit,
@@ -31,7 +42,7 @@ const ServiceCategoriesPage: React.FC = () => {
     setIsAdding(false);
   };
 
-  const handleDelete = (id: string) => setCategories(categories.filter(c => c.id !== id));
+  const handleDelete = (id: string) => updateCategories(categories.filter(c => c.id !== id));
 
   const handleEdit = (cat: typeof categories[0]) => {
     setEditingId(cat.id);
@@ -42,7 +53,7 @@ const ServiceCategoriesPage: React.FC = () => {
   };
 
   const handleSaveEdit = (id: string) => {
-    setCategories(categories.map(c => c.id === id
+    updateCategories(categories.map(c => c.id === id
       ? { ...c, name: newName, description: newDescription, unit: newUnit, price: newPrice }
       : c));
     setEditingId(null);

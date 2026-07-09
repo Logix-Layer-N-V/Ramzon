@@ -2,6 +2,7 @@
 import React from 'react';
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
 import { getLatestExchangeRate, toBase } from '../lib/storage';
+import type { ExchangeRateRow } from '../lib/hooks/useExchangeRates';
 
 const getAccentColor = () => localStorage.getItem('erp_doc_accent_color') || '#8B1D2A';
 
@@ -43,13 +44,17 @@ export interface DocPDFProps {
   subtotal: number;
   tax: number;
   total: number;
+  /** Latest DB exchange rate, passed by the caller — DocPDF renders outside
+   *  the React Query provider tree (via @react-pdf/renderer's pdf()), so it
+   *  cannot fetch this itself. Falls back to the localStorage copy if omitted. */
+  exchangeRate?: ExchangeRateRow | null;
 }
 
 export const DocPDF: React.FC<DocPDFProps> = ({
   docType, docNumber, date, validUntil,
   clientName, clientCompany, clientAddress, clientPhone, clientEmail, clientVAT,
   companyName, companyAddress, companyPhone, companyEmail, companyLogo,
-  rep, paidAmount, currency, currencySymbol, items, subtotal, tax, total,
+  rep, paidAmount, currency, currencySymbol, items, subtotal, tax, total, exchangeRate,
 }) => {
   const accentColor = getAccentColor();
   const customTitles: Record<string, string> = (() => {
@@ -189,7 +194,7 @@ export const DocPDF: React.FC<DocPDFProps> = ({
 
         {/* ── TOTALS ── */}
         {(() => {
-          const rate = getLatestExchangeRate();
+          const rate = exchangeRate ?? getLatestExchangeRate();
           const fmtNum = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
           const totalSRD = toBase(total, currency, 'SRD', rate);
           const totalUSD = toBase(total, currency, 'USD', rate);

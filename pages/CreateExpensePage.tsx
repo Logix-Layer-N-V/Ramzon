@@ -14,7 +14,7 @@ interface Attachment {
 
 const CreateExpensePage: React.FC = () => {
   const navigate = useNavigate();
-  const { t } = useContext(LanguageContext);
+  const { t, defaultCurrency, currencySymbol } = useContext(LanguageContext);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [linkInput, setLinkInput] = useState('');
@@ -69,7 +69,7 @@ const CreateExpensePage: React.FC = () => {
       category: category || 'Other',
       vendor: selectedVendor || '',
       amount: parseFloat(amount) || 0,
-      currency: 'SRD',
+      currency: defaultCurrency || 'SRD',
       date,
       description,
       status: 'Paid',
@@ -186,7 +186,7 @@ const CreateExpensePage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
              <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                  <DollarSign size={12} /> Amount (€)
+                  <DollarSign size={12} /> Amount ({currencySymbol})
                 </label>
                 <input aria-label="Bedrag" type="number" placeholder="0.00" value={amount} onChange={e => { setAmount(e.target.value); setIsDirty(true); if (errors.amount) setErrors(prev => ({ ...prev, amount: '' })); }} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl text-lg font-black outline-none focus:bg-white transition-all shadow-inner ${errors.amount ? 'border-red-400' : 'border-slate-200'}`} />
                 {errors.amount && <p className="text-red-500 text-xs mt-1">{errors.amount}</p>}

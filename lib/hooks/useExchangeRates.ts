@@ -37,3 +37,15 @@ export const useDeleteExchangeRate = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['exchange-rates'] }),
   });
 };
+
+/**
+ * The single source of truth for "today's" exchange rate — the most recent
+ * row from the database, shared by every user/device. Pass the result into
+ * lib/storage.ts's toBase/toSRD instead of letting them fall back to the
+ * per-browser localStorage copy.
+ */
+export const useLatestExchangeRate = (): ExchangeRateRow | null => {
+  const { data: rates = [] } = useExchangeRates();
+  if (!rates.length) return null;
+  return [...rates].sort((a, b) => b.date.localeCompare(a.date))[0];
+};

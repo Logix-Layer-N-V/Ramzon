@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Search, UserPlus, MoreVertical, Shield, CheckCircle2, XCircle, X, Plus, Check, Pencil, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Search, UserPlus, MoreVertical, Shield, CheckCircle2, XCircle, X, Check, Pencil, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword, UserRow } from '../lib/hooks/useUsers';
 
 const MODULES = ['Dashboard','Billing','Expenses','Products','CRM','Reports','Settings','Users'];
@@ -26,10 +26,8 @@ const UsersPage: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<string|null>(null);
   const [menuUser, setMenuUser] = useState<UserRow | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const [permissions, setPermissions] = useState(DEFAULT_PERMISSIONS);
+  const [permissions] = useState(DEFAULT_PERMISSIONS);
   const [roles] = useState(ROLES);
-  const [showAddRole, setShowAddRole] = useState(false);
-  const [newRole, setNewRole] = useState('');
   const [showAddUser, setShowAddUser] = useState(false);
   const [editUser, setEditUser] = useState<UserRow | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -111,10 +109,6 @@ const UsersPage: React.FC = () => {
     } catch (err: any) {
       setResetError(err?.response?.data?.error ?? 'Something went wrong. Please try again.');
     }
-  };
-
-  const togglePerm = (role: string, mod: string) => {
-    setPermissions(prev => ({ ...prev, [role]: { ...prev[role], [mod]: !prev[role]?.[mod] } }));
   };
 
   return (
@@ -244,17 +238,12 @@ const UsersPage: React.FC = () => {
                 </div>
               </div>
             ))}
-            <button type="button" onClick={() => setShowAddRole(true)}
-              className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[28px] p-6 flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/30 transition-all cursor-pointer">
-              <Plus size={28}/>
-              <span className="text-xs font-black uppercase tracking-widest">Add Role</span>
-            </button>
           </div>
 
           <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
               <h3 className="font-black text-sm text-slate-900 uppercase tracking-widest">Permission Matrix</h3>
-              <p className="text-[10px] text-slate-400 font-bold italic">Check to grant access per module</p>
+              <p className="text-[10px] text-slate-400 font-bold italic">Read-only — reflects the fixed access rules enforced by the system</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -272,10 +261,10 @@ const UsersPage: React.FC = () => {
                       <td className="px-6 py-3 font-bold text-slate-700 text-sm">{mod}</td>
                       {roles.map(r => (
                         <td key={r} className="px-4 py-3 text-center">
-                          <button type="button" onClick={() => togglePerm(r, mod)}
-                            className={`w-6 h-6 rounded-md border-2 flex items-center justify-center mx-auto transition-all ${permissions[r]?.[mod] ? 'bg-brand-primary border-brand-primary text-white' : 'border-slate-300 bg-white hover:border-brand-primary'}`}>
+                          <span
+                            className={`w-6 h-6 rounded-md border-2 flex items-center justify-center mx-auto ${permissions[r]?.[mod] ? 'bg-brand-primary border-brand-primary text-white' : 'border-slate-300 bg-white'}`}>
                             {permissions[r]?.[mod] && <Check size={12}/>}
-                          </button>
+                          </span>
                         </td>
                       ))}
                     </tr>
@@ -345,34 +334,6 @@ const UsersPage: React.FC = () => {
               <button type="button" onClick={handleSave} disabled={!form.name||!form.email||createUser.isPending||updateUser.isPending}
                 className="flex-1 py-3 rounded-xl bg-slate-900 text-white text-sm font-black hover:bg-slate-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95">
                 {(createUser.isPending || updateUser.isPending) ? 'Saving…' : editUser ? 'Save Changes' : 'Add User'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ADD ROLE MODAL */}
-      {showAddRole && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-sm p-8 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-black text-slate-900">Add New Role</h2>
-              <button type="button" title="Close" onClick={() => setShowAddRole(false)} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-900 transition-all">
-                <X size={20}/>
-              </button>
-            </div>
-            <div>
-              <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 block">Role Name</label>
-              <input type="text" value={newRole} onChange={e => setNewRole(e.target.value)} onKeyDown={e => e.key==='Enter' && (() => { if (newRole.trim()) setShowAddRole(false); })()}
-                placeholder="e.g. Manager"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"/>
-              <p className="text-[10px] text-slate-400 mt-2 font-medium">You can configure permissions in the matrix after adding the role.</p>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button type="button" onClick={() => setShowAddRole(false)} className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-black text-slate-600 hover:bg-slate-50 transition-all">Cancel</button>
-              <button type="button" onClick={() => { if (newRole.trim()) { setNewRole(''); setShowAddRole(false); } }} disabled={!newRole.trim()}
-                className="flex-1 py-3 rounded-xl bg-slate-900 text-white text-sm font-black hover:bg-slate-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95">
-                Create Role
               </button>
             </div>
           </div>

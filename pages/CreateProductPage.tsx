@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { storage } from '../lib/storage';
 import { useProduct, useCreateProduct, useUpdateProduct } from '../lib/hooks/useProducts';
 import { useProductCategories } from '../lib/hooks/useProductCategories';
-import type { DoorModel, DoorPriceEntry, WoodProduct } from '../types';
+import type { DoorModel, WoodProduct } from '../types';
 import { LanguageContext } from '../lib/context';
 
 // ─── Fallback lists (if localStorage is empty) ────────────────────────────────
@@ -84,12 +84,10 @@ const CreateProductPage: React.FC = () => {
   });
   const [selectedModel, setSelectedModel] = useState<DoorModel | null>(null);
 
-  const [priceMatrix]   = useState<DoorPriceEntry[]>(() => storage.doorPriceMatrix.get());
   const [breedte, setBreedte]     = useState<number>(800);
   const [hoogte, setHoogte]       = useState<number>(2100);
   const [thickness, setThickness] = useState<number>(40);
   const [pricePerM2, setPricePerM2] = useState<number>(0);
-  const [priceManual, setPriceManual] = useState(false);
 
   // ── Non-door fields ─────────────────────────────────────────────────────────
   const [stock, setStock]           = useState<number>(0);
@@ -137,8 +135,9 @@ const CreateProductPage: React.FC = () => {
       setCategory(p.category || categories[0]?.name || 'Doors');
       setPricePerUnit(p.pricePerUnit); setStock(p.stock);
       setUnit(p.unit); setBreedte(p.width); setHoogte(p.length); setThickness(p.thickness);
-      if (p.sku) setSku(p.sku);
+      if (p.sku) { setSku(p.sku); setSkuManual(true); }
       if (p.calculationType) setCalculationType(p.calculationType);
+      if (p.calculationType === 'm2') setPricePerM2(p.pricePerUnit);
       if (p.description) setDescription(p.description);
       if (p.defaultTaxRate !== undefined) setDefaultTaxRate(p.defaultTaxRate);
     }
@@ -167,7 +166,9 @@ const CreateProductPage: React.FC = () => {
     if (step === 2) return selectedModel !== null;
     return false;
   };
-  const doorReady = isDoor && selectedModel && sku;
+  // On edit the model can't be restored from the DB (only the SKU is persisted),
+  // so an existing SKU is enough to allow saving.
+  const doorReady = isDoor && sku && (selectedModel || isEdit);
 
   // ── Save ─────────────────────────────────────────────────────────────────────
   const handleSave = () => {
@@ -186,15 +187,21 @@ const CreateProductPage: React.FC = () => {
       calculationType: isDoor ? 'm2' : calculationType,
       description,
       defaultTaxRate,
-      ...(isDoor && { sku, modelId: selectedModel?.id }),
+      // sku is sent for every category now — omitting it on non-door saves used to
+      // null out a previously-set SKU (the API has no fallback for a missing field).
+      sku,
+      ...(isDoor && { modelId: selectedModel?.id }),
     };
-    const onSuccess = () => { setSaved(true); };
+    const onSuccess = () => { setSaved(true); setTimeout(() => navigate('/products'), 1200); };
+    const onError = (err: any) => {
+      const msg = err?.response?.data?.error || err?.message || 'Er is een fout opgetreden. Probeer opnieuw.';
+      alert(`Opslaan mislukt: ${msg}`);
+    };
     if (id) {
-      updateProduct.mutate({ id, ...product }, { onSuccess });
+      updateProduct.mutate({ id, ...product }, { onSuccess, onError });
     } else {
-      createProduct.mutate(product, { onSuccess });
+      createProduct.mutate(product, { onSuccess, onError });
     }
-    setTimeout(() => navigate('/products'), 1200);
   };
 
   // ── Door wizard (2 steps) ─────────────────────────────────────────────────────
@@ -390,14 +397,11 @@ const CreateProductPage: React.FC = () => {
             <div className="space-y-4">
               {isDoor ? (
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Price per m²</label>
-                    {!priceManual && <span className="text-[9px] text-emerald-400 font-bold">Auto matrix</span>}
-                  </div>
+                  <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Price per m²</label>
+                  <p className="text-[9px] text-white/30 font-medium -mt-0.5">Check Product Categories → Price Matrix for a per wood-species reference.</p>
                   <input type="number" value={pricePerM2} min={0}
-                    onChange={e => { setPricePerM2(+e.target.value); setPriceManual(true); }}
+                    onChange={e => setPricePerM2(+e.target.value)}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-black text-white outline-none"/>
-                  {priceManual && <button onClick={() => setPriceManual(false)} className="text-[10px] text-white/40 hover:text-white/70 font-bold">↺ Use matrix price</button>}
                 </div>
               ) : (
                 <div className="space-y-1.5">
@@ -490,7 +494,7 @@ const CreateProductPage: React.FC = () => {
             </button>
 
             {isDoor && !doorReady && (
-              <p className="text-[10px] text-white/30 text-center">Select a model and enter a SKU to save</p>
+              <p className="text-[10px] text-white/30 text-center">{isEdit ? 'Enter a SKU to save' : 'Select a model and enter a SKU to save'}</p>
             )}
           </div>
         </div>

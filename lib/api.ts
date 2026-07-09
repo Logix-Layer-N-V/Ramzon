@@ -14,9 +14,13 @@ export const api = axios.create({
 
 let _getToken: (() => string | null) | null = null;
 let _setToken: ((t: string) => void) | null = null;
+let _onAuthExpired: (() => void) | null = null;
 
 export const setTokenGetter = (fn: () => string | null): void => { _getToken = fn; };
 export const setTokenSetter = (fn: (t: string) => void): void => { _setToken = fn; };
+/** Called when a refresh attempt fails — lets AuthProvider clear its user state
+ *  so the login route doesn't think it's still authenticated and bounce back. */
+export const setAuthExpiredHandler = (fn: () => void): void => { _onAuthExpired = fn; };
 
 api.interceptors.request.use(cfg => {
   // Don't overwrite Authorization on retries — the response interceptor already set the fresh token
@@ -46,6 +50,7 @@ api.interceptors.response.use(
         }
         return api(anyErr.config as Parameters<typeof api>[0]);
       } catch {
+        _onAuthExpired?.();
         window.location.href = '/#/login';
         return Promise.reject(err);
       }

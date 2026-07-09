@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { Landmark, Globe2, Plus, Check, X, TrendingUp, TrendingDown, Wallet, DollarSign, Filter, Download, FileSpreadsheet, FileText, ChevronDown, ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Minus, MoreVertical, Pencil, Trash2 } from 'lucide-react';
-import { toSRD } from '../lib/storage';
 import { usePayments } from '../lib/hooks/usePayments';
 import { useBankAccounts, useCreateBankAccount, useUpdateBankAccount, useDeleteBankAccount } from '../lib/hooks/useBankAccounts';
 import type { BankAccountRow } from '../lib/hooks/useBankAccounts';
@@ -67,6 +66,11 @@ const FinancePage: React.FC = () => {
   // Load all payments for transactions tab
   const { data: rawPayments = [] } = usePayments();
   const allPayments = useMemo(() => [...rawPayments].sort((a, b) => b.date.localeCompare(a.date)), [rawPayments]);
+
+  // Each payment carries the SRD rate locked in when it was recorded — use that
+  // instead of today's rate so historical totals don't drift as rates change.
+  const toSRD = (amount: number, currency: string, exchangeRate?: number) =>
+    currency === 'SRD' ? amount : amount * (exchangeRate || 1);
 
   const filteredAccounts = useMemo(() => accounts.filter(acc => {
     const bankOk = filterBank === 'All' || acc.bank === filterBank;
@@ -184,7 +188,7 @@ const FinancePage: React.FC = () => {
     exportCSV(`transactions-${new Date().toISOString().slice(0,10)}.csv`,
       filteredTransactions.map(p => {
         const acct = accounts.find(a => a.id === p.bankAccountId);
-        return { Date: p.date, Reference: p.reference, Bank: acct?.bank || p.bankAccountId, Amount: p.amount, Currency: p.currency, ExchangeRate: p.exchangeRate || 1, AmountSRD: toSRD(p.amount, p.currency), Method: p.method, InvoiceId: p.invoiceId || '', Status: p.status };
+        return { Date: p.date, Reference: p.reference, Bank: acct?.bank || p.bankAccountId, Amount: p.amount, Currency: p.currency, ExchangeRate: p.exchangeRate || 1, AmountSRD: toSRD(p.amount, p.currency, p.exchangeRate), Method: p.method, InvoiceId: p.invoiceId || '', Status: p.status };
       })
     );
   };
@@ -426,7 +430,7 @@ const FinancePage: React.FC = () => {
               <tbody className="divide-y divide-slate-50">
                 {filteredTransactions.map(p => {
                   const acct = accounts.find(a => a.id === p.bankAccountId);
-                  const srdAmt = toSRD(p.amount, p.currency);
+                  const srdAmt = toSRD(p.amount, p.currency, p.exchangeRate);
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-5 py-3.5 font-bold text-slate-700">{p.date}</td>
@@ -456,7 +460,7 @@ const FinancePage: React.FC = () => {
                 <tr>
                   <td colSpan={5} className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</td>
                   <td className="px-5 py-3 text-right font-black text-slate-900">
-                    SRD {filteredTransactions.reduce((s, p) => s + toSRD(p.amount, p.currency), 0).toFixed(2)}
+                    SRD {filteredTransactions.reduce((s, p) => s + toSRD(p.amount, p.currency, p.exchangeRate), 0).toFixed(2)}
                   </td>
                 </tr>
               </tfoot>

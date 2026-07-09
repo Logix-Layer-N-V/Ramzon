@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { api, setTokenGetter, setTokenSetter } from './api';
+import { api, setTokenGetter, setTokenSetter, setAuthExpiredHandler } from './api';
 
 interface AuthUser {
   id: string;
@@ -29,6 +29,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTokenGetter(() => accessToken);
     setTokenSetter(setAccessToken);
   }, [accessToken]);
+
+  // When a session refresh fails (expired/cleared cookie), clear local auth state too —
+  // otherwise isAuthenticated stays true and the login route bounces back to /dashboard,
+  // which fails the same way again, trapping the user in a redirect loop.
+  useEffect(() => {
+    setAuthExpiredHandler(() => {
+      setAccessToken(null);
+      setUser(null);
+    });
+  }, []);
 
   // On mount: try to restore session via refresh token (httpOnly cookie)
   useEffect(() => {

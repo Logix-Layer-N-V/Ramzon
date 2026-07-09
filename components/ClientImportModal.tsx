@@ -116,6 +116,8 @@ const ClientImportModal: React.FC<ClientImportModalProps> = ({ onClose, onImport
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload');
   const [progress, setProgress] = useState(0);
+  const [importedCount, setImportedCount] = useState(0);
+  const [failedRows, setFailedRows] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
@@ -146,6 +148,8 @@ const ClientImportModal: React.FC<ClientImportModalProps> = ({ onClose, onImport
     if (!validRows.length) return;
     setImporting(true);
     setProgress(0);
+    setImportedCount(0);
+    setFailedRows([]);
     for (let i = 0; i < validRows.length; i++) {
       const r = validRows[i];
       await new Promise<void>((resolve) => {
@@ -158,7 +162,10 @@ const ClientImportModal: React.FC<ClientImportModalProps> = ({ onClose, onImport
           vatNumber: r.vatNumber,
           status: r.status,
           preferredCurrency: r.preferredCurrency || 'SRD',
-        }, { onSuccess: () => resolve(), onError: () => resolve() });
+        }, {
+          onSuccess: () => { setImportedCount(c => c + 1); resolve(); },
+          onError: () => { setFailedRows(f => [...f, r.name]); resolve(); },
+        });
       });
       setProgress(i + 1);
     }
@@ -313,12 +320,19 @@ const ClientImportModal: React.FC<ClientImportModalProps> = ({ onClose, onImport
           {/* ── STEP: DONE ── */}
           {step === 'done' && (
             <div className="text-center py-8 space-y-4">
-              <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle2 size={32} className="text-emerald-500" />
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${failedRows.length > 0 ? 'bg-amber-50' : 'bg-emerald-50'}`}>
+                {failedRows.length > 0
+                  ? <AlertCircle size={32} className="text-amber-500" />
+                  : <CheckCircle2 size={32} className="text-emerald-500" />}
               </div>
               <div>
-                <p className="font-black text-slate-900 text-lg">Import voltooid!</p>
-                <p className="text-sm text-slate-500 mt-1">{progress} client{progress !== 1 ? 's' : ''} toegevoegd aan de database.</p>
+                <p className="font-black text-slate-900 text-lg">{failedRows.length > 0 ? 'Import gedeeltelijk voltooid' : 'Import voltooid!'}</p>
+                <p className="text-sm text-slate-500 mt-1">{importedCount} client{importedCount !== 1 ? 's' : ''} toegevoegd aan de database.</p>
+                {failedRows.length > 0 && (
+                  <p className="text-sm text-amber-600 font-bold mt-1">
+                    {failedRows.length} mislukt: {failedRows.join(', ')}
+                  </p>
+                )}
               </div>
               <button
                 onClick={onImported}

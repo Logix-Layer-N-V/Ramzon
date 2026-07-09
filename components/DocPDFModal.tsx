@@ -4,6 +4,7 @@ import { LanguageContext } from '../lib/context';
 import { pdf } from '@react-pdf/renderer';
 import { DocPDF } from './DocPDF';
 import { getLatestExchangeRate, toBase } from '../lib/storage';
+import { useLatestExchangeRate } from '../lib/hooks/useExchangeRates';
 
 export interface ModalLineItem {
   id: string;
@@ -77,6 +78,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
     companyName, companyLogo, companyAddress, companyPhone, companyEmail,
     companyBTW, companyKKF,
   } = useContext(LanguageContext);
+  const latestRate = useLatestExchangeRate();
 
   useEffect(() => {
     const styleEl = document.createElement('style');
@@ -202,6 +204,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
                     subtotal={subtotal}
                     tax={tax}
                     total={total}
+                    exchangeRate={latestRate}
                   />
                 ).toBlob();
                 const url = URL.createObjectURL(blob);
@@ -385,7 +388,7 @@ const DocPDFModal: React.FC<DocPDFModalProps> = ({
 
           {/* ── TOTALS ── */}
           {(() => {
-            const rate = getLatestExchangeRate();
+            const rate = latestRate ?? getLatestExchangeRate();
             const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             const totalSRD = toBase(total, currency, 'SRD', rate);
             const totalUSD = toBase(total, currency, 'USD', rate);
