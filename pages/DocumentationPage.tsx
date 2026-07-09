@@ -619,10 +619,9 @@ PATH: Users (navigation or header menu)
 5. Save
 
 ### User Roles
-- **Admin** — full access including settings and user management
-- **Manager** — all modules except user management and system settings
-- **Staff** — invoices, quotes, payments — read + create only
-- **Viewer** — read-only access to all modules
+- **Admin** — full access, including user management, product catalog, and reports
+- **Sales** — clients, invoices, quotes, products (view), services, appearance
+- **Accountant** — payments, credits, finance, currencies, expenses, financial reports
 
 ### Edit a User
 Click any user in the list to:

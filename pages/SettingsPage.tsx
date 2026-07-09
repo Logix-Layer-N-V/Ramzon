@@ -152,12 +152,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ viewMode, setViewMode }) =>
           <h1 className="text-2xl font-black tracking-tight text-slate-900">Settings</h1>
           <p className="text-sm font-medium text-slate-500">Manage your organisation profile and system configuration</p>
         </div>
+        {/* Every field on this page already saves itself the moment it changes — this
+            button is a confirmation affordance, not a real save action (there was no
+            unsaved-changes state for it to commit). */}
         <button
           onClick={handleSave}
           className="bg-brand-primary text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center gap-2 shadow-2xl shadow-slate-200 active:scale-95"
         >
           {saved ? <Check size={18} /> : <Save size={18} />}
-          {saved ? 'Settings Updated' : 'Save Changes'}
+          {saved ? 'All Changes Saved' : 'Changes Save Automatically'}
         </button>
       </div>
 

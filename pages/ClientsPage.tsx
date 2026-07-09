@@ -1,4 +1,4 @@
-import React, { useState, useContext, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Search,
   Plus,
@@ -19,34 +19,69 @@ import {
 } from 'lucide-react';
 import ClientImportModal from '../components/ClientImportModal';
 import { useNavigate } from 'react-router-dom';
-import { LanguageContext } from '../lib/context';
 import { useClients } from '../lib/hooks/useClients';
+import { useInvoices } from '../lib/hooks/useInvoices';
+import { useLatestExchangeRate } from '../lib/hooks/useExchangeRates';
 
 const ClientsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { currencySymbol } = useContext(LanguageContext);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<string>('company');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [showImport, setShowImport] = useState(false);
 
   const { data: allClients = [], isLoading } = useClients();
+  const { data: allInvoices = [] } = useInvoices();
+  const latestRate = useLatestExchangeRate();
+
+  // client.totalSpent is never written by the API (always 0) — compute real revenue
+  // from paid invoices instead, converted to SRD using each invoice's own locked-in rate.
+  const revenueByClient = useMemo(() => {
+    const toSRD = (amount: number, currency: string | undefined, ownRate?: number) => {
+      if (!currency || currency === 'SRD') return amount;
+      const rate = ownRate || (currency === 'USD' ? latestRate?.usdSrd : currency === 'EUR' ? latestRate?.eurSrd : undefined) || 1;
+      return amount * rate;
+    };
+    const map = new Map<string, number>();
+    allInvoices.filter(inv => inv.status === 'Paid').forEach(inv => {
+      const prev = map.get(inv.clientId) || 0;
+      map.set(inv.clientId, prev + toSRD(inv.totalAmount || 0, inv.currency, inv.exchangeRate));
+    });
+    return map;
+  }, [allInvoices, latestRate]);
+
+  const clientsWithRevenue = useMemo(() =>
+    allClients.map(c => ({ ...c, revenueSRD: revenueByClient.get(c.id) || 0 })),
+  [allClients, revenueByClient]);
+
+  const totalPortfolio = useMemo(() => [...revenueByClient.values()].reduce((s, v) => s + v, 0), [revenueByClient]);
+  const clientsWithOrders = clientsWithRevenue.filter(c => c.revenueSRD > 0);
+  const avgOrderValue = clientsWithOrders.length > 0 ? totalPortfolio / clientsWithOrders.length : 0;
+  const newThisMonth = useMemo(() => {
+    const now = new Date();
+    return allClients.filter(c => {
+      if (!c.createdAt) return false;
+      const d = new Date(c.createdAt);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
+  }, [allClients]);
 
   const handleSort = (key: string) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
   };
 
-  const filteredClients = allClients.filter(c =>
+  const filteredClients = clientsWithRevenue.filter(c =>
     (c.company ?? '').toLowerCase().includes(search.toLowerCase()) ||
     (c.name ?? '').toLowerCase().includes(search.toLowerCase())
   );
 
   const sorted = useMemo(() => {
     if (!sortKey) return filteredClients;
+    const key = sortKey === 'totalSpent' ? 'revenueSRD' : sortKey;
     return [...filteredClients].sort((a, b) => {
-      const av = (a as any)[sortKey];
-      const bv = (b as any)[sortKey];
+      const av = (a as any)[key];
+      const bv = (b as any)[key];
       if (typeof av === 'number' && typeof bv === 'number')
         return sortDir === 'asc' ? av - bv : bv - av;
       return sortDir === 'asc'
@@ -104,20 +139,19 @@ const ClientsPage: React.FC = () => {
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Active Accounts</p>
           <div className="flex items-end justify-between">
             <h3 className="text-3xl font-bold text-slate-900">{allClients.length}</h3>
-            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">+2 this month</span>
+            {newThisMonth > 0 && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">+{newThisMonth} this month</span>}
           </div>
         </div>
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Avg. Order Value</p>
           <div className="flex items-end justify-between">
-            <h3 className="text-3xl font-bold text-slate-900">{currencySymbol}4,250</h3>
-            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Stable</span>
+            <h3 className="text-3xl font-bold text-slate-900">SRD {avgOrderValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</h3>
           </div>
         </div>
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Total Portfolio</p>
           <div className="flex items-end justify-between">
-            <h3 className="text-3xl font-bold text-slate-900">{currencySymbol}242k</h3>
+            <h3 className="text-3xl font-bold text-slate-900">SRD {totalPortfolio.toLocaleString(undefined, { maximumFractionDigits: 0 })}</h3>
             <ArrowUpRight size={20} className="text-emerald-500 mb-1" />
           </div>
         </div>
@@ -190,7 +224,7 @@ const ClientsPage: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-5 text-right">
-                    <p className="font-bold text-slate-900">{currencySymbol}{(c.totalSpent ?? 0).toLocaleString()}</p>
+                    <p className="font-bold text-slate-900">SRD {c.revenueSRD.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Verified</p>
                   </td>
                   <td className="px-6 py-5 text-right">

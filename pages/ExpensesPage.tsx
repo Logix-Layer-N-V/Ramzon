@@ -7,6 +7,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
 import { useExpenses } from '../lib/hooks/useExpenses';
+import { useLatestExchangeRate } from '../lib/hooks/useExchangeRates';
 
 const STATUS_OPTIONS = ['Paid', 'Unpaid'] as const;
 const CATEGORY_OPTIONS = ['Logistics', 'Inventory', 'Rent & Utilities', 'Marketing', 'Tools & Machinery'] as const;
@@ -48,6 +49,14 @@ const ExpensesPage: React.FC = () => {
   const [customToTime, setCustomToTime] = useState('23:59');
 
   const { data: allExpenses = [], isLoading } = useExpenses();
+  const latestRate = useLatestExchangeRate();
+  // Expenses don't carry a locked-in rate (unlike invoices/payments) — fall back to
+  // today's rate, which is still correct far more often than summing unconverted.
+  const toSRD = (amount: number, currency: string | undefined) => {
+    if (!currency || currency === 'SRD') return amount;
+    const rate = (currency === 'USD' ? latestRate?.usdSrd : currency === 'EUR' ? latestRate?.eurSrd : undefined) || 1;
+    return amount * rate;
+  };
 
   const filtered = allExpenses.filter(ex => {
     const matchSearch = ex.description.toLowerCase().includes(search.toLowerCase()) ||
@@ -70,9 +79,9 @@ const ExpensesPage: React.FC = () => {
     });
   }, [filtered, sortKey, sortDir]);
 
-  const totalOut = filtered.reduce((s, e) => s + e.amount, 0);
-  const totalPaid = filtered.filter(e => e.status === 'Paid').reduce((s, e) => s + e.amount, 0);
-  const totalUnpaid = filtered.filter(e => e.status === 'Unpaid').reduce((s, e) => s + e.amount, 0);
+  const totalOut = filtered.reduce((s, e) => s + toSRD(e.amount, e.currency), 0);
+  const totalPaid = filtered.filter(e => e.status === 'Paid').reduce((s, e) => s + toSRD(e.amount, e.currency), 0);
+  const totalUnpaid = filtered.filter(e => e.status === 'Unpaid').reduce((s, e) => s + toSRD(e.amount, e.currency), 0);
 
   const activeFilters = [filterStatus !== 'All', filterCategory !== 'All', filterPeriod !== 'all'].filter(Boolean).length;
 
@@ -115,21 +124,21 @@ const ExpensesPage: React.FC = () => {
           <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center"><Wallet size={20} /></div>
           <div>
             <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Total Outgoing</p>
-            <p className="text-xl font-black text-slate-900">{currencySymbol}{totalOut.toLocaleString()}</p>
+            <p className="text-xl font-black text-slate-900">SRD {totalOut.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
           </div>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><CheckCircle2 size={20} /></div>
           <div>
             <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Paid</p>
-            <p className="text-xl font-black text-slate-900">{currencySymbol}{totalPaid.toLocaleString()}</p>
+            <p className="text-xl font-black text-slate-900">SRD {totalPaid.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
           </div>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><AlertCircle size={20} /></div>
           <div>
             <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Unpaid</p>
-            <p className="text-xl font-black text-slate-900">{currencySymbol}{totalUnpaid.toLocaleString()}</p>
+            <p className="text-xl font-black text-slate-900">SRD {totalUnpaid.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
           </div>
         </div>
       </div>
@@ -297,7 +306,7 @@ const ExpensesPage: React.FC = () => {
             {filtered.length} expense{filtered.length !== 1 ? 's' : ''} found
           </p>
           <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-            {t('total')}: {currencySymbol}{totalOut.toLocaleString()}
+            {t('total')}: SRD {totalOut.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </p>
         </div>
       </div>

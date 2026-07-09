@@ -70,17 +70,34 @@ const toDisplayLog = (log: ErrorLog): DisplayLog => ({
   severity: levelToSeverity(log.level),
 });
 
-/* ── Diagnostic checks (static) ─────────────────────────────────────────── */
-const DIAGNOSTIC_CHECKS = [
-  { label: 'Database connection',         status: 'pass', detail: 'PostgreSQL responding in 42ms' },
-  { label: 'API server reachability',     status: 'pass', detail: 'Vercel Serverless — 200 OK' },
-  { label: 'SSL certificate validity',    status: 'warn', detail: 'Expires in 18 days — renew soon' },
-  { label: 'Disk space',                  status: 'pass', detail: '62% used (238 GB free)' },
-  { label: 'Memory pressure',             status: 'warn', detail: '78% in use — consider scaling' },
-  { label: 'Firewall rules',              status: 'pass', detail: 'All 14 rules active, 0 conflicts' },
-  { label: 'Backup last run',             status: 'pass', detail: 'Today 03:00 — completed successfully' },
-  { label: 'Unauthorized login attempts', status: 'pass', detail: '0 attempts in last 24h' },
-];
+/* ── Diagnostic checks — derived from the real /api/system-stats response, not
+   fabricated. Previously this was a hardcoded list ('SSL expires in 18 days', '62% disk
+   used', etc.) that never changed between runs and could mask or fabricate real issues —
+   this app has no way to actually check SSL/disk/firewall/backups, so those checks are
+   replaced with the metrics it genuinely can verify. ─────────────────────────────────── */
+type CheckStatus = 'pass' | 'warn' | 'fail';
+function buildDiagnosticChecks(stats: SystemStats | null): { label: string; status: CheckStatus; detail: string }[] {
+  if (!stats) {
+    return [{ label: 'Database connection', status: 'warn', detail: 'Stats not loaded yet' }];
+  }
+  const dbStatus: CheckStatus = stats.dbLatencyMs < 200 ? 'pass' : stats.dbLatencyMs < 800 ? 'warn' : 'fail';
+  const connStatus: CheckStatus = stats.activeConnections < 8 ? 'pass' : stats.activeConnections < 15 ? 'warn' : 'fail';
+  const errStatus: CheckStatus = stats.errors24h === 0 ? 'pass' : stats.errors24h < 10 ? 'warn' : 'fail';
+  const warnStatus: CheckStatus = stats.warns24h === 0 ? 'pass' : stats.warns24h < 20 ? 'warn' : 'fail';
+  const rateLimitStatus: CheckStatus = stats.rateLimitBlocks === 0 ? 'pass' : 'warn';
+  const dbSizeStatus: CheckStatus = stats.dbSizeMb < 400 ? 'pass' : stats.dbSizeMb < 480 ? 'warn' : 'fail';
+  const loginStatus: CheckStatus = stats.loginAttempts24h < 30 ? 'pass' : 'warn';
+  return [
+    { label: 'Database connection',     status: dbStatus,        detail: `PostgreSQL responding in ${stats.dbLatencyMs}ms` },
+    { label: 'API server reachability', status: 'pass',          detail: 'Vercel Serverless — this request succeeded' },
+    { label: 'Active DB connections',   status: connStatus,      detail: `${stats.activeConnections} active connection${stats.activeConnections === 1 ? '' : 's'}` },
+    { label: 'Errors (24h)',            status: errStatus,       detail: `${stats.errors24h} error${stats.errors24h === 1 ? '' : 's'} logged` },
+    { label: 'Warnings (24h)',          status: warnStatus,      detail: `${stats.warns24h} warning${stats.warns24h === 1 ? '' : 's'} logged` },
+    { label: 'Rate-limit blocks',       status: rateLimitStatus, detail: `${stats.rateLimitBlocks} key(s) currently locked out` },
+    { label: 'Database storage',        status: dbSizeStatus,    detail: `${stats.dbSizeMb} MB in use` },
+    { label: 'Login attempts (24h)',    status: loginStatus,     detail: `${stats.loginAttempts24h} login attempt${stats.loginAttempts24h === 1 ? '' : 's'} recorded` },
+  ];
+}
 
 /* ── Toast component ────────────────────────────────────────────────────── */
 const ToastItem: React.FC<{ toast: Toast; onDismiss: (id: string) => void }> = ({ toast, onDismiss }) => {
@@ -149,6 +166,7 @@ const ReportsPage: React.FC = () => {
   const [showSecurityModal, setShowSecurityModal] = useState(false);
 
   /* derived */
+  const DIAGNOSTIC_CHECKS = buildDiagnosticChecks(stats);
   const passCount = DIAGNOSTIC_CHECKS.filter(c => c.status === 'pass').length;
   const warnCount = DIAGNOSTIC_CHECKS.filter(c => c.status === 'warn').length;
   const failCount = DIAGNOSTIC_CHECKS.filter(c => c.status === 'fail').length;
@@ -749,13 +767,11 @@ const ReportsPage: React.FC = () => {
           </div>
           <div className="space-y-3">
             {[
-              { label: 'Unauthorized login attempts (24h)', value: '0',          ok: true  },
-              { label: 'Active sessions',                   value: '3',          ok: true  },
-              { label: 'Failed API requests (1h)',          value: '12',         ok: true  },
-              { label: 'Open firewall exceptions',          value: '2',          ok: false },
-              { label: 'Last password rotation',            value: '14 days ago',ok: true  },
-              { label: 'SSL certificate expires in',        value: '18 days',    ok: false },
-              { label: 'Error log entries',                 value: String(logs.length), ok: logs.length === 0 },
+              { label: 'Rate-limited login attempts (24h)', value: String(stats?.loginAttempts24h ?? '—'), ok: (stats?.loginAttempts24h ?? 0) < 10 },
+              { label: 'Locked-out rate-limit keys',        value: String(stats?.rateLimitBlocks ?? '—'),  ok: (stats?.rateLimitBlocks ?? 0) === 0 },
+              { label: 'Errors logged (24h)',               value: String(stats?.errors24h ?? '—'),        ok: (stats?.errors24h ?? 0) === 0 },
+              { label: 'Recent admin actions logged',       value: String(auditLogs.length),               ok: true },
+              { label: 'Error log entries (recent)',        value: String(logs.length), ok: logs.length === 0 },
               { label: 'Critical errors',                   value: String(logs.filter(l => l.severity === 'High').length), ok: logs.filter(l => l.severity === 'High').length === 0 },
             ].map((row, i) => (
               <div key={i} className="flex items-center justify-between py-3 border-b border-slate-100 last:border-0">

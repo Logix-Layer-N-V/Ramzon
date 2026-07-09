@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef, useEffect, useContext } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   TrendingUp, DollarSign, FileText, Clock, Users,
   BarChart3, AlertCircle, CreditCard, Banknote, Smartphone, Coins, Package,
@@ -7,13 +7,13 @@ import {
   RotateCcw, ChevronDown, Calendar, Check, ArrowRight,
   CalendarDays, Target, Settings2, Receipt,
 } from 'lucide-react';
-import { LanguageContext } from '../lib/context';
 import { useInvoices } from '../lib/hooks/useInvoices';
 import { useEstimates } from '../lib/hooks/useEstimates';
 import { usePayments } from '../lib/hooks/usePayments';
 import { useCredits } from '../lib/hooks/useCredits';
 import { useClients } from '../lib/hooks/useClients';
 import { useExpenses } from '../lib/hooks/useExpenses';
+import { useLatestExchangeRate } from '../lib/hooks/useExchangeRates';
 
 type Period = 'month' | 'year' | 'all';
 type ReportType = 'sales' | 'estimates' | 'invoices' | 'payments' | 'credits' | 'profit_loss';
@@ -27,7 +27,10 @@ const fmt = (n: number, symbol: string) =>
   `${symbol} ${n >= 1_000_000 ? (n / 1_000_000).toFixed(1) + 'M' : n >= 1_000 ? (n / 1_000).toFixed(1) + 'K' : n.toFixed(0)}`;
 
 const FinanceReportsPage: React.FC = () => {
-  const { currencySymbol } = useContext(LanguageContext);
+  // Every figure on this page is normalized to SRD (see toSRD below), so the label must
+  // say so regardless of the app's configurable default currency — otherwise a converted
+  // SRD total would misleadingly render with e.g. a "$" symbol.
+  const currencySymbol = 'SRD';
   const currentYear = new Date().getFullYear();
   const now = new Date();
   const currentMonth = now.getMonth();
@@ -54,7 +57,18 @@ const FinanceReportsPage: React.FC = () => {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate]     = useState('');
   const [isRunning, setIsRunning]             = useState(false);
-  const [, setAppliedReportType]              = useState<ReportType>('sales');
+  // "Generate Report" stages the filter controls above into this snapshot — the ledger
+  // table reads from here, not the live controls, so adjusting a date filter doesn't
+  // change anything until the button is actually clicked (matching the button's intent).
+  const [appliedFilters, setAppliedFilters] = useState({
+    reportType: 'sales' as ReportType,
+    dateMode: 'presets' as DateMode,
+    selectedDay: 'All',
+    selectedMonth: 'All months',
+    selectedYear: currentYear.toString(),
+    customStartDate: '',
+    customEndDate: '',
+  });
 
   // ── Raw data from API ─────────────────────────────────────────────────────
   const { data: invoices  = [] } = useInvoices();
@@ -63,6 +77,17 @@ const FinanceReportsPage: React.FC = () => {
   const { data: credits   = [] } = useCredits();
   const { data: clients   = [] } = useClients();
   const { data: expenses  = [] } = useExpenses();
+  const latestRate = useLatestExchangeRate();
+
+  // Every figure on this page is reported in SRD — records carry their own locked-in
+  // exchangeRate (invoices/estimates/payments); credits/expenses fall back to today's
+  // rate since they don't store one. Without this, mixing e.g. a USD invoice into an
+  // SRD sum silently understates or overstates every KPI/report/BTW total below.
+  const toSRD = (amount: number, currency: string | undefined, ownRate?: number) => {
+    if (!currency || currency === 'SRD') return amount;
+    const rate = ownRate || (currency === 'USD' ? latestRate?.usdSrd : currency === 'EUR' ? latestRate?.eurSrd : undefined) || 1;
+    return amount * rate;
+  };
 
   // ── Period filter ─────────────────────────────────────────────────────────
   const inPeriod = (dateStr: string) => {
@@ -77,14 +102,14 @@ const FinanceReportsPage: React.FC = () => {
     const fp = payments.filter(p => inPeriod(p.date || ''));
     const fi = invoices.filter(inv => inPeriod(inv.date || ''));
     const fc = credits.filter(c => inPeriod(c.date || ''));
-    const grossRevenue  = fp.reduce((s, p) => s + (p.amount || 0), 0);
-    const creditTotal   = fc.reduce((s, c) => s + (c.amount || 0), 0);
+    const grossRevenue  = fp.reduce((s, p) => s + toSRD(p.amount || 0, p.currency, p.exchangeRate), 0);
+    const creditTotal   = fc.reduce((s, c) => s + toSRD(c.amount || 0, c.currency), 0);
     const revenue       = Math.max(0, grossRevenue - creditTotal);
     const openAR        = invoices
-      .filter(inv => inv.status !== ('paid' as never) && inv.status !== ('cancelled' as never))
-      .reduce((s, inv) => s + Math.max(0, inv.totalAmount || 0), 0);
+      .filter(inv => inv.status !== 'Paid' && inv.status !== 'Cancelled')
+      .reduce((s, inv) => s + Math.max(0, toSRD(inv.totalAmount || 0, inv.currency, inv.exchangeRate)), 0);
     const avgInvoice    = fi.length > 0
-      ? fi.reduce((s, inv) => s + (inv.totalAmount || 0), 0) / fi.length : 0;
+      ? fi.reduce((s, inv) => s + toSRD(inv.totalAmount || 0, inv.currency, inv.exchangeRate), 0) / fi.length : 0;
     const linked  = payments.filter(p => p.invoiceId && p.date);
     const avgDays = linked.length > 0 ? (() => {
       const diffs = linked.map(p => {
@@ -96,15 +121,15 @@ const FinanceReportsPage: React.FC = () => {
     })() : 0;
     return { revenue, grossRevenue, creditTotal, openAR, avgInvoice, avgDays };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoices, payments, credits, period]);
+  }, [invoices, payments, credits, period, latestRate]);
 
   // ── Monthly revenue (12 months) ───────────────────────────────────────────
   const monthlyRevenue = useMemo(() =>
     Array.from({ length: 12 }, (_, i) =>
       payments
         .filter(p => p.date && new Date(p.date).getMonth() === i && new Date(p.date).getFullYear() === currentYear)
-        .reduce((s, p) => s + (p.amount || 0), 0)
-    ), [payments, currentYear]);
+        .reduce((s, p) => s + toSRD(p.amount || 0, p.currency, p.exchangeRate), 0)
+    ), [payments, currentYear, latestRate]);
 
   const maxRevenue = Math.max(...monthlyRevenue, 1);
 
@@ -112,8 +137,8 @@ const FinanceReportsPage: React.FC = () => {
   const last6 = Array.from({ length: 6 }, (_, i) => {
     const mi = (currentMonth - 5 + i + 12) % 12;
     const yi = currentMonth - 5 + i < 0 ? currentYear - 1 : currentYear;
-    const rev = payments.filter(p => p.date && new Date(p.date).getMonth() === mi && new Date(p.date).getFullYear() === yi).reduce((s, p) => s + (p.amount || 0), 0);
-    const exp = expenses.filter(e => e.date && new Date(e.date).getMonth() === mi && new Date(e.date).getFullYear() === yi).reduce((s, e) => s + (e.amount || 0), 0);
+    const rev = payments.filter(p => p.date && new Date(p.date).getMonth() === mi && new Date(p.date).getFullYear() === yi).reduce((s, p) => s + toSRD(p.amount || 0, p.currency, p.exchangeRate), 0);
+    const exp = expenses.filter(e => e.date && new Date(e.date).getMonth() === mi && new Date(e.date).getFullYear() === yi).reduce((s, e) => s + toSRD(e.amount || 0, e.currency), 0);
     return { label: MONTH_NAMES[mi], rev, exp };
   });
   const maxLast6 = Math.max(...last6.flatMap(m => [m.rev, m.exp]), 1);
@@ -124,10 +149,10 @@ const FinanceReportsPage: React.FC = () => {
     const total = filtered.length || 1;
     const count = (s: string) => filtered.filter(inv => inv.status === s).length;
     return [
-      { label: 'Paid',    key: 'paid',    color: 'bg-emerald-500', text: 'text-emerald-700', count: count('paid') },
-      { label: 'Open',    key: 'sent',    color: 'bg-blue-500',    text: 'text-blue-700',    count: count('sent') + count('partial') },
-      { label: 'Overdue', key: 'overdue', color: 'bg-red-500',     text: 'text-red-700',     count: count('overdue') },
-      { label: 'Draft',   key: 'draft',   color: 'bg-slate-300',   text: 'text-slate-600',   count: count('draft') },
+      { label: 'Paid',    key: 'Paid',    color: 'bg-emerald-500', text: 'text-emerald-700', count: count('Paid') },
+      { label: 'Open',    key: 'Pending', color: 'bg-blue-500',    text: 'text-blue-700',    count: count('Pending') },
+      { label: 'Overdue', key: 'Overdue', color: 'bg-red-500',     text: 'text-red-700',     count: count('Overdue') },
+      { label: 'Draft',   key: 'Draft',   color: 'bg-slate-300',   text: 'text-slate-600',   count: count('Draft') },
     ].map(g => ({ ...g, pct: Math.round((g.count / total) * 100) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoices, period]);
@@ -138,14 +163,14 @@ const FinanceReportsPage: React.FC = () => {
     invoices.filter(inv => inPeriod(inv.date || '')).forEach(inv => {
       const client = clients.find(c => c.id === inv.clientId);
       const name   = client ? (client.company || client.name || 'Unknown') : (inv.clientName || 'Unknown');
-      const billed = inv.totalAmount || 0;
+      const billed = toSRD(inv.totalAmount || 0, inv.currency, inv.exchangeRate);
       const paid   = 0;
       const existing = map.get(name) || { name, billed: 0, paid: 0, count: 0 };
       map.set(name, { name, billed: existing.billed + billed, paid: existing.paid + paid, count: existing.count + 1 });
     });
     return [...map.values()].sort((a, b) => b.billed - a.billed).slice(0, 5);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoices, clients, period]);
+  }, [invoices, clients, period, latestRate]);
 
   const maxClientBilled = Math.max(...topClients.map(c => c.billed), 1);
 
@@ -187,51 +212,71 @@ const FinanceReportsPage: React.FC = () => {
     { id: 'profit_loss', label: 'Profit & Loss (P&L)',   icon: Scale,        color: 'text-brand-primary',bg: 'bg-slate-50',  desc: 'Full financial health summary' },
   ];
 
-  // ── Ledger rows based on selected report type ─────────────────────────────
+  const DAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+  // Applies the staged (not live) date filter — used by the Reports tab's ledger table.
+  const matchesAppliedDate = (dateStr: string | undefined) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (appliedFilters.dateMode === 'custom') {
+      if (appliedFilters.customStartDate && dateStr < appliedFilters.customStartDate) return false;
+      if (appliedFilters.customEndDate && dateStr > appliedFilters.customEndDate) return false;
+      return true;
+    }
+    if (appliedFilters.selectedDay !== 'All' && d.getDay() !== DAY_INDEX[appliedFilters.selectedDay]) return false;
+    if (appliedFilters.selectedMonth !== 'All months') {
+      const mi = months.indexOf(appliedFilters.selectedMonth) - 1; // months[0] === 'All months'
+      if (d.getMonth() !== mi) return false;
+    }
+    if (appliedFilters.selectedYear && d.getFullYear() !== parseInt(appliedFilters.selectedYear, 10)) return false;
+    return true;
+  };
+
+  // ── Ledger rows based on the applied report type + date filter ────────────
   const ledgerRows = useMemo(() => {
     const clientName = (clientId: string) => {
       const c = clients.find(x => x.id === clientId);
       return c ? (c.company || c.name || '—') : '—';
     };
-    switch (reportType) {
+    switch (appliedFilters.reportType) {
       case 'invoices':
       case 'sales':
-        return invoices.map(inv => ({
+        return invoices.filter(inv => matchesAppliedDate(inv.date)).map(inv => ({
           ref: (inv as any).invoiceNumber || inv.id,
           client: clientName(inv.clientId || ''),
           date: inv.date,
-          amount: inv.totalAmount || 0,
+          amount: toSRD(inv.totalAmount || 0, inv.currency, inv.exchangeRate),
           badge: inv.status,
-          badgeColor: (inv.status as string) === 'paid' ? 'bg-emerald-100 text-emerald-700'
-            : (inv.status as string) === 'overdue' ? 'bg-red-100 text-red-700'
+          badgeColor: inv.status === 'Paid' ? 'bg-emerald-100 text-emerald-700'
+            : inv.status === 'Overdue' ? 'bg-red-100 text-red-700'
             : 'bg-slate-100 text-slate-600',
         }));
       case 'estimates':
-        return estimates.map(est => ({
+        return estimates.filter(est => matchesAppliedDate(est.date)).map(est => ({
           ref: (est as any).estimateNumber || est.id,
           client: clientName(est.clientId || ''),
           date: est.date,
-          amount: (est as any).total || (est as any).totalAmount || 0,
+          amount: toSRD((est as any).total || (est as any).totalAmount || 0, est.currency, est.exchangeRate),
           badge: est.status,
-          badgeColor: (est.status as string) === 'accepted' ? 'bg-emerald-100 text-emerald-700'
-            : (est.status as string) === 'rejected' ? 'bg-red-100 text-red-700'
+          badgeColor: est.status === 'Accepted' ? 'bg-emerald-100 text-emerald-700'
+            : est.status === 'Expired' ? 'bg-red-100 text-red-700'
             : 'bg-slate-100 text-slate-600',
         }));
       case 'payments':
-        return payments.map(p => ({
+        return payments.filter(p => matchesAppliedDate(p.date)).map(p => ({
           ref: (p as any).reference || p.id,
           client: clientName((p as any).clientId || ''),
           date: p.date,
-          amount: p.amount || 0,
+          amount: toSRD(p.amount || 0, p.currency, p.exchangeRate),
           badge: p.method || 'Payment',
           badgeColor: 'bg-blue-100 text-blue-700',
         }));
       case 'credits':
-        return credits.map(c => ({
+        return credits.filter(c => matchesAppliedDate(c.date)).map(c => ({
           ref: c.id,
           client: clientName(c.clientId || ''),
           date: c.date,
-          amount: c.amount || 0,
+          amount: toSRD(c.amount || 0, c.currency),
           badge: c.status,
           badgeColor: c.status === 'Available' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-500',
           note: c.reason,
@@ -241,7 +286,8 @@ const FinanceReportsPage: React.FC = () => {
       default:
         return [];
     }
-  }, [reportType, invoices, estimates, payments, credits, clients]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedFilters, invoices, estimates, payments, credits, clients, latestRate]);
 
   // ── BTW data ──────────────────────────────────────────────────────────────
   const btwRows = useMemo(() => {
@@ -256,12 +302,14 @@ const FinanceReportsPage: React.FC = () => {
         if (btwPeriod === 'year')    return d.getFullYear() === yr;
         return true;
       })
-      .filter(inv => (inv as any).status !== 'cancelled')
+      .filter(inv => inv.status !== 'Cancelled')
       .map(inv => {
         const rate     = Number((inv as any).taxRate ?? 0);
-        const subtotal = Number(inv.subtotal ?? 0);
-        const taxAmt   = Number((inv as any).taxAmount ?? 0);
-        const total    = Number(inv.totalAmount ?? 0);
+        // BTW is always reported in SRD — convert each invoice's own currency using its
+        // locked-in exchangeRate so a USD/EUR invoice doesn't get added to SRD unconverted.
+        const subtotal = toSRD(Number(inv.subtotal ?? 0), inv.currency, inv.exchangeRate);
+        const taxAmt   = toSRD(Number((inv as any).taxAmount ?? 0), inv.currency, inv.exchangeRate);
+        const total    = toSRD(Number(inv.totalAmount ?? 0), inv.currency, inv.exchangeRate);
         return {
           ref:      (inv as any).invoiceNumber || inv.id,
           client:   inv.clientName || '—',
@@ -270,10 +318,10 @@ const FinanceReportsPage: React.FC = () => {
           rate,
           taxAmt,
           total,
-          status:   (inv as any).status || '—',
+          status:   inv.status || '—',
         };
       });
-  }, [invoices, btwPeriod, btwYear, currentMonth]);
+  }, [invoices, btwPeriod, btwYear, currentMonth, latestRate]);
 
   const btwSummary = useMemo(() => {
     const total10 = btwRows.filter(r => r.rate <= 10).reduce((s, r) => s + r.taxAmt, 0);
@@ -314,7 +362,10 @@ const FinanceReportsPage: React.FC = () => {
 
   const handleRunReport = () => {
     setIsRunning(true);
-    setTimeout(() => { setAppliedReportType(reportType); setIsRunning(false); }, 800);
+    setTimeout(() => {
+      setAppliedFilters({ reportType, dateMode, selectedDay, selectedMonth, selectedYear, customStartDate, customEndDate });
+      setIsRunning(false);
+    }, 400);
   };
 
   const isEmpty = (arr: unknown[]) => arr.length === 0;
@@ -748,7 +799,12 @@ const FinanceReportsPage: React.FC = () => {
                 <div className="flex gap-3 w-full md:w-auto">
                   <button
                     type="button"
-                    onClick={() => { setReportType('sales'); setSelectedDay('All'); setDateMode('presets'); }}
+                    onClick={() => {
+                      setReportType('sales'); setSelectedDay('All'); setDateMode('presets');
+                      setSelectedMonth('All months'); setSelectedYear(currentYear.toString());
+                      setCustomStartDate(''); setCustomEndDate('');
+                      setAppliedFilters({ reportType: 'sales', dateMode: 'presets', selectedDay: 'All', selectedMonth: 'All months', selectedYear: currentYear.toString(), customStartDate: '', customEndDate: '' });
+                    }}
                     className="flex-1 md:flex-none px-5 py-2.5 text-slate-400 hover:text-red-500 font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2"
                   >
                     <RotateCcw size={14} /> Reset
@@ -801,11 +857,11 @@ const FinanceReportsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {reportType === 'profit_loss' ? (
+                  {appliedFilters.reportType === 'profit_loss' ? (
                     (() => {
-                      const totalRevenue  = payments.reduce((s, p) => s + (p.amount || 0), 0);
-                      const totalCredits  = credits.reduce((s, c) => s + (c.amount || 0), 0);
-                      const totalExpenses = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+                      const totalRevenue  = payments.reduce((s, p) => s + toSRD(p.amount || 0, p.currency, p.exchangeRate), 0);
+                      const totalCredits  = credits.reduce((s, c) => s + toSRD(c.amount || 0, c.currency), 0);
+                      const totalExpenses = expenses.reduce((s, e) => s + toSRD(e.amount || 0, e.currency), 0);
                       const netRevenue    = totalRevenue - totalCredits;
                       const netProfit     = netRevenue - totalExpenses;
                       const rows = [

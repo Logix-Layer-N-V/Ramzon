@@ -251,6 +251,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'error-logs':    return handleErrorLog(req, res, m);
       case 'system-stats':  return handleSystemStats(req, res, m);
       case 'audit-logs':    return handleAuditLogs(req, res, m);
+      case 'run-migration-credits-notes': return handleMigrationCreditsNotes(req, res, m);
       case 'health':        return res.json({ status: 'ok' });
       default:              return res.status(404).json({ error: 'Not found' });
     }
@@ -327,6 +328,18 @@ async function handleAuditLogs(req: VercelRequest, res: VercelResponse, m: strin
   if (!rl.allowed) return res.status(429).json({ error: 'Too many requests. Try again shortly.' });
   const rows = await sql`SELECT id, ts, user_id, user_name, action, resource, resource_id, ip, meta FROM audit_logs ORDER BY ts DESC LIMIT 500`;
   return res.json(rows2camel(rows as unknown[]));
+}
+
+/* ── TEMP: one-off migration — neon-schema.sql already had this ALTER statement
+   written down, but it was never actually applied to production, so `credits.notes`
+   didn't exist and every credit-note PUT crashed. Remove this endpoint after running it once. */
+async function handleMigrationCreditsNotes(req: VercelRequest, res: VercelResponse, m: string) {
+  if (m !== 'POST') return res.status(405).end();
+  const user = getAuthUser(req);
+  if (!user || !hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+  const sql = getSql();
+  await sql`ALTER TABLE credits ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT ''`;
+  return res.json({ ok: true });
 }
 
 /* ── AUTH ────────────────────────────────────────────────────────────────── */
@@ -814,9 +827,28 @@ async function handleExpenses(req: VercelRequest, res: VercelResponse, id: strin
     if (m === 'PUT') {
       if (!hasRole(user, ['Admin', 'Accountant'])) return res.status(403).json({ error: 'Forbidden' });
       const b = fromBody(req.body);
-      const { status } = b;
-      const rows = await sql`UPDATE expenses SET status=${status} WHERE id=${id} RETURNING *`;
+      const {
+        category = null, vendor = null, amount = null, currency = null,
+        date = null, description = null, status = null,
+      } = b;
+      const rows = await sql`UPDATE expenses SET
+        category=COALESCE(${category}, category),
+        vendor=COALESCE(${vendor}, vendor),
+        amount=COALESCE(${amount}, amount),
+        currency=COALESCE(${currency}, currency),
+        date=COALESCE(${date}, date),
+        description=COALESCE(${description}, description),
+        status=COALESCE(${status}, status)
+        WHERE id=${id} RETURNING *`;
+      if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+      logAudit(user, 'update', 'expenses', id, getClientIp(req));
       return res.json(row2camel(rows[0] as Record<string, unknown>));
+    }
+    if (m === 'DELETE') {
+      if (!hasRole(user, ['Admin'])) return res.status(403).json({ error: 'Forbidden' });
+      await sql`DELETE FROM expenses WHERE id=${id}`;
+      logAudit(user, 'delete', 'expenses', id, getClientIp(req));
+      return res.json({ ok: true });
     }
   }
   return res.status(405).json({ error: 'Method not allowed' });

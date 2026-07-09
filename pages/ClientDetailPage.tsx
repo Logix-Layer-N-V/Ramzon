@@ -26,6 +26,7 @@ import { useInvoices } from '../lib/hooks/useInvoices';
 import { useEstimates } from '../lib/hooks/useEstimates';
 import { usePayments } from '../lib/hooks/usePayments';
 import { useCredits } from '../lib/hooks/useCredits';
+import { useLatestExchangeRate } from '../lib/hooks/useExchangeRates';
 
 type ClientTab = 'overview' | 'estimates' | 'invoices' | 'payments' | 'credits';
 
@@ -51,6 +52,18 @@ const ClientDetailPage: React.FC = () => {
   const clientEstimates = allEstimates.filter(e => e.clientId === id);
   const clientPayments = allPayments.filter(p => p.clientId === id);
   const clientCredits = allCredits.filter(c => c.clientId === id);
+
+  // client.totalSpent is never written by the API (always 0) — compute real revenue
+  // from this client's paid invoices instead, converted to SRD.
+  const latestRate = useLatestExchangeRate();
+  const toSRD = (amount: number, currency: string | undefined, ownRate?: number) => {
+    if (!currency || currency === 'SRD') return amount;
+    const rate = ownRate || (currency === 'USD' ? latestRate?.usdSrd : currency === 'EUR' ? latestRate?.eurSrd : undefined) || 1;
+    return amount * rate;
+  };
+  const totalRevenueSRD = clientInvoices
+    .filter(i => i.status === 'Paid')
+    .reduce((s, i) => s + toSRD(i.totalAmount || 0, i.currency, i.exchangeRate), 0);
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-[60vh] text-slate-400 text-sm font-bold">Loading...</div>;
@@ -108,7 +121,7 @@ const ClientDetailPage: React.FC = () => {
             </div>
           </div>
           <div className="text-right bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 shadow-inner">
-            <p className="text-3xl font-black text-slate-900 italic">{currencySymbol}{(client.totalSpent ?? 0).toLocaleString()}</p>
+            <p className="text-3xl font-black text-slate-900 italic">SRD {totalRevenueSRD.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">{t('totalRevenue')}</p>
           </div>
         </div>

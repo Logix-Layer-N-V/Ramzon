@@ -1,8 +1,8 @@
-import React, { useState, useRef, useContext } from 'react';
+import React, { useState, useRef, useContext, useEffect } from 'react';
 import { ArrowLeft, Wallet, Tag, DollarSign, Calendar, Save, Check, Trash2, Paperclip, X, FileText, Image, Link2, ExternalLink, Store, AlertTriangle, PlusCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { LanguageContext } from '../lib/context';
-import { useCreateExpense } from '../lib/hooks/useExpenses';
+import { useExpense, useCreateExpense, useUpdateExpense } from '../lib/hooks/useExpenses';
 import { alertMutationError } from '../lib/mutationError';
 
 interface Attachment {
@@ -15,6 +15,8 @@ interface Attachment {
 
 const CreateExpensePage: React.FC = () => {
   const navigate = useNavigate();
+  const { id: editId } = useParams();
+  const isEdit = !!editId;
   const { t, defaultCurrency, currencySymbol } = useContext(LanguageContext);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -34,12 +36,27 @@ const CreateExpensePage: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [saved, setSaved] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [expenseCurrency, setExpenseCurrency] = useState(defaultCurrency || 'SRD');
   const createExpense = useCreateExpense();
+  const updateExpense = useUpdateExpense();
+  const { data: existingExpense } = useExpense(editId || '');
 
   // Vendors from localStorage (names only, saved by ExpenseVendorsPage)
   const [savedVendors] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem('erp_expense_vendor_names') || '[]'); } catch { return []; }
   });
+
+  useEffect(() => {
+    if (existingExpense) {
+      setAmount(String(existingExpense.amount ?? ''));
+      setDate(existingExpense.date || new Date().toISOString().split('T')[0]);
+      setCategory(existingExpense.category || '');
+      setSelectedVendor(existingExpense.vendor || '');
+      setDescription(existingExpense.description || '');
+      setExpenseCurrency(existingExpense.currency || defaultCurrency || 'SRD');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingExpense]);
 
   const handleNav = (path: string) => {
     if (isDirty) {
@@ -66,18 +83,20 @@ const CreateExpensePage: React.FC = () => {
     if (!date) newErrors.date = 'Vul een datum in';
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
-    createExpense.mutate({
+    const expenseData = {
       category: category || 'Other',
       vendor: selectedVendor || '',
       amount: parseFloat(amount) || 0,
-      currency: defaultCurrency || 'SRD',
+      currency: expenseCurrency || defaultCurrency || 'SRD',
       date,
       description,
-      status: 'Paid',
-    }, {
-      onSuccess: () => { setSaved(true); setTimeout(() => navigate('/expenses'), 1200); },
-      onError: alertMutationError,
-    });
+    };
+    const onSuccess = () => { setSaved(true); setTimeout(() => navigate('/expenses'), 1200); };
+    if (isEdit && editId) {
+      updateExpense.mutate({ id: editId, ...expenseData }, { onSuccess, onError: alertMutationError });
+    } else {
+      createExpense.mutate({ ...expenseData, status: 'Paid' }, { onSuccess, onError: alertMutationError });
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,7 +188,7 @@ const CreateExpensePage: React.FC = () => {
           <ArrowLeft size={18} /> Back to Expenses
         </button>
         <button onClick={handleSave} className="bg-red-600 text-white px-8 py-2.5 rounded-xl font-black text-sm shadow-xl shadow-red-100 active:scale-95 transition-all flex items-center gap-2">
-          {saved ? <><Check size={16} /> Saved!</> : <><Save size={16} /> Log Expense</>}
+          {saved ? <><Check size={16} /> Saved!</> : <><Save size={16} /> {isEdit ? 'Save Changes' : 'Log Expense'}</>}
         </button>
       </div>
 
@@ -179,7 +198,7 @@ const CreateExpensePage: React.FC = () => {
              <Wallet size={28} />
            </div>
            <div>
-             <h2 className="text-2xl font-black text-slate-900 tracking-tight">Record New Expense</h2>
+             <h2 className="text-2xl font-black text-slate-900 tracking-tight">{isEdit ? 'Edit Expense' : 'Record New Expense'}</h2>
              <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Cost Tracking</p>
            </div>
         </div>

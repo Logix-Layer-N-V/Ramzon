@@ -10,8 +10,10 @@ export interface ClientRow {
   address: string;
   phone: string;
   preferredCurrency: string;
+  /** @deprecated never written by the API — always 0. Compute revenue from invoices instead. */
   totalSpent: number;
   status: 'Active' | 'Inactive';
+  createdAt: string;
 }
 
 export const useClients = () =>
